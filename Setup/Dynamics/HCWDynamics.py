@@ -26,7 +26,7 @@ class RelCylHCW(TranslationalDynamics):
                              [0, 0, 0, 0, 0, 1],
                              [3 * self.mean_motion ** 2, 0, 0, 0, 2 * self.orbit_radius * self.mean_motion, 0],
                              [0, 0, 0, -2 * self.mean_motion / self.orbit_radius, 0, 0],
-                             [0, 0, 0, 0, 0, -self.mean_motion ** 2]])
+                             [0, 0, -self.mean_motion ** 2, 0, 0, 0]])
 
         B_matrix = np.array([[0, 0, 0],
                              [0, 0, 0],
