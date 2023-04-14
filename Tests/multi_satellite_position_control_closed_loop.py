@@ -7,17 +7,17 @@ from Dynamics.ROEDynamics import QuasiROE
 
 # Global parameters
 satellite_mass = 400  # kg
-control_timestep = 150  # s
+control_timestep = 50  # s
 orbital_height = 750  # km
 number_of_satellites = 5  # -
-simulation_duration = 0.1  # hours
+simulation_duration = 0.05  # hours
 simulation_timestep = 1  # s
 
 # Create prediction using HCW model
 # First, create system basics
 control_model = QuasiROE(orbital_height=orbital_height, satellite_mass=satellite_mass)
 # control_model = RelCylHCW(orbital_height=orbital_height, satellite_mass=satellite_mass)
-sls_setup = SLSSetup(sampling_time=control_timestep, system_dynamics=control_model, tFIR=30)
+sls_setup = SLSSetup(sampling_time=control_timestep, system_dynamics=control_model, tFIR=15)
 sls_setup.create_system(number_of_systems=number_of_satellites)
 
 # Add cost matrices
@@ -76,7 +76,7 @@ for t in range(t_horizon_control):
     # Create thruster models
     specific_impulse = 1E10  # Really high to make mass constant
     orbital_sim.create_engine_models_thrust(control_timestep=control_timestep,
-                                           thrust_inputs=control_inputs,
+                                            thrust_inputs=control_inputs,
                                             specific_impulse=specific_impulse)
 
     # Add forces to the satellites.
@@ -107,8 +107,9 @@ for t in range(t_horizon_control):
                                             simulation_step_size=simulation_timestep)
 
     # Simulate system
-    states_array, dep_vars_array = orbital_sim.simulate_system()
-    abs_states[t*control_simulation_ratio+1:(t+1)*control_simulation_ratio+1] = states_array[1:, 1:]
+    orbital_sim.simulate_system()
+    states_array, dep_vars_array = orbital_sim.translation_states, orbital_sim.dep_vars
+    abs_states[t*control_simulation_ratio+1:(t+1)*control_simulation_ratio+1] = states_array[1:, :]
 
     if dep_vars is None:
         dep_vars = np.zeros((t_horizon_simulation + 1, dep_vars_array.shape[1]))
@@ -130,7 +131,7 @@ orbital_sim = OrbitalMechSimulator()
 orbital_sim.number_of_controlled_satellites = number_of_satellites
 orbital_sim.number_of_total_satellites = number_of_satellites + 1
 orbital_sim.simulation_timestep = simulation_timestep
-orbital_sim.states = np.concatenate((abs_states[:, 0:1] * 0, abs_states), axis=1)
+orbital_sim.translation_states = abs_states  # np.concatenate((abs_states[:, 0:1] * 0, abs_states), axis=1)
 orbital_sim.dep_vars = dep_vars
 orbital_sim.dependent_variables_dict = dep_var_dict
 orbital_sim.controlled_satellite_names = ["Satellite_0", "Satellite_1", "Satellite_2", "Satellite_3", "Satellite_4"]
