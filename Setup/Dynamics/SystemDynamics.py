@@ -118,6 +118,25 @@ class GeneralDynamics(ABC):
         """
         pass
 
+    @abstractmethod
+    def get_state_cost_matrix_sqrt(self) -> np.ndarray:
+        """
+        Provide the matrix Q_sqrt
+
+        :return: An nxn dimensional matrix representing Q_sqrt
+        """
+        pass
+
+    @abstractmethod
+    def get_input_cost_matrix_sqrt(self) -> np.ndarray:
+        """
+        Provide the matrix R_sqrt
+
+        :return: An nxm dimensional matrix representing R_sqrt
+        """
+        pass
+
+
 class TranslationalDynamics(GeneralDynamics, ABC):
     """
     Abstract base class to deal with different translational models.

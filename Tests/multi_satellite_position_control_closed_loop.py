@@ -15,20 +15,13 @@ simulation_timestep = 1  # s
 
 # Create prediction using HCW model
 # First, create system basics
-control_model = QuasiROE(orbital_height=orbital_height, satellite_mass=satellite_mass)
-# control_model = RelCylHCW(orbital_height=orbital_height, satellite_mass=satellite_mass)
+# control_model = QuasiROE(orbital_height=orbital_height, satellite_mass=satellite_mass)
+control_model = RelCylHCW(orbital_height=orbital_height, satellite_mass=satellite_mass)
 sls_setup = SLSSetup(sampling_time=control_timestep, system_dynamics=control_model, tFIR=15)
 sls_setup.create_system(number_of_systems=number_of_satellites)
 
 # Add cost matrices
-Q_matrix_sqrt = 1 * np.array([10, 1, 10, 10, 0, 0])
-R_matrix_sqrt = 1e-2 * 1 * np.array([[0, 0, 0],
-                                     [0, 0, 0],
-                                     [0, 0, 0],
-                                     [1, 0, 0],
-                                     [0, 1, 0],
-                                     [0, 0, 1]])
-sls_setup.create_cost_matrices(Q_matrix_sqrt=Q_matrix_sqrt, R_matrix_sqrt=R_matrix_sqrt)
+sls_setup.create_cost_matrices()
 
 # Create satellites
 satellite_mass = satellite_mass  # [kg]

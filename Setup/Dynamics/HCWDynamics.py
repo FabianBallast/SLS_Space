@@ -94,6 +94,27 @@ class RelCylHCW(TranslationalDynamics):
         """
         return [10, 10, 10]
 
+    def get_state_cost_matrix_sqrt(self) -> np.ndarray:
+        """
+        Provide the matrix Q_sqrt
+
+        :return: An nxn dimensional matrix representing Q_sqrt
+        """
+        return np.diag(np.array([4, 8, 4, 0, 0, 0]))
+
+    def get_input_cost_matrix_sqrt(self) -> np.ndarray:
+        """
+        Provide the matrix R_sqrt
+
+        :return: An nxm dimensional matrix representing R_sqrt
+        """
+        return 1e-2 * 1 * np.array([[0, 0, 0],
+                                    [0, 0, 0],
+                                    [0, 0, 0],
+                                    [1, 0, 0],
+                                    [0, 1, 0],
+                                    [0, 0, 1]])
+
 # Failed experiments
 # def create_scaled_hcw_model(orbital_height: float, satellite_mass: float, sampling_time: float) -> ct.LinearIOSystem:
 #     # States: [rho, theta, z, rho_dot, theta_dot, z_dot]

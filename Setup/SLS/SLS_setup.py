@@ -81,14 +81,22 @@ class SLSSetup:
                                                                argument_of_latitude_list=latitude_list)
             self.sys._A[t], self.sys._B2[t] = model.A, model.B
 
-    def create_cost_matrices(self, Q_matrix_sqrt: np.ndarray, R_matrix_sqrt: np.ndarray) -> None:
+    def create_cost_matrices(self, Q_matrix_sqrt: np.ndarray = None, R_matrix_sqrt: np.ndarray = None) -> None:
         """
         Create the large cost matrices given the cost for each state/input.
         :param Q_matrix_sqrt: Matrix with square root values of the cost for each state.
+                              If None, takes default of dynamical model.
         :param R_matrix_sqrt: Matrix with square toot values of the cost for each input.
+                              If None, takes default of dynamical model.
         """
-        full_Q_matrix = np.diag(np.tile(Q_matrix_sqrt, self.number_of_systems))
-        full_R_matrix = 5 * np.kron(np.eye(self.number_of_systems, dtype=int), R_matrix_sqrt)
+        if Q_matrix_sqrt is None:
+            Q_matrix_sqrt = self.dynamics.get_state_cost_matrix_sqrt()
+
+        if R_matrix_sqrt is None:
+            R_matrix_sqrt = self.dynamics.get_input_cost_matrix_sqrt()
+
+        full_Q_matrix = np.kron(np.eye(self.number_of_systems, dtype=int), Q_matrix_sqrt)
+        full_R_matrix = np.kron(np.eye(self.number_of_systems, dtype=int), R_matrix_sqrt)
 
         # Set them as matrices for the regulator
         self.sys._C1 = full_Q_matrix
@@ -166,11 +174,13 @@ class SLSSetup:
             # set SLS objective
             self.synthesizer << SLS_Obj_H2()
 
+            input_constraint = np.array(self.dynamics.get_input_constraint()*self.number_of_systems).reshape((-1, 1))
             self.synthesizer << SLS_Cons_Input(state_feedback=True,
-                                               maximum_input=np.array([100]*self.total_input_size).reshape((-1, 1)))
+                                               maximum_input=input_constraint)
 
+            state_constraint = np.array(self.dynamics.get_state_constraint()*self.number_of_systems).reshape((-1, 1))
             self.synthesizer += SLS_Cons_State(state_feedback=True,
-                                               maximum_state=np.array([0.001, 1000, 1000, 1000, 1000, 1000]*self.number_of_systems).reshape((-1, 1)))
+                                               maximum_state=state_constraint)
             # Make it distributed
             # self.synthesizer << SLS_Cons_dLocalized(d=4)
         elif noise is not None:
