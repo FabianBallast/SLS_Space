@@ -61,7 +61,7 @@ class GeneralDynamics(ABC):
             D = []
 
             keyword_name = list(kwargs.keys())[0].replace("_list", "")
-            for keyword_value in list(kwargs.items())[0]:
+            for keyword_value in list(kwargs.values())[0]:
                 model = self.create_model(sampling_time, **{keyword_name: keyword_value})
                 A.append(model.A)
                 B.append(model.B)

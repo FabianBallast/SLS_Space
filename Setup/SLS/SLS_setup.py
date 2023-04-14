@@ -76,8 +76,9 @@ class SLSSetup:
         self.sys._A = np.zeros((self.tFIR, self.total_state_size, self.total_state_size))
         self.sys._B2 = np.zeros((self.tFIR, self.total_state_size, self.total_input_size))
         for t in range(self.tFIR):
-            model = self.dynamics.create_multi_satellite_model(self.sampling_time, arguments_of_latitude +
-                                                               t * self.dynamics.mean_motion * self.sampling_time)
+            latitude_list = arguments_of_latitude + t * self.dynamics.mean_motion * self.sampling_time
+            model = self.dynamics.create_multi_satellite_model(self.sampling_time,
+                                                               argument_of_latitude_list=latitude_list)
             self.sys._A[t], self.sys._B2[t] = model.A, model.B
 
     def create_cost_matrices(self, Q_matrix_sqrt: np.ndarray, R_matrix_sqrt: np.ndarray) -> None:
