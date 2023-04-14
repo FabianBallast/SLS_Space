@@ -78,6 +78,22 @@ class RelCylHCW(TranslationalDynamics):
         """
         return Plot.plot_cylindrical_states
 
+    def get_state_constraint(self) -> list[int, float]:
+        """
+        Return the vector x_lim such that -x_lim <= x <= x_lim
+
+        :return: List with maximum state values
+        """
+        return [10000, 10000, 100, 10, self.mean_motion / 10, 1]
+
+    def get_input_constraint(self) -> list[int, float]:
+        """
+        Return the vector u_lim such that -u_lim <= u <= u_lim
+
+        :return: List with maximum input values
+        """
+        return [10, 10, 10]
+
 # Failed experiments
 # def create_scaled_hcw_model(orbital_height: float, satellite_mass: float, sampling_time: float) -> ct.LinearIOSystem:
 #     # States: [rho, theta, z, rho_dot, theta_dot, z_dot]

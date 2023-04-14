@@ -84,3 +84,19 @@ class QuasiROE(TranslationalDynamics):
                  states: np.ndarray, timestep: float, name: str = None, figure: plt.figure = None, kwargs
         """
         return Plot.plot_quasi_roe
+
+    def get_state_constraint(self) -> list[int, float]:
+        """
+        Return the vector x_lim such that -x_lim <= x <= x_lim
+
+        :return: List with maximum state values
+        """
+        return [0.1, 1000, 1000, 1000, 1000, 1000]
+
+    def get_input_constraint(self) -> list[int, float]:
+        """
+        Return the vector u_lim such that -u_lim <= u <= u_lim
+
+        :return: List with maximum input values
+        """
+        return [10, 10, 10]
