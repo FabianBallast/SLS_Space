@@ -165,7 +165,7 @@ class SLSSetup:
         :param noise: The noise present in the simulation
         :param progress: Whether to provide progress updates
         :param inputs_to_store: How many inputs to store in u_inputs.
-                                Usually equal to t_horizon, but for simulation with RK4 can be set to 2.
+                                Usually equal to t_horizon, but for simulation with RK4 can be set to 1.
         :return: Tuple with (x_states, u_inputs)
         """
         if noise is None:  # and self.synthesizer is None:
@@ -188,7 +188,7 @@ class SLSSetup:
 
         if inputs_to_store is None:
             inputs_to_store = t_horizon
-        elif inputs_to_store != 2:
+        elif inputs_to_store != 1:
             raise Exception("This value is not supported yet!")
 
         self.x_states = np.zeros((self.total_state_size, t_horizon + 1))
@@ -213,7 +213,7 @@ class SLSSetup:
             self.u_inputs[:, t] = self.controller._Phi_u[1] @ self.x_states[:, t]  # Do first, you append x in next step
             self.x_states[:, t + 1] = self.controller._Phi_x[2] @ self.x_states[:, t]
 
-            if inputs_to_store != t_horizon:
+            if inputs_to_store != t_horizon and inputs_to_store > 1:
                 self.u_inputs[:, t + 1] = self.controller._Phi_u[2] @ self.x_states[:, t]
 
         return self.x_states, self.u_inputs

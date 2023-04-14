@@ -73,6 +73,8 @@ class ThrustModel(EngineModel):
             idx = int((time - self.t0) / self.control_timestep)
             if idx < self.number_of_inputs:
                 return self.control_magnitudes[idx]
+            elif idx == self.number_of_inputs:
+                return self.control_magnitudes[-1]
             else:
                 raise Exception(f"No control input available for time {time} s. Simulation started at {self.t0} s.")
 
@@ -104,6 +106,19 @@ class ThrustModel(EngineModel):
             if idx < self.number_of_inputs:
                 # Find force in RSW frame
                 thrust_direction_rsw_frame = self.control_direction[:, idx]
+
+                # Find rotation matrix from RSW to inertial frame
+                current_state = self.propagated_body.state
+                rsw_to_inertial_frame = frame_conversion.rsw_to_inertial_rotation_matrix(current_state)
+
+                # Compute the thrust in the inertial frame
+                thrust_inertial_frame = np.dot(rsw_to_inertial_frame, thrust_direction_rsw_frame)
+
+                # Return the thrust direction in the inertial frame
+                return thrust_inertial_frame
+            elif idx == self.number_of_inputs:  # In this case, simply use last value in list.
+                # Find force in RSW frame
+                thrust_direction_rsw_frame = self.control_direction[:, -1]
 
                 # Find rotation matrix from RSW to inertial frame
                 current_state = self.propagated_body.state

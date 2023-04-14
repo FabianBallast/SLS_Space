@@ -10,7 +10,7 @@ satellite_mass = 400  # kg
 control_timestep = 50  # s
 orbital_height = 750  # km
 number_of_satellites = 5  # -
-simulation_duration = 0.05  # hours
+simulation_duration = 0.01  # hours
 simulation_timestep = 1  # s
 
 # Create prediction using HCW model
@@ -52,7 +52,7 @@ for t in range(t_horizon_control):
 
     # Start simulation
     sls_setup.set_initial_conditions(rel_states[t*control_simulation_ratio:t*control_simulation_ratio+1].T)
-    sls_setup.simulate_system(t_horizon=1, noise=None, inputs_to_store=2)
+    sls_setup.simulate_system(t_horizon=1, noise=None, inputs_to_store=1)
     control_inputs = sls_setup.u_inputs.reshape((number_of_satellites, 3, -1))
 
     if np.linalg.norm(control_inputs[0, :]) < 0.1:
