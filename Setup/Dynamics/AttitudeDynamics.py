@@ -6,6 +6,7 @@ from matplotlib import pyplot as plt
 from Dynamics.SystemDynamics import AttitudeDynamics
 from scipy.spatial.transform import Rotation
 
+
 class LinAttModel(AttitudeDynamics):
     """
     A class for a linear attitude model.

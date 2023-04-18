@@ -268,7 +268,7 @@ def plot_quaternion(quaternion_states: np.ndarray, timestep: float, satellite_na
 
 
 def plot_euler_angles(euler_angles: np.ndarray, timestep: float, satellite_name: str = None,
-                     figure: plt.figure = None, **kwargs) -> plt.figure:
+                      figure: plt.figure = None, **kwargs) -> plt.figure:
     """
     Method to plot the euler angles over time.
 
@@ -287,7 +287,7 @@ def plot_euler_angles(euler_angles: np.ndarray, timestep: float, satellite_name:
     is_angle_list = [True, True, True]
     y_label_list = ['Roll [deg]', 'Pitch [deg]', 'Yaw [deg]']
     plot_onto_axes(euler_angles, time_hours, list(axes), is_angle_list, y_label_list, satellite_name,
-                   unwrap_angles=False, **kwargs)
+                   unwrap_angles=True, **kwargs)
 
     return fig
 

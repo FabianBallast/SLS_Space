@@ -3,6 +3,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 from tudatpy.kernel import constants
 from Space.OrbitalMechanics import OrbitalMechSimulator
+from SLS.SLS_setup import SLSSetup
 
 # Global parameters
 number_of_satellites = 3

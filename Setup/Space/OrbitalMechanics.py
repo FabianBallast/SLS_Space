@@ -611,15 +611,18 @@ class OrbitalMechSimulator:
         if self.rsw_quaternions is None:
             self.convert_to_rsw_quaternions()
 
-        # Original paper used different convention of LVLH frame -> need rotation to match
-        rotation_convention = Rotation.from_euler('z', 90, degrees=True) * Rotation.from_euler('x', 90, degrees=True)
+        # # Original paper used different convention of LVLH frame -> need rotation to match
+        # rotation_convention = Rotation.from_euler('z', 90, degrees=True) * Rotation.from_euler('x', -90, degrees=True)
 
         for i in range(self.number_of_controlled_satellites):
             for t in range(len(self.rotation_states[:, 0])):
                 q_scalar_first = self.rsw_quaternions[t, i*4:(i+1)*4]
-                quaternion = Rotation.from_quat(q_scalar_first[[1, 2, 3, 0]]) * rotation_convention  # Put scalar last
-                pitch_yaw_roll = quaternion.as_euler('YZX')
-                self.euler_angles[t, i*3:(i+1)*3] = pitch_yaw_roll[[2, 0, 1]]
+                # quaternion = Rotation.from_quat(q_scalar_first[[1, 2, 3, 0]]) * rotation_convention  # Put scalar last
+                # pitch_yaw_roll = quaternion.as_euler('YZX')
+                # self.euler_angles[t, i*3:(i+1)*3] = pitch_yaw_roll[[2, 0, 1]]
+                pitch_yaw_roll = Rotation.from_quat(q_scalar_first[[1, 2, 3, 0]]).as_euler('ZXY')
+                self.euler_angles[t, i * 3:(i + 1) * 3] = np.array([pitch_yaw_roll[2], -pitch_yaw_roll[0],
+                                                                    -pitch_yaw_roll[1]])
 
         return self.euler_angles
 
