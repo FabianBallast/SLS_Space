@@ -92,7 +92,7 @@ class RelCylHCW(TranslationalDynamics):
 
         :return: List with maximum input values
         """
-        return [10, 10, 10]
+        return [100, 100, 100]
 
     def get_state_cost_matrix_sqrt(self) -> np.ndarray:
         """
@@ -100,7 +100,7 @@ class RelCylHCW(TranslationalDynamics):
 
         :return: An nxn dimensional matrix representing Q_sqrt
         """
-        return np.diag(np.array([4, 8, 4, 0, 0, 0]))
+        return np.diag(np.array([4, 50, 4, 0, 0, 0]))
 
     def get_input_cost_matrix_sqrt(self) -> np.ndarray:
         """

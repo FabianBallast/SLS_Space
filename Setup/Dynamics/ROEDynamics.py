@@ -91,7 +91,7 @@ class QuasiROE(TranslationalDynamics):
 
         :return: List with maximum state values
         """
-        return [0.1, 1000, 1000, 1000, 1000, 1000]
+        return [0.001, 1000, 0.001, 0.001, 1000, 1000]
 
     def get_input_constraint(self) -> list[int, float]:
         """
@@ -99,7 +99,7 @@ class QuasiROE(TranslationalDynamics):
 
         :return: List with maximum input values
         """
-        return [10, 10, 10]
+        return [100, 100, 100]
 
     def get_state_cost_matrix_sqrt(self) -> np.ndarray:
         """
@@ -107,7 +107,7 @@ class QuasiROE(TranslationalDynamics):
 
         :return: An nxn dimensional matrix representing Q_sqrt
         """
-        return np.diag(np.array([10, 1, 10, 10, 0, 0]))
+        return np.diag(np.array([1000, 10, 1000, 1000, 0, 0]))
 
     def get_input_cost_matrix_sqrt(self) -> np.ndarray:
         """
