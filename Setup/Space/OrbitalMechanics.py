@@ -541,6 +541,10 @@ class OrbitalMechSimulator:
                          np.cos(theta) * states_satellite[:, 4:5]) / (rho + ref_rho) - ref_theta_dot
             z_dot = states_satellite[:, 5:6] - ref_z_dot
 
+            # Convert to range [0, 2 * pi]
+            if theta[0] < 0:
+                theta += 2 * np.pi
+
             self.cylindrical_states[:, satellite * 6:(satellite + 1) * 6] = np.concatenate((rho, theta, z,
                                                                                             rho_dot, theta_dot, z_dot),
                                                                                            axis=1)
@@ -749,12 +753,12 @@ class OrbitalMechSimulator:
         """
         satellite_names, _ = self.find_satellite_names_and_indices(satellite_names)
 
-        for satellite_name in satellite_names:
+        for idx, satellite_name in enumerate(satellite_names):
             figure = Plot.plot_keplerian_states(self.dep_vars[:, self.dependent_variables_dict["keplerian state"]
                                                                  [satellite_name]],
                                                 self.simulation_timestep,
                                                 plot_argument_of_latitude=plot_argument_of_latitude,
-                                                name=satellite_name,
+                                                satellite_name=satellite_name,
                                                 figure=figure)
         return figure
 
@@ -775,17 +779,19 @@ class OrbitalMechSimulator:
         for idx, satellite_name in enumerate(satellite_names):
             figure = Plot.plot_inputs(self.thrust_forces[:, :, satellite_indices[idx]],
                                       self.simulation_timestep,
-                                      name=satellite_name,
+                                      satellite_name=satellite_name,
                                       figure=figure)
 
         return figure
 
-    def plot_cylindrical_states(self, satellite_names: list[str] = None, figure: plt.figure = None) -> plt.figure:
+    def plot_cylindrical_states(self, satellite_names: list[str] = None, figure: plt.figure = None,
+                                reference_angles: list[float] = None) -> plt.figure:
         """
         Plot the relative cylindrical states.
 
         :param satellite_names: Names of the satellites to plot. If none, all are plotted.
         :param figure: Figure to plot into. If none, a new one is created.
+        :param reference_angles: Reference angles to plot.
         :return: Figure with the added states.
         """
         # Find cylindrical states if not yet done
@@ -794,22 +800,28 @@ class OrbitalMechSimulator:
 
         satellite_names, satellite_indices = self.find_satellite_names_and_indices(satellite_names)
 
-        # Plot required input forces
+        # Plot required states
         for idx, satellite_name in enumerate(satellite_names):
-            figure = Plot.plot_cylindrical_states(self.cylindrical_states[:, satellite_indices[idx]:
-                                                                             satellite_indices[idx] + 6],
-                                                  self.simulation_timestep,
-                                                  name=satellite_name,
-                                                  figure=figure)
+            rel_states = self.cylindrical_states[:, satellite_indices[idx]: satellite_indices[idx] + 6]
 
+            # Plot relative error if possible
+            if reference_angles is not None:
+                rel_states[:, 1] -= reference_angles[idx]
+
+            figure = Plot.plot_cylindrical_states(rel_states,
+                                                  self.simulation_timestep,
+                                                  satellite_name=satellite_name,
+                                                  figure=figure)
         return figure
 
-    def plot_quasi_roe_states(self, satellite_names: list[str] = None, figure: plt.figure = None) -> plt.figure:
+    def plot_quasi_roe_states(self, satellite_names: list[str] = None, figure: plt.figure = None,
+                              reference_angles: list[float] = None) -> plt.figure:
         """
         Plot the quasi roe.
 
         :param satellite_names: Names of the satellites to plot. If none, all are plotted.
         :param figure: Figure to plot into. If none, a new one is created.
+        :param reference_angles: Reference angles to plot.
         :return: Figure with the added states.
         """
         # Find quasi roe states if not yet done
@@ -820,10 +832,15 @@ class OrbitalMechSimulator:
 
         # Plot required input forces
         for idx, satellite_name in enumerate(satellite_names):
-            figure = Plot.plot_quasi_roe(self.quasi_roe[:, satellite_indices[idx]:
-                                         satellite_indices[idx] + 6],
+            rel_states = self.quasi_roe[:, satellite_indices[idx]: satellite_indices[idx] + 6]
+
+            # Plot relative error if possible
+            if reference_angles is not None:
+                rel_states[:, 1] -= reference_angles[idx]
+
+            figure = Plot.plot_quasi_roe(rel_states,
                                          self.simulation_timestep,
-                                         name=satellite_name,
+                                         satellite_name=satellite_name,
                                          figure=figure)
 
         return figure
@@ -843,7 +860,7 @@ class OrbitalMechSimulator:
             figure = Plot.plot_quaternion(self.rotation_states[:, satellite_indices[idx]:
                                                                satellite_indices[idx] + 4],
                                           self.simulation_timestep,
-                                          name=satellite_name,
+                                          satellite_name=satellite_name,
                                           figure=figure)
 
         return figure
@@ -867,7 +884,7 @@ class OrbitalMechSimulator:
             figure = Plot.plot_quaternion(self.rsw_quaternions[:, satellite_indices[idx]:
                                                                satellite_indices[idx] + 4],
                                           self.simulation_timestep,
-                                          name=satellite_name,
+                                          satellite_name=satellite_name,
                                           figure=figure)
 
         return figure
@@ -891,7 +908,7 @@ class OrbitalMechSimulator:
             figure = Plot.plot_euler_angles(self.euler_angles[:, satellite_indices[idx]:
                                             satellite_indices[idx] + 3],
                                             self.simulation_timestep,
-                                            name=satellite_name,
+                                            satellite_name=satellite_name,
                                             figure=figure)
 
         return figure

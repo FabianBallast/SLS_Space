@@ -27,7 +27,7 @@ sls_setup.create_system(number_of_systems=number_of_satellites)
 #                                      [1, 0, 0],
 #                                      [0, 1, 0],
 #                                      [0, 0, 1]])
-Q_matrix_sqrt = 1 * np.array([100, 10, 100, 100, 0, 0])
+Q_matrix_sqrt = 1 * np.diag(np.array([100, 10, 100, 100, 0, 0]))
 R_matrix_sqrt = 1e-3 * 1 * np.array([[0, 0, 0],
                                      [0, 0, 0],
                                      [0, 0, 0],

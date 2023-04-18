@@ -7,29 +7,29 @@ from Dynamics.ROEDynamics import QuasiROE
 
 # Global parameters
 satellite_mass = 400  # kg
+inertia_tensor = 0.01 * np.eye(3)
 control_timestep = 50  # s
 orbital_height = 750  # km
 number_of_satellites = 5  # -
-simulation_duration = 0.01  # hours
+simulation_duration = 1  # hours
 simulation_timestep = 1  # s
 
 # Create prediction using HCW model
 # First, create system basics
 # control_model = QuasiROE(orbital_height=orbital_height, satellite_mass=satellite_mass)
 control_model = RelCylHCW(orbital_height=orbital_height, satellite_mass=satellite_mass)
-sls_setup = SLSSetup(sampling_time=control_timestep, system_dynamics=control_model, tFIR=15)
+sls_setup = SLSSetup(sampling_time=control_timestep, system_dynamics=control_model, tFIR=10)
 sls_setup.create_system(number_of_systems=number_of_satellites)
 
 # Add cost matrices
 sls_setup.create_cost_matrices()
 
-# Create satellites
-satellite_mass = satellite_mass  # [kg]
-inertia_tensor = 0.01 * np.eye(3)
-
 # Create x0 and x_ref
 sls_setup.create_spaced_x0(number_of_dropouts=1, seed=129, add_small_velocity=False)
 sls_setup.create_reference()
+
+# print(sls_setup.x0)
+# print(sls_setup.x_ref)
 
 # Create loop
 t_horizon_control = int(np.ceil(simulation_duration * 3600 / control_timestep)) + 1
@@ -55,8 +55,8 @@ for t in range(t_horizon_control):
     sls_setup.simulate_system(t_horizon=1, noise=None, inputs_to_store=1)
     control_inputs = sls_setup.u_inputs.reshape((number_of_satellites, 3, -1))
 
-    if np.linalg.norm(control_inputs[0, :]) < 0.1:
-        raise Exception("No (significant) input provided for the first satellite. ")
+    # if np.linalg.norm(control_inputs[0, :]) < 0.1:
+    #     raise Exception("No (significant) input provided for the first satellite. ")
     inputs[:, :, t] = control_inputs[:, :, 0]
 
     # Create new orbital sim
@@ -116,8 +116,9 @@ for t in range(t_horizon_control):
         control_states[1:control_simulation_ratio+1]
 
     # Unwrap to prevent weird position
-    rel_states[t*control_simulation_ratio:(t+1)*control_simulation_ratio + 2, sls_setup.angle_states] = \
-        np.unwrap(rel_states[t*control_simulation_ratio:(t+1)*control_simulation_ratio + 2, sls_setup.angle_states])
+    rel_states[t*control_simulation_ratio:(t+1)*control_simulation_ratio + 1, sls_setup.angle_states] = \
+        np.unwrap(rel_states[t*control_simulation_ratio:(t+1)*control_simulation_ratio + 1, sls_setup.angle_states],
+                  axis=0)
 
 # Plot results
 orbital_sim = OrbitalMechSimulator()
@@ -130,9 +131,10 @@ orbital_sim.dependent_variables_dict = dep_var_dict
 orbital_sim.controlled_satellite_names = ["Satellite_0", "Satellite_1", "Satellite_2", "Satellite_3", "Satellite_4"]
 orbital_sim.satellite_mass = satellite_mass
 
-orbital_sim.plot_cylindrical_states()
+orbital_sim.plot_cylindrical_states(reference_angles=sls_setup.x_ref[sls_setup.angle_states])
+orbital_sim.plot_quasi_roe_states()
 input_fig = orbital_sim.plot_inputs()  # Fix first
-anim = orbital_sim.create_animation()
+# anim = orbital_sim.create_animation()
 plt.show()
 
 

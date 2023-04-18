@@ -140,6 +140,10 @@ class SLSSetup:
             .reshape((self.number_of_systems, 1))
         ref_rel_angles -= np.max(ref_rel_angles - self.x0[self.angle_states])
 
+        # Smaller reference for shorter sim:
+        alpha = 0.8
+        ref_rel_angles = alpha * self.x0[self.angle_states] + (1-alpha) * ref_rel_angles
+
         for i in range(self.number_of_systems):
             self.x_ref[i * self.system_state_size:
                        (i + 1) * self.system_state_size] = self.dynamics.create_reference(ref_rel_angles[i, 0])

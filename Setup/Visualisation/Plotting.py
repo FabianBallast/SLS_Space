@@ -136,14 +136,14 @@ def plot_onto_axes(states: np.ndarray, time: np.ndarray, axes_list: list[plt.axe
 
 
 def plot_keplerian_states(kepler_elements: np.ndarray, timestep: float, plot_argument_of_latitude: bool = False,
-                          name: str = None, figure: plt.figure = None, **kwargs) -> plt.figure:
+                          satellite_name: str = None, figure: plt.figure = None, **kwargs) -> plt.figure:
     """
     Method to plot the evolution of the orbital (kepler) elements over time.
 
     :param kepler_elements: 2D-array containing the orbital elements over time. Shape is (t, 6).
     :param timestep: Amount of time between each measurement in s.
     :param plot_argument_of_latitude: Plot the argument of latitude or the true anomaly.
-    :param name: Name to place as a label for the legend.
+    :param satellite_name: Name to place as a label for the legend.
     :param figure: Figure to plot the kepler elements into. If not provided, a new one is created.
     :param kwargs: Kwargs for plotting purposes.
     :return: Figure with the added keplerian states.
@@ -162,19 +162,19 @@ def plot_keplerian_states(kepler_elements: np.ndarray, timestep: float, plot_arg
         kepler_elements[:, 5] += kepler_elements[:, 3]
         y_label_list[5] = "Argument of latitude [deg]"
 
-    plot_onto_axes(kepler_elements, time_hours, list(axes), is_angle_list, y_label_list, name, **kwargs)
+    plot_onto_axes(kepler_elements, time_hours, list(axes), is_angle_list, y_label_list, satellite_name, **kwargs)
 
     return fig
 
 
-def plot_inputs(inputs: np.ndarray, timestep: float, name: str = None,
+def plot_inputs(inputs: np.ndarray, timestep: float, satellite_name: str = None,
                 figure: plt.figure = None, **kwargs) -> plt.figure:
     """
     Method to plot the control inputs over time.
 
     :param inputs: 2D-array with the inputs over time with shape (t, 3).
     :param timestep: Amount of time between each input in s.
-    :param name: Name to place as a label for the legend.
+    :param satellite_name: Name to place as a label for the legend.
     :param figure: Figure to plot the inputs into. If not provided, a new one is created.
     :param kwargs: Kwargs for plotting purposes.
     :return: Figure with the added control inputs.
@@ -187,19 +187,19 @@ def plot_inputs(inputs: np.ndarray, timestep: float, name: str = None,
     is_angle_list = [False] * 4
     y_label_list = ['u_rho [N]', 'u_theta [N]', 'u_z [N]', "norm(u) [N]"]
     inputs_and_norm = np.concatenate((inputs, np.linalg.norm(inputs, axis=1).reshape(-1, 1)), axis=1)
-    plot_onto_axes(inputs_and_norm, time_hours, list(axes), is_angle_list, y_label_list, name, **kwargs)
+    plot_onto_axes(inputs_and_norm, time_hours, list(axes), is_angle_list, y_label_list, satellite_name, **kwargs)
 
     return fig
 
 
-def plot_cylindrical_states(cylindrical_states: np.ndarray, timestep: float, name: str = None,
+def plot_cylindrical_states(cylindrical_states: np.ndarray, timestep: float, satellite_name: str = None,
                             figure: plt.figure = None, **kwargs) -> plt.figure:
     """
     Method to plot the relative cylindrical states over time.
 
     :param cylindrical_states: 2D-array with the cylindrical states over time with shape (t, 6).
     :param timestep: Amount of time between each state in s.
-    :param name: Name to place as a label for the legend.
+    :param satellite_name: Name to place as a label for the legend.
     :param figure: Figure to plot the states into. If not provided, a new one is created.
     :param kwargs: Kwargs for plotting purposes.
     :return: Figure with the added cylindrical states.
@@ -207,23 +207,23 @@ def plot_cylindrical_states(cylindrical_states: np.ndarray, timestep: float, nam
     time_hours = get_time_axis(cylindrical_states, timestep)
 
     fig, axes = get_figure_and_axes(figure, (3, 2))
-    fig.suptitle('Evolution of relative cylindrical states.')
+    fig.suptitle('Evolution of relative cylindrical states compared to reference.')
 
     is_angle_list = [False, True, False, False, True, False]
     y_label_list = ['rho [m]', 'theta [deg]', 'z [m]', "rho_dot [m/s]", 'theta_dot [deg/s]', 'z_dot [m/s]']
-    plot_onto_axes(cylindrical_states, time_hours, list(axes), is_angle_list, y_label_list, name, **kwargs)
+    plot_onto_axes(cylindrical_states, time_hours, list(axes), is_angle_list, y_label_list, satellite_name, **kwargs)
 
     return fig
 
 
-def plot_quasi_roe(quasi_roe_states: np.ndarray, timestep: float, name: str = None,
+def plot_quasi_roe(quasi_roe_states: np.ndarray, timestep: float, satellite_name: str = None,
                    figure: plt.figure = None, **kwargs) -> plt.figure:
     """
     Method to plot the quasi ROE states over time.
 
     :param quasi_roe_states: 2D-array with the quasi ROE states over time with shape (t, 6).
     :param timestep: Amount of time between each state in s.
-    :param name: Name to place as a label for the legend.
+    :param satellite_name: Name to place as a label for the legend.
     :param figure: Figure to plot the states into. If not provided, a new one is created.
     :param kwargs: Kwargs for plotting purposes.
     :return: Figure with the added quasi ROE states.
@@ -237,19 +237,19 @@ def plot_quasi_roe(quasi_roe_states: np.ndarray, timestep: float, name: str = No
     y_label_list = ['delta a [-]', 'delta lambda [deg]',
                     'delta e_x [-]', "delta e_y [-]",
                     'delta i_x [deg]', 'delta i_y [deg]']
-    plot_onto_axes(quasi_roe_states, time_hours, list(axes), is_angle_list, y_label_list, name, **kwargs)
+    plot_onto_axes(quasi_roe_states, time_hours, list(axes), is_angle_list, y_label_list, satellite_name, **kwargs)
 
     return fig
 
 
-def plot_quaternion(quaternion_states: np.ndarray, timestep: float, name: str = None,
+def plot_quaternion(quaternion_states: np.ndarray, timestep: float, satellite_name: str = None,
                     figure: plt.figure = None, **kwargs) -> plt.figure:
     """
     Method to plot the quaternions over time.
 
     :param quaternion_states: 2D-array with the quaternions over time with shape (t, 4).
     :param timestep: Amount of time between each state in s.
-    :param name: Name to place as a label for the legend.
+    :param satellite_name: Name to place as a label for the legend.
     :param figure: Figure to plot the states into. If not provided, a new one is created.
     :param kwargs: Kwargs for plotting purposes.
     :return: Figure with the added quaternions.
@@ -261,19 +261,20 @@ def plot_quaternion(quaternion_states: np.ndarray, timestep: float, name: str = 
 
     is_angle_list = [False, False, False, False]
     y_label_list = ['q_1 [-]', 'q_2 [-]', 'q_3 [-]', 'q_4 [-]']
-    plot_onto_axes(quaternion_states, time_hours, list(axes), is_angle_list, y_label_list, name, **kwargs)
+    plot_onto_axes(quaternion_states, time_hours, list(axes), is_angle_list, y_label_list,
+                   satellite_name, **kwargs)
 
     return fig
 
 
-def plot_euler_angles(euler_angles: np.ndarray, timestep: float, name: str = None,
-                      figure: plt.figure = None, **kwargs) -> plt.figure:
+def plot_euler_angles(euler_angles: np.ndarray, timestep: float, satellite_name: str = None,
+                     figure: plt.figure = None, **kwargs) -> plt.figure:
     """
     Method to plot the euler angles over time.
 
     :param euler_angles: 2D-array with the euler angles over time in rad with shape (t, 3).
     :param timestep: Amount of time between each state in s.
-    :param name: Name to place as a label for the legend.
+    :param satellite_name: Name to place as a label for the legend.
     :param figure: Figure to plot the states into. If not provided, a new one is created.
     :param kwargs: Kwargs for plotting purposes.
     :return: Figure with the added euler angles states.
@@ -285,7 +286,7 @@ def plot_euler_angles(euler_angles: np.ndarray, timestep: float, name: str = Non
 
     is_angle_list = [True, True, True]
     y_label_list = ['Roll [deg]', 'Pitch [deg]', 'Yaw [deg]']
-    plot_onto_axes(euler_angles, time_hours, list(axes), is_angle_list, y_label_list, name,
+    plot_onto_axes(euler_angles, time_hours, list(axes), is_angle_list, y_label_list, satellite_name,
                    unwrap_angles=False, **kwargs)
 
     return fig
