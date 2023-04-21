@@ -17,6 +17,9 @@ class GeneralDynamics(ABC):
 
         :param orbital_height: Height above the surface of the Earth in m.
         """
+        if orbital_height < 500e3 or orbital_height > 5000e3:
+            raise Exception("Orbital height should be in meters!")
+
         self.orbital_height = orbital_height  # m
         self.earth_gravitational_parameter = 3.986004415e14  # m^3 s^-2
         self.earth_radius = 6371e3  # m

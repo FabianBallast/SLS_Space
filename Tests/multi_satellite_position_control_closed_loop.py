@@ -16,8 +16,8 @@ simulation_timestep = 1  # s
 
 # Create prediction using HCW model
 # First, create system basics
-# control_model = QuasiROE(orbital_height=orbital_height, satellite_mass=satellite_mass)
-control_model = RelCylHCW(orbital_height=orbital_height, satellite_mass=satellite_mass)
+control_model = QuasiROE(orbital_height=orbital_height*1000, satellite_mass=satellite_mass)
+# control_model = RelCylHCW(orbital_height=orbital_height*1000, satellite_mass=satellite_mass)
 sls_setup = SLSSetup(sampling_time=control_timestep, system_dynamics=control_model, tFIR=10)
 sls_setup.create_system(number_of_systems=number_of_satellites)
 
@@ -25,7 +25,7 @@ sls_setup.create_system(number_of_systems=number_of_satellites)
 sls_setup.create_cost_matrices()
 
 # Create x0 and x_ref
-sls_setup.create_spaced_x0(number_of_dropouts=1, seed=129, add_small_velocity=False)
+sls_setup.create_x0(number_of_dropouts=1, seed=129)
 sls_setup.create_reference()
 
 # print(sls_setup.x0)
@@ -133,7 +133,7 @@ orbital_sim.satellite_mass = satellite_mass
 
 orbital_sim.plot_cylindrical_states(reference_angles=sls_setup.x_ref[sls_setup.angle_states])
 orbital_sim.plot_quasi_roe_states()
-input_fig = orbital_sim.plot_inputs()  # Fix first
+input_fig = orbital_sim.plot_thrusts()  # Fix first
 # anim = orbital_sim.create_animation()
 plt.show()
 

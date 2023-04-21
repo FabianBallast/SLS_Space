@@ -37,7 +37,7 @@ R_matrix_sqrt = 1e-3 * 1 * np.array([[0, 0, 0],
 sls_setup.create_cost_matrices(Q_matrix_sqrt=Q_matrix_sqrt, R_matrix_sqrt=R_matrix_sqrt)
 
 # Create x0 and x_ref
-sls_setup.create_spaced_x0(number_of_dropouts=1, seed=129, add_small_velocity=False)
+sls_setup.create_x0(number_of_dropouts=1, seed=129)
 sls_setup.create_reference()
 
 # Start simulation
@@ -102,6 +102,6 @@ anim = orbital_sim.create_animation()
 fig_rel_states = orbital_sim.plot_states_of_dynamical_model(dynamical_model=control_model)
 sls_setup.plot_states(figure=fig_rel_states)
 orbital_sim.plot_cylindrical_states()
-fig_inputs = orbital_sim.plot_inputs()
+fig_inputs = orbital_sim.plot_thrusts()
 sls_setup.plot_inputs(figure=fig_inputs)
 plt.show()

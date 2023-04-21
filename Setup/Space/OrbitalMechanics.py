@@ -7,7 +7,7 @@ from tudatpy.kernel.astro import element_conversion, frame_conversion
 from tudatpy.util import result2array
 from Space.EngineModel import ThrustModel, TorqueModel
 from Visualisation import Plotting as Plot
-from Dynamics import HCWDynamics, ROEDynamics, SystemDynamics
+from Dynamics import HCWDynamics, ROEDynamics, SystemDynamics, AttitudeDynamics
 from scipy.spatial.transform import Rotation
 
 # Load spice kernels once, not for every object we create
@@ -46,6 +46,7 @@ class OrbitalMechSimulator:
         self.states = None
         self.dep_vars = None
         self.thrust_forces = None
+        self.control_torques = None
         self.cylindrical_states = None
         self.quasi_roe = None
         self.euler_angles = None
@@ -233,7 +234,7 @@ class OrbitalMechSimulator:
         :param eccentricity: Eccentricity of the orbit.
         :param inclination: Inclination of the orbit.
         :param argument_of_periapsis: Argument of periapsis of the orbit.
-        :param longitude: Longitude of the acending node of the orbit.
+        :param longitude: Longitude of the ascending node of the orbit.
         :return: Numpy array with the states of all satellites in cartesian coordinates.
         """
         if not len(true_anomalies) == self.number_of_controlled_satellites:
@@ -281,6 +282,38 @@ class OrbitalMechSimulator:
 
         return initial_states
 
+    def convert_orbital_elements_to_quaternion(self, true_anomalies: list[float], inclination: float = 0,
+                                               longitude: float = 0, rotational_velocity: float = 0) -> np.array:
+        """
+        Convert a set of orbital elements to the initial orientation of the satellites when they are nadir pointing.
+
+        :param true_anomalies: List of true anomalies for all controlled satellites.
+        :param inclination: The inclination of the orbit for the satellites in degrees.
+        :param longitude: Longitude of the ascending node in degrees.
+        :param rotational_velocity: How fast the satellite is rotating around its z-axis.
+        :return: Numpy array with initial state for the orientations.
+        """
+        initial_angular_velocity = np.array([0, 0, rotational_velocity])
+        initial_orientation = np.zeros((7 * self.number_of_total_satellites,))
+
+        if len(true_anomalies) != self.number_of_controlled_satellites:
+            raise Exception("True anomalies should contain exactly 1 anomaly per controlled satellite!")
+        else:
+            true_anomalies.append(0)  # Add a zero for the reference satellite
+
+        for idx, true_anomaly in enumerate(true_anomalies):
+            # initial_rotation = Rotation.from_euler('z', -longitude, degrees=True) * \
+            #                    Rotation.from_euler('x', -inclination, degrees=True) * \
+            #                    Rotation.from_euler('z', -true_anomaly, degrees=True)  # Minus sign because nadir
+            initial_rotation = Rotation.from_euler('z', -true_anomaly, degrees=True) * \
+                               Rotation.from_euler('x', -inclination, degrees=True) * \
+                               Rotation.from_euler('z', -longitude, degrees=True)  # Minus sign because nadir
+            initial_rotation_quat = initial_rotation.as_quat()[[3, 0, 1, 2]]  # Swap order for quaternions
+            initial_state_idx = np.concatenate((initial_rotation_quat, initial_angular_velocity))
+            initial_orientation[idx * 7:(idx + 1) * 7] = initial_state_idx
+
+        return initial_orientation
+
     def set_initial_position(self, initial_state_in_cartesian: np.ndarray) -> None:
         """
         Set the initial position for the translation.
@@ -290,28 +323,17 @@ class OrbitalMechSimulator:
         """
         self.initial_position = initial_state_in_cartesian
 
-    def set_initial_orientation(self, initial_rotation: np.ndarray[np.float64],
-                                initial_angular_velocity: np.ndarray[np.float64]) -> None:
+    def set_initial_orientation(self, initial_rotation: np.ndarray[np.float64]) -> None:
         """
         Set the initial states for the rotation.
 
-        :param initial_rotation: Initial state for the orientation, either as rotation matrix of quaternion.
-        :param initial_angular_velocity: Initial angular velocity as a (3,1) vector (per satellite).
+        :param initial_rotation: Initial state for the orientation of shape (7 * total_number_of_satellites, ).
+                                 In the order of [q_0, omega_0, q_1, omega_1, etc.]
         """
-        if initial_rotation.shape == (3, 3):
-            initial_rotation_quat = element_conversion.rotation_matrix_to_quaternion_entries(initial_rotation)
-        elif initial_rotation.shape == (4, 1) or initial_rotation.shape == (4,):
-            initial_rotation_quat = initial_rotation
-        else:
-            raise Exception("This type of orientation is not yet supported.")
-        # raise Exception("This function only works for a single satellite yet!")
+        self.initial_orientation = initial_rotation
 
-        self.initial_orientation = np.concatenate((initial_rotation_quat, initial_angular_velocity))
-        self.initial_orientation = np.concatenate((self.initial_orientation, self.initial_orientation,
-                                                   self.initial_orientation, self.initial_orientation))
-
-    def set_dependent_variables_translation(self, add_keplerian_state=True, add_thrust_accel=False,
-                                            add_rsw_rotation_matrix=False) -> None:
+    def set_dependent_variables_translation(self, add_keplerian_state: bool = True, add_thrust_accel: bool = False,
+                                            add_rsw_rotation_matrix: bool = False) -> None:
         """
         Add dependent variables for the translational propagation.
 
@@ -357,12 +379,30 @@ class OrbitalMechSimulator:
 
             self.dependent_variables_dict["rsw rotation matrix"] = rsw_matrix_dict
 
-    def set_dependent_variables_rotation(self, add_torque_norm=True) -> None:
+    def set_dependent_variables_rotation(self, add_control_torque: bool = True, add_torque_norm: bool = False) -> None:
         """
         Add dependent variables for the attitude propagation.
 
+        :param add_control_torque: Whether to add the control torques to the depend variables.
         :param add_torque_norm: Whether to add the norm of the applied torques to the dependent variables.
         """
+        # Adding a control torque to the dependent variables does not seem possible to do directly.
+        # Instead we save the total torque and the other torques, and subtract those later.
+        if add_control_torque:
+            torque_control_dict = {}
+            for satellite in self.controlled_satellite_names:
+                self.dependent_variables_rot.extend([
+                    propagation_setup.dependent_variable.total_torque(satellite),
+                    propagation_setup.dependent_variable.single_torque(
+                        propagation_setup.torque.AvailableTorque.second_order_gravitational_type,
+                        satellite, "Earth")
+                ])
+                torque_control_dict[satellite] = np.arange(self.dependent_variables_idx,
+                                                           self.dependent_variables_idx + 6)
+                self.dependent_variables_idx += 6
+
+            self.dependent_variables_dict["control torque"] = torque_control_dict
+
         if add_torque_norm:
             torque_norm_dict = {}
             for satellite in self.controlled_satellite_names:
@@ -374,7 +414,7 @@ class OrbitalMechSimulator:
 
             self.dependent_variables_dict["torque norm"] = torque_norm_dict
 
-    def set_dependent_variables_mass(self, add_mass=True) -> None:
+    def set_dependent_variables_mass(self, add_mass: bool = True) -> None:
         """
         Add dependent variables relating the mass propagation.
 
@@ -594,7 +634,7 @@ class OrbitalMechSimulator:
                 quaternion_body2inertial = Rotation.from_quat(q_scalar_first[[1, 2, 3, 0]])
                 # quaternion_body2rsw = quaternion_body2inertial * quaternion_rsw2inertial
 
-                q_scalar_last = (quaternion_rsw2inertial * quaternion_body2inertial).as_quat()
+                q_scalar_last = (quaternion_body2inertial * quaternion_rsw2inertial).as_quat()
                 self.rsw_quaternions[t, i*4:(i+1)*4] = q_scalar_last[[3, 0, 1, 2]]  # Put scalar first again
 
         return self.rsw_quaternions
@@ -637,6 +677,8 @@ class OrbitalMechSimulator:
             return self.convert_to_cylindrical_coordinates()
         elif isinstance(dynamical_model, ROEDynamics.QuasiROE):
             return self.convert_to_quasi_roe()
+        elif isinstance(dynamical_model, AttitudeDynamics.LinAttModel):
+            return self.convert_to_euler_angles()
         else:
             raise Exception("No conversion for this type of model has been implemented yet. ")
 
@@ -680,6 +722,17 @@ class OrbitalMechSimulator:
                 # Compute the thrust in the RSW frame
                 thrust_rsw_frame = np.dot(rsw_to_inertial_frame.T, force_inertial)
                 self.thrust_forces[t, :, idx] = thrust_rsw_frame
+
+    def find_control_torques_from_dependent_variables(self) -> None:
+        """
+        Extract the control torques from the dependent variables (if present).
+        """
+        self.control_torques = np.zeros((len(self.rotation_states[:, 0]), 3, self.number_of_controlled_satellites))
+        for idx, satellite_name in enumerate(self.controlled_satellite_names):
+            for t in range(len(self.rotation_states[:, 0])):
+                all_torques = self.dep_vars[
+                    t, self.dependent_variables_dict["control torque"][satellite_name]]
+                self.control_torques[t, :, idx] = all_torques[:3] - all_torques[3:]
 
     def find_satellite_names_and_indices(self, satellite_names: list[str],
                                          state_length: int = 6) -> tuple[list[str], list[int]]:
@@ -765,13 +818,13 @@ class OrbitalMechSimulator:
                                                 figure=figure)
         return figure
 
-    def plot_inputs(self, satellite_names: list[str] = None, figure: plt.figure = None) -> plt.figure:
+    def plot_thrusts(self, satellite_names: list[str] = None, figure: plt.figure = None) -> plt.figure:
         """
-        Plot the inputs.
+        Plot the thrust forces.
 
         :param satellite_names: Names of the satellites to plot. If none, all are plotted.
         :param figure: Figure to plot into. If none, a new one is created.
-        :return: Figure with the inputs.
+        :return: Figure with the thrust forces.
         """
         # Compute thrust forces if not yet done
         if self.thrust_forces is None:
@@ -780,10 +833,32 @@ class OrbitalMechSimulator:
         satellite_names, satellite_indices = self.find_satellite_names_and_indices(satellite_names, state_length=1)
 
         for idx, satellite_name in enumerate(satellite_names):
-            figure = Plot.plot_inputs(self.thrust_forces[:, :, satellite_indices[idx]],
-                                      self.simulation_timestep,
-                                      satellite_name=satellite_name,
-                                      figure=figure)
+            figure = Plot.plot_thrust_forces(self.thrust_forces[:, :, satellite_indices[idx]],
+                                             self.simulation_timestep,
+                                             satellite_name=satellite_name,
+                                             figure=figure)
+
+        return figure
+
+    def plot_torques(self, satellite_names: list[str] = None, figure: plt.figure = None) -> plt.figure:
+        """
+        Plot the control torques.
+
+        :param satellite_names: Names of the satellites to plot. If none, all are plotted.
+        :param figure: Figure to plot into. If none, a new one is created.
+        :return: Figure with the control torques.
+        """
+        # Compute control torques es if not yet done
+        if self.control_torques is None:
+            self.find_control_torques_from_dependent_variables()
+
+        satellite_names, satellite_indices = self.find_satellite_names_and_indices(satellite_names, state_length=1)
+
+        for idx, satellite_name in enumerate(satellite_names):
+            figure = Plot.plot_control_torques(self.control_torques[:, :, satellite_indices[idx]],
+                                               self.simulation_timestep,
+                                               satellite_name=satellite_name,
+                                               figure=figure)
 
         return figure
 
