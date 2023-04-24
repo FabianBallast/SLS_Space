@@ -77,12 +77,14 @@ pos_states[0:1] = orbital_sim.convert_orbital_elements_to_cartesian(true_anomali
                                                                     longitude=longitude)
 
 
-angular_vel = np.array([0, 0, -1*sls_setup.dynamics.mean_motion]) + 1 * np.array([0.01, -0.05, 0.05])
+angular_vel = np.array([0, 0, -1*sls_setup.dynamics.mean_motion])
+angular_vel_offsets = np.random.rand(3, 3) * 0.05
 rot_states[0:1] = orbital_sim.convert_orbital_elements_to_quaternion(true_anomalies=true_anomalies,
                                                                      initial_angular_velocity=angular_vel,
                                                                      inclination=inclination,
                                                                      longitude=longitude,
-                                                                     initial_offset=offset)
+                                                                     initial_angle_offset=offset,
+                                                                     initial_velocity_offset=angular_vel_offsets)
 
 orbital_sim.set_initial_position(pos_states[0:1].T)
 orbital_sim.set_initial_orientation(rot_states[0:1].T)

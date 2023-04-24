@@ -287,35 +287,41 @@ class OrbitalMechSimulator:
 
     def convert_orbital_elements_to_quaternion(self, true_anomalies: list[float], initial_angular_velocity: np.ndarray,
                                                inclination: float = 0, longitude: float = 0,
-                                               initial_offset: Rotation = None) -> np.array:
+                                               initial_angle_offset: Rotation = None,
+                                               initial_velocity_offset: np.ndarray = None) -> np.array:
         """
         Convert a set of orbital elements to the initial orientation of the satellites when they are nadir pointing.
 
         :param true_anomalies: List of true anomalies for all controlled satellites.
-        :param initial_angular_velocity: Initial rotational velocity in the inertial frame.
+        :param initial_angular_velocity: Initial rotational velocity in the inertial frame. This is the base value,
+                                         specific offsets can be added through `initial_velocity_offset'.
         :param inclination: The inclination of the orbit for the satellites in degrees.
         :param longitude: Longitude of the ascending node in degrees.
-        :param initial_offset: An initial offset in the rotation. Should be a Rotation object.
+        :param initial_angle_offset: An initial offset in the rotation. Should be a Rotation object.
+        :param initial_velocity_offset: Offset in angular velocity around base for each satellite.
+                                        Shape: (3, number_of_satellites)
         :return: Numpy array with initial state for the orientations.
         """
         initial_orientation = np.zeros((7 * self.number_of_total_satellites,))
 
-        if initial_offset is None:
-            initial_offset = Rotation.from_euler('x', 0, degrees=True)  # Zero rotation as offset
+        if initial_angle_offset is None:
+            initial_angle_offset = Rotation.from_euler('x', 0, degrees=True)  # Zero rotation as offset
 
         if len(true_anomalies) != self.number_of_controlled_satellites:
             raise Exception("True anomalies should contain exactly 1 anomaly per controlled satellite!")
         else:
             true_anomalies.append(0)  # Add a zero for the reference satellite
+            initial_velocity_offset = np.concatenate((initial_velocity_offset, np.zeros((3, 1))), axis=1)
 
         for idx, true_anomaly in enumerate(true_anomalies):
             # Create quaternion with minus signs because nadir
             initial_rotation = Rotation.from_euler('ZXZ', [-true_anomaly, -inclination, -longitude], degrees=True)
-            initial_rotation *= initial_offset
+            initial_rotation *= initial_angle_offset
             initial_rotation_quat = initial_rotation.as_quat()[[3, 0, 1, 2]]  # Swap order for quaternions
 
             # Find angular velocities and concatenate
-            angular_velocity = initial_rotation.apply(initial_angular_velocity, inverse=True)
+            angular_velocity = initial_rotation.apply(initial_angular_velocity + initial_velocity_offset[:, idx],
+                                                      inverse=True)
             initial_state_idx = np.concatenate((initial_rotation_quat, angular_velocity))
             initial_orientation[idx * 7:(idx + 1) * 7] = initial_state_idx
 
