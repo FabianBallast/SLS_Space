@@ -18,7 +18,7 @@ R_matrix_sqrt = 1e-5 * 1 * np.array([[0, 0, 0],
 sls_setup.create_cost_matrices(Q_matrix_sqrt=Q_matrix_sqrt, R_matrix_sqrt=R_matrix_sqrt)
 
 # Create x0 and x_ref
-sls_setup.create_spaced_x0(number_of_dropouts=1, seed=129, add_small_velocity=False)
+sls_setup.create_x0(number_of_dropouts=1, seed=129, add_small_velocity=False)
 sls_setup.create_reference()
 
 # Start simulation

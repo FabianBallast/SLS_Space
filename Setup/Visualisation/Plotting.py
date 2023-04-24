@@ -167,8 +167,8 @@ def plot_keplerian_states(kepler_elements: np.ndarray, timestep: float, plot_arg
     return fig
 
 
-def plot_inputs(inputs: np.ndarray, timestep: float, satellite_name: str = None,
-                figure: plt.figure = None, **kwargs) -> plt.figure:
+def plot_thrust_forces(inputs: np.ndarray, timestep: float, satellite_name: str = None,
+                       figure: plt.figure = None, **kwargs) -> plt.figure:
     """
     Method to plot the control inputs over time.
 
@@ -186,6 +186,31 @@ def plot_inputs(inputs: np.ndarray, timestep: float, satellite_name: str = None,
 
     is_angle_list = [False] * 4
     y_label_list = ['u_rho [N]', 'u_theta [N]', 'u_z [N]', "norm(u) [N]"]
+    inputs_and_norm = np.concatenate((inputs, np.linalg.norm(inputs, axis=1).reshape(-1, 1)), axis=1)
+    plot_onto_axes(inputs_and_norm, time_hours, list(axes), is_angle_list, y_label_list, satellite_name, **kwargs)
+
+    return fig
+
+
+def plot_control_torques(inputs: np.ndarray, timestep: float, satellite_name: str = None,
+                         figure: plt.figure = None, **kwargs) -> plt.figure:
+    """
+    Method to plot the control torques over time.
+
+    :param inputs: 2D-array with the torques over time with shape (t, 3).
+    :param timestep: Amount of time between each input in s.
+    :param satellite_name: Name to place as a label for the legend.
+    :param figure: Figure to plot the inputs into. If not provided, a new one is created.
+    :param kwargs: Kwargs for plotting purposes.
+    :return: Figure with the added control inputs.
+    """
+    time_hours = get_time_axis(inputs, timestep)
+
+    fig, axes = get_figure_and_axes(figure, (4, 1))
+    fig.suptitle('Control torques over the course of the propagation.')
+
+    is_angle_list = [False] * 4
+    y_label_list = ['u_x [Nm]', 'u_y [Nm]', 'u_z [Nm]', "norm(u) [Nm]"]
     inputs_and_norm = np.concatenate((inputs, np.linalg.norm(inputs, axis=1).reshape(-1, 1)), axis=1)
     plot_onto_axes(inputs_and_norm, time_hours, list(axes), is_angle_list, y_label_list, satellite_name, **kwargs)
 
@@ -288,6 +313,31 @@ def plot_euler_angles(euler_angles: np.ndarray, timestep: float, satellite_name:
     y_label_list = ['Roll [deg]', 'Pitch [deg]', 'Yaw [deg]']
     plot_onto_axes(euler_angles, time_hours, list(axes), is_angle_list, y_label_list, satellite_name,
                    unwrap_angles=True, **kwargs)
+
+    return fig
+
+
+def plot_angular_velocities(angular_velocities: np.ndarray, timestep: float, satellite_name: str = None,
+                            figure: plt.figure = None, **kwargs) -> plt.figure:
+    """
+    Method to plot the angular velocities over time.
+
+    :param angular_velocities: 2D-array with the angular velocities over time in rad with shape (t, 3).
+    :param timestep: Amount of time between each state in s.
+    :param satellite_name: Name to place as a label for the legend.
+    :param figure: Figure to plot the states into. If not provided, a new one is created.
+    :param kwargs: Kwargs for plotting purposes.
+    :return: Figure with the added euler angles states.
+    """
+    time_hours = get_time_axis(angular_velocities, timestep)
+
+    fig, axes = get_figure_and_axes(figure, (3, 1))
+    fig.suptitle('Evolution of angular velocities.')
+
+    is_angle_list = [True, True, True]
+    y_label_list = ['omega_x [deg/s]', 'omega_y [deg/s]', 'omega_z [deg/s]']
+    plot_onto_axes(angular_velocities, time_hours, list(axes), is_angle_list, y_label_list, satellite_name,
+                   unwrap_angles=False, **kwargs)
 
     return fig
 

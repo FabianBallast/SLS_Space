@@ -50,6 +50,7 @@ class OrbitalMechSimulator:
         self.cylindrical_states = None
         self.quasi_roe = None
         self.euler_angles = None
+        self.angular_velocities = None
         self.rsw_quaternions = None
 
         self.reference_satellite_added = False
@@ -58,6 +59,8 @@ class OrbitalMechSimulator:
         self.translation_states = None
         self.mass_states = None
         self.rotation_states = None
+
+        self.mean_motion = None
 
     def create_bodies(self, number_of_satellites: int, satellite_mass: float, satellite_inertia: np.ndarray[3, 3],
                       add_reference_satellite: bool = False) -> None:
@@ -148,7 +151,7 @@ class OrbitalMechSimulator:
         # Add thruster model for every satellite
         for idx, satellite_name in enumerate(self.controlled_satellite_names):
             # Set up the thrust model for the satellite
-            current_torque_model = TorqueModel(torque_inputs[idx], control_timestep)
+            current_torque_model = TorqueModel(torque_inputs[idx], control_timestep, self.bodies.get(satellite_name))
 
             # Define the thrust magnitude settings for the satellite from the custom functions
             self.torque_engine_models[idx] = propagation_setup.torque.custom_torque(current_torque_model.get_torque)
@@ -282,19 +285,23 @@ class OrbitalMechSimulator:
 
         return initial_states
 
-    def convert_orbital_elements_to_quaternion(self, true_anomalies: list[float], inclination: float = 0,
-                                               longitude: float = 0, rotational_velocity: float = 0) -> np.array:
+    def convert_orbital_elements_to_quaternion(self, true_anomalies: list[float], initial_angular_velocity: np.ndarray,
+                                               inclination: float = 0, longitude: float = 0,
+                                               initial_offset: Rotation = None) -> np.array:
         """
         Convert a set of orbital elements to the initial orientation of the satellites when they are nadir pointing.
 
         :param true_anomalies: List of true anomalies for all controlled satellites.
+        :param initial_angular_velocity: Initial rotational velocity in the inertial frame.
         :param inclination: The inclination of the orbit for the satellites in degrees.
         :param longitude: Longitude of the ascending node in degrees.
-        :param rotational_velocity: How fast the satellite is rotating around its z-axis.
+        :param initial_offset: An initial offset in the rotation. Should be a Rotation object.
         :return: Numpy array with initial state for the orientations.
         """
-        initial_angular_velocity = np.array([0, 0, rotational_velocity])
         initial_orientation = np.zeros((7 * self.number_of_total_satellites,))
+
+        if initial_offset is None:
+            initial_offset = Rotation.from_euler('x', 0, degrees=True)  # Zero rotation as offset
 
         if len(true_anomalies) != self.number_of_controlled_satellites:
             raise Exception("True anomalies should contain exactly 1 anomaly per controlled satellite!")
@@ -302,14 +309,14 @@ class OrbitalMechSimulator:
             true_anomalies.append(0)  # Add a zero for the reference satellite
 
         for idx, true_anomaly in enumerate(true_anomalies):
-            # initial_rotation = Rotation.from_euler('z', -longitude, degrees=True) * \
-            #                    Rotation.from_euler('x', -inclination, degrees=True) * \
-            #                    Rotation.from_euler('z', -true_anomaly, degrees=True)  # Minus sign because nadir
-            initial_rotation = Rotation.from_euler('z', -true_anomaly, degrees=True) * \
-                               Rotation.from_euler('x', -inclination, degrees=True) * \
-                               Rotation.from_euler('z', -longitude, degrees=True)  # Minus sign because nadir
+            # Create quaternion with minus signs because nadir
+            initial_rotation = Rotation.from_euler('ZXZ', [-true_anomaly, -inclination, -longitude], degrees=True)
+            initial_rotation *= initial_offset
             initial_rotation_quat = initial_rotation.as_quat()[[3, 0, 1, 2]]  # Swap order for quaternions
-            initial_state_idx = np.concatenate((initial_rotation_quat, initial_angular_velocity))
+
+            # Find angular velocities and concatenate
+            angular_velocity = initial_rotation.apply(initial_angular_velocity, inverse=True)
+            initial_state_idx = np.concatenate((initial_rotation_quat, angular_velocity))
             initial_orientation[idx * 7:(idx + 1) * 7] = initial_state_idx
 
         return initial_orientation
@@ -379,13 +386,27 @@ class OrbitalMechSimulator:
 
             self.dependent_variables_dict["rsw rotation matrix"] = rsw_matrix_dict
 
-    def set_dependent_variables_rotation(self, add_control_torque: bool = True, add_torque_norm: bool = False) -> None:
+    def set_dependent_variables_rotation(self, add_control_torque: bool = True, add_torque_norm: bool = False,
+                                         add_body_rotation_matrix: bool = True) -> None:
         """
         Add dependent variables for the attitude propagation.
 
-        :param add_control_torque: Whether to add the control torques to the depend variables.
+        :param add_control_torque: Whether to add the control torques to the dependent variables.
         :param add_torque_norm: Whether to add the norm of the applied torques to the dependent variables.
+        :param add_body_rotation_matrix: Whether to add the body to inertial rotation matrix to the dependent variables.
         """
+        # Used for the conversion of moments between body and inertial frame.
+        if add_body_rotation_matrix:
+            body_matrix_dict = {}
+            for satellite in self.controlled_satellite_names:
+                self.dependent_variables_trans.extend([
+                    propagation_setup.dependent_variable.inertial_to_body_fixed_rotation_frame(satellite)
+                ])
+                body_matrix_dict[satellite] = np.arange(self.dependent_variables_idx, self.dependent_variables_idx + 9)
+                self.dependent_variables_idx += 9
+
+            self.dependent_variables_dict["body rotation matrix"] = body_matrix_dict
+
         # Adding a control torque to the dependent variables does not seem possible to do directly.
         # Instead we save the total torque and the other torques, and subtract those later.
         if add_control_torque:
@@ -666,6 +687,50 @@ class OrbitalMechSimulator:
 
         return self.euler_angles
 
+    def convert_to_angular_velocities(self):
+        if self.mean_motion is None:
+            raise Exception("Set the mean motion of the satellites first!")
+
+        self.angular_velocities = np.zeros((len(self.rotation_states[:, 0]), 3 * self.number_of_controlled_satellites))
+
+        for idx, satellite_name in enumerate(self.controlled_satellite_names):
+            for t in range(len(self.angular_velocities[:, 0])):
+                omega_inertial = self.rotation_states[t, idx*7+4:(idx+1)*7]
+                inertial_to_body_frame = self.dep_vars[
+                    t, self.dependent_variables_dict["body rotation matrix"][satellite_name]].reshape((3, 3)).T
+                omega_body = np.dot(inertial_to_body_frame, omega_inertial)
+                omega_body = np.array([omega_body[1], -omega_body[2], -omega_body[0]])
+                self.angular_velocities[t, idx*3:(idx+1)*3] = omega_body - np.array([0, self.mean_motion, 0])
+
+    def convert_to_euler_state(self) -> np.ndarray:
+        """
+        Convert the states to a state with euler angles and angular velocities.
+
+        :return: Array with [euler_angles_0, omega_0, euler_angles_1, omega_1, etc.]
+        """
+
+        if self.euler_angles is None:
+            self.convert_to_euler_angles()
+
+        if self.angular_velocities is None:
+            self.convert_to_angular_velocities()
+
+        states_euler = np.zeros((len(self.euler_angles[:, 0]), 2 * len(self.euler_angles[0])))
+
+        for idx, satellite_name in enumerate(self.controlled_satellite_names):
+            for t in range(len(states_euler[:, 0])):
+                states_euler[t, idx*6:idx*6+3] = self.euler_angles[t, idx*3:(idx+1)*3]
+                states_euler[t, idx*6+3:(idx+1)*6] = self.angular_velocities[t, idx*3:(idx+1)*3]
+
+        return states_euler
+
+    def set_mean_motion(self, mean_motion: float) -> None:
+        """
+        Set the mean motion of the satellites.
+
+        :param mean_motion: The mean motion of the satellites in rad/s
+        """
+        self.mean_motion = mean_motion
     def get_states_for_dynamical_model(self, dynamical_model: SystemDynamics.TranslationalDynamics) -> np.ndarray:
         """
         Find the states corresponding to a dynamical model, e.g. in cylindrical or ROE coordinates.
@@ -732,7 +797,10 @@ class OrbitalMechSimulator:
             for t in range(len(self.rotation_states[:, 0])):
                 all_torques = self.dep_vars[
                     t, self.dependent_variables_dict["control torque"][satellite_name]]
-                self.control_torques[t, :, idx] = all_torques[:3] - all_torques[3:]
+                control_torques_inertial = all_torques[:3] - all_torques[3:]
+                inertial_to_body_frame = self.dep_vars[t, self.dependent_variables_dict["body rotation matrix"][satellite_name]].reshape((3, 3)).T
+                control_torques_body = np.dot(inertial_to_body_frame, control_torques_inertial)
+                self.control_torques[t, :, idx] = np.array([control_torques_body[1], -control_torques_body[2], -control_torques_body[0]])
 
     def find_satellite_names_and_indices(self, satellite_names: list[str],
                                          state_length: int = 6) -> tuple[list[str], list[int]]:
@@ -981,12 +1049,36 @@ class OrbitalMechSimulator:
 
         satellite_names, satellite_indices = self.find_satellite_names_and_indices(satellite_names, state_length=3)
 
-        # Plot required input forces
+        # Plot required euler angles
         for idx, satellite_name in enumerate(satellite_names):
             figure = Plot.plot_euler_angles(self.euler_angles[:, satellite_indices[idx]:
                                             satellite_indices[idx] + 3],
                                             self.simulation_timestep,
                                             satellite_name=satellite_name,
                                             figure=figure)
+
+        return figure
+
+    def plot_angular_velocities(self, satellite_names: list[str] = None, figure: plt.figure = None) -> plt.figure:
+        """
+        Plot the angular velocities in the body fixed frame.
+
+        :param satellite_names: Names of the satellites to plot. If none, all are plotted.
+        :param figure: Figure to plot into. If none, a new one is created.
+        :return: Figure with the added states.
+        """
+        # Find euler angles if not yet done
+        if self.angular_velocities is None:
+            self.convert_to_angular_velocities()
+
+        satellite_names, satellite_indices = self.find_satellite_names_and_indices(satellite_names, state_length=3)
+
+        # Plot required input forces
+        for idx, satellite_name in enumerate(satellite_names):
+            figure = Plot.plot_angular_velocities(self.angular_velocities[:, satellite_indices[idx]:
+                                                  satellite_indices[idx] + 3],
+                                                  self.simulation_timestep,
+                                                  satellite_name=satellite_name,
+                                                  figure=figure)
 
         return figure

@@ -39,7 +39,7 @@ class LinAttModel(AttitudeDynamics):
         A_matrix = np.block([[A_00, A_01],
                              [A_10, A_11]])
 
-        B_matrix = np.block([[np.zeros(3)],
+        B_matrix = np.block([[np.zeros((3, 3))],
                              [np.linalg.inv(self.satellite_moment_of_inertia)]])
 
         system_state_size, _ = B_matrix.shape
@@ -59,7 +59,7 @@ class LinAttModel(AttitudeDynamics):
         :return: Euler angles in a (3,) shape in the order roll-pitch-yaw in rad.
         """
         rot_quaternion = Rotation.from_quat(quaternion)
-        return rot_quaternion.as_euler('YZX')
+        return rot_quaternion.as_euler('ZXY')
 
     @staticmethod
     def euler_to_quaterion(euler: np.ndarray) -> np.ndarray:
@@ -69,7 +69,7 @@ class LinAttModel(AttitudeDynamics):
         :param euler: Euler angles to convert in a (3,) shape in the order roll-pitch-yaw in rad.
         :return: Quaternion in a (4,) shape.
         """
-        rot_euler = Rotation.from_euler('YZX', euler)
+        rot_euler = Rotation.from_euler('ZXY', euler)
         return rot_euler.as_quat()
 
     def create_initial_condition(self, quaternion: np.ndarray[float]) -> np.ndarray[float]:
@@ -79,7 +79,8 @@ class LinAttModel(AttitudeDynamics):
         :param quaternion: The initial state as a quaternion.
         :return: An array with the initial conditions.
         """
-        return np.concatenate((self.quaternion_to_euler(quaternion), np.array([0, 0, 0]))).reshape((6, 1))
+        return np.concatenate((self.quaternion_to_euler(quaternion),
+                               np.array([0, 0, 0]))).reshape((6, 1)) + 1e-2
 
     def create_reference(self, quaternion: np.ndarray[float]) -> np.ndarray[float]:
         """
@@ -98,3 +99,40 @@ class LinAttModel(AttitudeDynamics):
                  states: np.ndarray, timestep: float, name: str = None, figure: plt.figure = None, kwargs
         """
         return Plot.plot_cylindrical_states
+
+    def get_state_constraint(self) -> list[int, float]:
+        """
+        Return the vector x_lim such that -x_lim <= x <= x_lim
+
+        :return: List with maximum state values
+        """
+        return [1, 4, 1, 0.1, 0.1, 0.1]
+
+    def get_input_constraint(self) -> list[int, float]:
+        """
+        Return the vector u_lim such that -u_lim <= u <= u_lim
+
+        :return: List with maximum input values
+        """
+        return [0.1, 0.1, 0.1]
+
+    def get_state_cost_matrix_sqrt(self) -> np.ndarray:
+        """
+        Provide the matrix Q_sqrt
+
+        :return: An nxn dimensional matrix representing Q_sqrt
+        """
+        return np.diag(np.array([1, 1, 1, 0.1, 0.1, 0.1]))
+
+    def get_input_cost_matrix_sqrt(self) -> np.ndarray:
+        """
+        Provide the matrix R_sqrt
+
+        :return: An nxm dimensional matrix representing R_sqrt
+        """
+        return 1e-0 * 1 * np.array([[0, 0, 0],
+                                    [0, 0, 0],
+                                    [0, 0, 0],
+                                    [1, 0, 0],
+                                    [0, 1, 0],
+                                    [0, 0, 1]])

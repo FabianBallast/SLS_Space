@@ -3,7 +3,6 @@ import numpy as np
 from matplotlib import pyplot as plt
 from tudatpy.kernel import constants
 from Space.OrbitalMechanics import OrbitalMechSimulator
-from SLS.SLS_setup import SLSSetup
 
 # Global parameters
 number_of_satellites = 3
@@ -49,12 +48,12 @@ orbital_sim.set_initial_position(orbital_sim.convert_orbital_elements_to_cartesi
 
 # Set the initial rotations
 initial_quaternion = np.array([1, 0, 0, 0])  # Scalar part at the front
-# angle = np.deg2rad(180)  # rad
-# initial_rot = np.array([[np.cos(angle), np.sin(angle), 0],
-#                         [-np.sin(angle), np.cos(angle), 0],
-#                         [0, 0, 1]])
 initial_omega = np.array([0, 0, 0])
-orbital_sim.set_initial_orientation(initial_quaternion, initial_omega)
+
+initial_orientation = np.concatenate((initial_quaternion, initial_omega))
+initial_orientation = np.kron(np.ones((number_of_satellites + 1, )), initial_orientation)
+
+orbital_sim.set_initial_orientation(initial_orientation)
 
 # Add dependent variables to track
 orbital_sim.set_dependent_variables_translation(add_keplerian_state=True,

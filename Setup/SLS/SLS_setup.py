@@ -11,7 +11,7 @@ class SLSSetup:
     Class to use the SLS framework.
     """
 
-    def __init__(self, sampling_time: int, system_dynamics: SysDyn.TranslationalDynamics, tFIR: int):
+    def __init__(self, sampling_time: int, system_dynamics: SysDyn.GeneralDynamics, tFIR: int):
         """
         Initialise the class to deal with the SLS framework.
 
@@ -63,9 +63,10 @@ class SLSSetup:
         # self.sys._B1 = np.tile(system.B, (self.number_of_systems, 1))
         # self.sys._B2 = B2_system
 
-        # Some parameters to use later
-        angle_bools = np.tile(self.dynamics.get_positional_angles(), self.number_of_systems)
-        self.angle_states = np.arange(0, self.total_state_size)[angle_bools]
+        # Some parameters to use later for translational systems
+        if isinstance(self.dynamics, SysDyn.TranslationalDynamics):
+            angle_bools = np.tile(self.dynamics.get_positional_angles(), self.number_of_systems)
+            self.angle_states = np.arange(0, self.total_state_size)[angle_bools]
 
     def __fill_matrices(self, arguments_of_latitude: np.ndarray) -> None:
         """
@@ -102,51 +103,58 @@ class SLSSetup:
         self.sys._C1 = full_Q_matrix
         self.sys._D12 = full_R_matrix
 
-    def create_spaced_x0(self, number_of_dropouts: int, seed: int = 129, add_small_velocity: bool = False) -> None:
+    def create_x0(self, number_of_dropouts: int = None, seed: int = 129) -> None:
         """
         Create an evenly spaced initial state given a number of dropouts.
 
         :param number_of_dropouts: Number of satellites that have dropped out of their orbit.
         :param seed: Random seed.
-        :param add_small_velocity: Add a small offset to the initial velocities to help with convergence.
-                                   Seemed to be more important in Matlab. No effect currently
         """
-        number_of_original_systems = self.number_of_systems + number_of_dropouts
-        start_angles = np.linspace(0, 2 * np.pi, number_of_original_systems, endpoint=False) \
-            .reshape((number_of_original_systems, 1))
-
-        random.seed(seed)
-        selected_indices = random.sample(range(number_of_original_systems),
-                                         number_of_original_systems - number_of_dropouts)
-        angles_sorted = start_angles[np.sort(selected_indices)]
-
         self.x0 = np.zeros((self.total_state_size, 1))
-        for i in range(self.number_of_systems):
-            self.x0[i * self.system_state_size:
-                    (i + 1) * self.system_state_size] = self.dynamics.create_initial_condition(angles_sorted[i, 0])
 
-        # Add small velocity to help system
-        if add_small_velocity:
-            raise Exception("Not implemented currently")
-        #     rel_vel_angle_states = np.arange(4, self.total_state_size - 1, self.system_state_size)
-        #     self.x0[rel_vel_angle_states] = 0.000001
+        if isinstance(self.dynamics, SysDyn.TranslationalDynamics):
+            if number_of_dropouts is None:
+                raise Exception("Enter number of dropouts!")
+
+            number_of_original_systems = self.number_of_systems + number_of_dropouts
+            start_angles = np.linspace(0, 2 * np.pi, number_of_original_systems, endpoint=False) \
+                .reshape((number_of_original_systems, 1))
+
+            random.seed(seed)
+            selected_indices = random.sample(range(number_of_original_systems),
+                                             number_of_original_systems - number_of_dropouts)
+            angles_sorted = start_angles[np.sort(selected_indices)]
+
+            for i in range(self.number_of_systems):
+                self.x0[i * self.system_state_size:
+                        (i + 1) * self.system_state_size] = self.dynamics.create_initial_condition(angles_sorted[i, 0])
+        elif isinstance(self.dynamics, SysDyn.AttitudeDynamics):
+            for i in range(self.number_of_systems):
+                self.x0[i * self.system_state_size:
+                        (i + 1) * self.system_state_size] = self.dynamics.create_initial_condition(np.array([0, 0, 0, 1]))
 
     def create_reference(self) -> None:
         """
         Create an evenly spaced reference for the satellites.
         """
         self.x_ref = np.zeros((self.total_state_size, 1))
-        ref_rel_angles = np.linspace(0, 2 * np.pi, self.number_of_systems, endpoint=False) \
-            .reshape((self.number_of_systems, 1))
-        ref_rel_angles -= np.max(ref_rel_angles - self.x0[self.angle_states])
 
-        # Smaller reference for shorter sim:
-        alpha = 0.8
-        ref_rel_angles = alpha * self.x0[self.angle_states] + (1-alpha) * ref_rel_angles
+        if isinstance(self.dynamics, SysDyn.TranslationalDynamics):
+            ref_rel_angles = np.linspace(0, 2 * np.pi, self.number_of_systems, endpoint=False) \
+                .reshape((self.number_of_systems, 1))
+            ref_rel_angles -= np.max(ref_rel_angles - self.x0[self.angle_states])
 
-        for i in range(self.number_of_systems):
-            self.x_ref[i * self.system_state_size:
-                       (i + 1) * self.system_state_size] = self.dynamics.create_reference(ref_rel_angles[i, 0])
+            # Smaller reference for shorter sim:
+            alpha = 0.8
+            ref_rel_angles = alpha * self.x0[self.angle_states] + (1-alpha) * ref_rel_angles
+
+            for i in range(self.number_of_systems):
+                self.x_ref[i * self.system_state_size:
+                           (i + 1) * self.system_state_size] = self.dynamics.create_reference(ref_rel_angles[i, 0])
+        elif isinstance(self.dynamics, SysDyn.AttitudeDynamics):
+            for i in range(self.number_of_systems):
+                self.x_ref[i * self.system_state_size:
+                           (i + 1) * self.system_state_size] = self.dynamics.create_reference(np.array([0, 0, 0, 1]))
 
     def set_initial_conditions(self, x0: np.ndarray) -> None:
         """
@@ -256,8 +264,8 @@ class SLSSetup:
             satellite_numbers = np.arange(0, self.number_of_systems)
 
         for satellite_number in satellite_numbers:
-            figure = Plot.plot_inputs(self.u_inputs[satellite_number * 3:(satellite_number + 1) * 3, :].T,
-                                      self.sampling_time, f"Inputs_{satellite_number}", figure, linestyle='--')
+            figure = Plot.plot_thrust_forces(self.u_inputs[satellite_number * 3:(satellite_number + 1) * 3, :].T,
+                                             self.sampling_time, f"Inputs_{satellite_number}", figure, linestyle='--')
 
         return figure
 

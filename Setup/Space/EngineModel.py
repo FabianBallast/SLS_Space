@@ -7,17 +7,19 @@ class EngineModel:
     """
     Base class for Engine models. Can be used for both thrust and torque models.
     """
-    def __init__(self, control_input: np.ndarray, control_timestep: float):
+    def __init__(self, control_input: np.ndarray, control_timestep: float, propagated_body: environment.Body):
         """
         Initialise the engine model with basic variables.
 
         :param control_input: The control inputs of the given engine in shape (3, t).
         :param control_timestep: The control timestep, i.e. the time between each input.
+        :param propagated_body: The body that is propagated with this engine.
         """
         self.control_input = control_input
         self.control_timestep = control_timestep  # Length between different control signals [s]
         self.t0 = None
         self.number_of_inputs = len(self.control_input[0, :])
+        self.propagated_body = propagated_body
 
 
 class ThrustModel(EngineModel):
@@ -35,9 +37,8 @@ class ThrustModel(EngineModel):
         :param propagated_body: The body that is being propagated. Required for direction analysis.
         """
         # Control input in xyz direction over time (numpy.ndarray[3, number_of_inputs]) in RSW frame [N]
-        super().__init__(thrust_input, control_timestep)
+        super().__init__(thrust_input, control_timestep, propagated_body)
         self.Isp = Isp  # Specific impulse [s]
-        self.propagated_body = propagated_body  # Body that is being propagated
 
         self.control_magnitudes = np.zeros(self.number_of_inputs)
         self.control_direction = np.zeros_like(self.control_input)
@@ -107,44 +108,49 @@ class ThrustModel(EngineModel):
                 # Find force in RSW frame
                 thrust_direction_rsw_frame = self.control_direction[:, idx]
 
-                # Find rotation matrix from RSW to inertial frame
-                current_state = self.propagated_body.state
-                rsw_to_inertial_frame = frame_conversion.rsw_to_inertial_rotation_matrix(current_state)
-
-                # Compute the thrust in the inertial frame
-                thrust_inertial_frame = np.dot(rsw_to_inertial_frame, thrust_direction_rsw_frame)
-
                 # Return the thrust direction in the inertial frame
-                return thrust_inertial_frame
+                return self.__convert_rsw_2_inertial_frame(thrust_direction_rsw_frame)
+
             elif idx == self.number_of_inputs:  # In this case, simply use last value in list.
                 # Find force in RSW frame
                 thrust_direction_rsw_frame = self.control_direction[:, -1]
 
-                # Find rotation matrix from RSW to inertial frame
-                current_state = self.propagated_body.state
-                rsw_to_inertial_frame = frame_conversion.rsw_to_inertial_rotation_matrix(current_state)
-
-                # Compute the thrust in the inertial frame
-                thrust_inertial_frame = np.dot(rsw_to_inertial_frame, thrust_direction_rsw_frame)
-
                 # Return the thrust direction in the inertial frame
-                return thrust_inertial_frame
+                return self.__convert_rsw_2_inertial_frame(thrust_direction_rsw_frame)
             else:
                 raise Exception(f"No control input available for time {time} s. Simulation started at {self.t0} s.")
+
+    def __convert_rsw_2_inertial_frame(self, thrust_rsw_frame: np.ndarray) -> np.ndarray:
+        """
+        Convert a direction of thrust from rsw/lvlh to inertial frame.
+
+        :param thrust_rsw_frame: Direction in rsw frame
+        :return: Direction in inertial frame
+        """
+        # Find rotation matrix from RSW to inertial frame
+        current_state = self.propagated_body.state
+        rsw_to_inertial_frame = frame_conversion.rsw_to_inertial_rotation_matrix(current_state)
+
+        # Compute the thrust in the inertial frame
+        thrust_inertial_frame = np.dot(rsw_to_inertial_frame, thrust_rsw_frame)
+
+        # Return the thrust direction in the inertial frame
+        return thrust_inertial_frame
 
 
 class TorqueModel(EngineModel):
     """
     Model to provide custom torques.
     """
-    def __init__(self, torque_input: np.ndarray, control_timestep: float):
+    def __init__(self, torque_input: np.ndarray, control_timestep: float, propagated_body: environment.Body):
         """
         Initialise a torque model.
 
         :param torque_input: Numpy array of shape (3, t) with the torque inputs over time.
         :param control_timestep: Timestep used for control purposes.
+        :param propagated_body: The body that is being propagatedby this engine.
         """
-        super().__init__(torque_input, control_timestep)
+        super().__init__(torque_input, control_timestep, propagated_body)
 
     def get_torque(self, time: float) -> np.ndarray:
         """
@@ -161,6 +167,27 @@ class TorqueModel(EngineModel):
 
             idx = int((time - self.t0) / self.control_timestep)
             if idx < self.number_of_inputs:
-                return self.control_input[:, idx]
+                return self.__convert_body_2_inertial_frame(self.control_input[:, idx])
+            elif idx == self.number_of_inputs:
+                return self.__convert_body_2_inertial_frame(self.control_input[:, -1])
             else:
                 raise Exception(f"No control input available for time {time} s. Simulation started at {self.t0} s.")
+
+    def __convert_body_2_inertial_frame(self, torque_body_frame) -> np.ndarray:
+        """
+        Convert a direction of thrust from rsw/lvlh to inertial frame.
+
+        :param torque_body_frame: Torque in body-fixed frame in model coordinates
+        :return: Torque in inertial frame
+        """
+        torque_sim_coordinates = np.array([-torque_body_frame[2], torque_body_frame[0], -torque_body_frame[1]])
+
+        # Find rotation matrix from body to inertial frame
+        body_to_inertial_frame = self.propagated_body.body_fixed_to_inertial_frame.T
+
+        # Compute the thrust in the inertial frame
+        torque_inertial_frame = np.dot(body_to_inertial_frame, torque_sim_coordinates)
+        # print(torque_inertial_frame)
+
+        # Return the thrust direction in the inertial frame and swap order (for weird frame of model)
+        return torque_inertial_frame
