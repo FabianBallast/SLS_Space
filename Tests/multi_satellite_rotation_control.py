@@ -2,14 +2,15 @@
 import numpy as np
 from matplotlib import pyplot as plt
 from scipy.spatial.transform import Rotation
-from tudatpy.kernel import constants
 from Space.OrbitalMechanics import OrbitalMechSimulator
 from SLS.SLS_setup import SLSSetup
 from Dynamics.AttitudeDynamics import LinAttModel
 
 # Global parameters
 satellite_mass = 400  # kg
-satellite_moment_of_inertia = 10 * np.eye(3)
+satellite_moment_of_inertia = np.array([[10, 1, -1],
+                                        [1, 10, 1],
+                                        [-1, 1, 10]])
 control_timestep = 5  # s
 orbital_height = 750  # km
 number_of_satellites = 3  # -
@@ -21,6 +22,7 @@ specific_impulse = 1E10  # Really high to make mass constant
 inclination = 30
 longitude = 10
 offset = Rotation.from_euler('XYZ', [30, -41, 22], degrees=True)
+# offset = Rotation.from_euler('X', 0, degrees=True)
 
 
 control_model = LinAttModel(orbital_height=orbital_height*1000, satellite_moment_of_inertia=satellite_moment_of_inertia)
