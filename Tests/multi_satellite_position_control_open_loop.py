@@ -1,9 +1,13 @@
 import numpy as np
 from matplotlib import pyplot as plt
+from tudatpy.kernel.interface import spice
 from Dynamics.HCWDynamics import RelCylHCW
 from Dynamics.ROEDynamics import QuasiROE
 from Space.OrbitalMechanics import OrbitalMechSimulator
 from SLS.SLS_setup import SLSSetup
+
+# Find default physical parameters
+spice.load_standard_kernels()
 
 # Global parameters
 satellite_mass = 400  # kg

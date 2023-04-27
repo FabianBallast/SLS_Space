@@ -2,7 +2,11 @@
 import numpy as np
 from matplotlib import pyplot as plt
 from tudatpy.kernel import constants
+from tudatpy.kernel.interface import spice
 from Space.OrbitalMechanics import OrbitalMechSimulator
+
+# Find default physical parameters
+spice.load_standard_kernels()
 
 # Global parameters
 number_of_satellites = 3

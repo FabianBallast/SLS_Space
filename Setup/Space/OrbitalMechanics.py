@@ -2,16 +2,12 @@ import numpy as np
 from matplotlib import pyplot as plt
 from matplotlib.animation import FuncAnimation
 from tudatpy.kernel.numerical_simulation import environment_setup, propagation_setup, create_dynamics_simulator
-from tudatpy.kernel.interface import spice
 from tudatpy.kernel.astro import element_conversion, frame_conversion
 from tudatpy.util import result2array
 from Space.EngineModel import ThrustModel, TorqueModel
 from Visualisation import Plotting as Plot
 from Dynamics import HCWDynamics, ROEDynamics, SystemDynamics, AttitudeDynamics
 from scipy.spatial.transform import Rotation
-
-# Load spice kernels once, not for every object we create
-spice.load_standard_kernels()
 
 
 class OrbitalMechSimulator:
@@ -250,7 +246,7 @@ class OrbitalMechSimulator:
         # Retrieve Earth's radius
         earth_radius = self.bodies.get("Earth").shape_model.average_radius
 
-        orbit_semi_major_axis = earth_radius + orbit_height * 1e3
+        orbit_semi_major_axis = earth_radius + orbit_height
         orbit_eccentricity = eccentricity
         orbit_inclination = np.deg2rad(inclination)
         orbit_argument_of_periapsis = np.deg2rad(argument_of_periapsis)
@@ -737,6 +733,7 @@ class OrbitalMechSimulator:
         :param mean_motion: The mean motion of the satellites in rad/s
         """
         self.mean_motion = mean_motion
+
     def get_states_for_dynamical_model(self, dynamical_model: SystemDynamics.TranslationalDynamics) -> np.ndarray:
         """
         Find the states corresponding to a dynamical model, e.g. in cylindrical or ROE coordinates.
@@ -749,7 +746,7 @@ class OrbitalMechSimulator:
         elif isinstance(dynamical_model, ROEDynamics.QuasiROE):
             return self.convert_to_quasi_roe()
         elif isinstance(dynamical_model, AttitudeDynamics.LinAttModel):
-            return self.convert_to_euler_angles()
+            return self.convert_to_euler_state()
         else:
             raise Exception("No conversion for this type of model has been implemented yet. ")
 

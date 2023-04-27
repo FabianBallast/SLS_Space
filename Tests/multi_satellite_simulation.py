@@ -1,8 +1,12 @@
 # Load standard modules
 import numpy as np
 from matplotlib import pyplot as plt
+from tudatpy.kernel.interface import spice
 from Space.OrbitalMechanics import OrbitalMechSimulator
 from tudatpy.kernel import constants
+
+# Find default physical parameters
+spice.load_standard_kernels()
 
 # Create simulator
 orbital_sim = OrbitalMechSimulator()

@@ -1,3 +1,5 @@
+from enum import Enum
+
 control_attitude_default = {'control_timestep': 5,
                             'tFIR': 10}
 
@@ -21,6 +23,15 @@ def print_control_scenarios() -> None:
     Print the available scenarios regarding the control parameters.
     """
     print(f"The available control scenarios are: {list(control_scenarios.keys())}")
+
+
+class Model(Enum):
+    """
+    Very simple enum to select a model for the model-based controller.
+    """
+    ATTITUDE = 1
+    HCW = 2
+    ROE = 3
 
 
 if __name__ == '__main__':

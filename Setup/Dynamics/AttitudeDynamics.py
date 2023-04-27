@@ -1,4 +1,4 @@
-from typing import Callable
+from typing import Callable, List
 import Visualisation.Plotting as Plot
 import control as ct
 import numpy as np
@@ -22,18 +22,18 @@ class LinAttModel(AttitudeDynamics):
         :param kwargs: Not used for this model.
         :return: A linear system object.
         """
-        N_1 = np.array([[0, 0, self.satellite_moment_of_inertia[2, 2]-self.satellite_moment_of_inertia[1, 1]],
-                       [0, 0, 0],
-                       [self.satellite_moment_of_inertia[1, 1]-self.satellite_moment_of_inertia[0, 0], 0, 0]])
-        N_3 = np.array([[self.satellite_moment_of_inertia[2, 2]-self.satellite_moment_of_inertia[1, 1], 0, 0],
-                       [0, self.satellite_moment_of_inertia[2, 2]-self.satellite_moment_of_inertia[0, 0], 0],
-                       [0, 0, 0]])
+        N_1 = np.array([[0, 0, self.satellite_moment_of_inertia[2, 2] - self.satellite_moment_of_inertia[1, 1]],
+                        [0, 0, 0],
+                        [self.satellite_moment_of_inertia[1, 1] - self.satellite_moment_of_inertia[0, 0], 0, 0]])
+        N_3 = np.array([[self.satellite_moment_of_inertia[2, 2] - self.satellite_moment_of_inertia[1, 1], 0, 0],
+                        [0, self.satellite_moment_of_inertia[2, 2] - self.satellite_moment_of_inertia[0, 0], 0],
+                        [0, 0, 0]])
 
         A_00 = np.array([[0, 0, self.mean_motion],
                          [0, 0, 0],
                          [-self.mean_motion, 0, 0]])
         A_01 = np.eye(3)
-        A_10 = 3 * self.mean_motion**2 * np.linalg.inv(self.satellite_moment_of_inertia) * N_3
+        A_10 = 3 * self.mean_motion ** 2 * np.linalg.inv(self.satellite_moment_of_inertia) * N_3
         A_11 = self.mean_motion * np.linalg.inv(self.satellite_moment_of_inertia) * N_1
 
         A_matrix = np.block([[A_00, A_01],
@@ -100,7 +100,7 @@ class LinAttModel(AttitudeDynamics):
         """
         return Plot.plot_cylindrical_states
 
-    def get_state_constraint(self) -> list[int, float]:
+    def get_state_constraint(self) -> list[int | float | int, float]:
         """
         Return the vector x_lim such that -x_lim <= x <= x_lim
 
@@ -108,7 +108,7 @@ class LinAttModel(AttitudeDynamics):
         """
         return [1, 4, 1, 0.1, 0.1, 0.1]
 
-    def get_input_constraint(self) -> list[int, float]:
+    def get_input_constraint(self) -> list[int | float | int, float]:
         """
         Return the vector u_lim such that -u_lim <= u <= u_lim
 
