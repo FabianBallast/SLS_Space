@@ -86,13 +86,13 @@ class RelCylHCW(TranslationalDynamics):
         """
         return [10000, 10000, 100, 10, self.mean_motion / 10, 1]
 
-    def get_input_constraint(self) -> list[int, float]:
+    def get_input_constraint(self) -> list[float | int | int, float]:
         """
         Return the vector u_lim such that -u_lim <= u <= u_lim
 
         :return: List with maximum input values
         """
-        return [100, 100, 100]
+        return [0.1, 0.1, 0.1]
 
     def get_state_cost_matrix_sqrt(self) -> np.ndarray:
         """

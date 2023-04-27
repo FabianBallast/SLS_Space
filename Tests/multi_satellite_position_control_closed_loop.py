@@ -5,9 +5,13 @@ from Scenarios.ScenarioHandler import ScenarioHandler
 
 # Select desired scenario
 # scenario = position_keeping_scenario_translation_HCW
+# scenario = position_keeping_scenario_translation_HCW_scaled
 # scenario = position_keeping_scenario_translation_ROE
-scenario = simple_scenario_translation_HCW
+# scenario = position_keeping_scenario_translation_ROE_scaled
+# scenario = simple_scenario_translation_HCW
+scenario = simple_scenario_translation_HCW_scaled
 # scenario = simple_scenario_translation_ROE
+# scenario = simple_scenario_translation_ROE_scaled
 
 # Setup
 scenario_handler = ScenarioHandler(scenario)

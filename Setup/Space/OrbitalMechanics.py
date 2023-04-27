@@ -59,7 +59,7 @@ class OrbitalMechSimulator:
         self.mean_motion = None
 
     def create_bodies(self, number_of_satellites: int, satellite_mass: float, satellite_inertia: np.ndarray[3, 3],
-                      add_reference_satellite: bool = False) -> None:
+                      add_reference_satellite: bool = False, use_parameters_from_scenario: dict = None) -> None:
         """
         Create the different bodies used during a simulation.
 
@@ -67,6 +67,8 @@ class OrbitalMechSimulator:
         :param satellite_mass: Mass of each satellite.
         :param satellite_inertia: Mass moment of inertia of each satellite.
         :param add_reference_satellite: Whether to add a (virtual) reference satellite.
+        :param use_parameters_from_scenario: It is possible to use physical parameters set by the scenario
+                                             if this is not None.
         """
         # Create default body settings for "Earth"
         bodies_to_create = ["Earth"]
@@ -77,6 +79,10 @@ class OrbitalMechSimulator:
         global_frame_orientation = "J2000"
         body_settings = environment_setup.get_default_body_settings(
             bodies_to_create, global_frame_origin, global_frame_orientation)
+
+        if use_parameters_from_scenario is not None:
+            body_settings.get('Earth').shape_settings.radius = use_parameters_from_scenario['physics']['radius_Earth']
+            body_settings.get('Earth').gravity_field_settings.gravitational_parameter = use_parameters_from_scenario['physics']['gravitational_parameter_Earth']
 
         # Create system of bodies (in this case only Earth)
         self.bodies = environment_setup.create_system_of_bodies(body_settings)

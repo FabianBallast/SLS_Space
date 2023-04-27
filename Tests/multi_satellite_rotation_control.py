@@ -1,11 +1,13 @@
 # Load standard modules
 from matplotlib import pyplot as plt
-from Scenarios.MainScenarios import simple_scenario_attitude, advanced_scenario_attitude
+from Scenarios.MainScenarios import *
 from Scenarios.ScenarioHandler import ScenarioHandler
 
 # Select desired scenario
 # scenario = simple_scenario_attitude
-scenario = advanced_scenario_attitude
+# scenario = advanced_scenario_attitude
+# scenario = simple_scenario_attitude_scaled
+scenario = advanced_scenario_attitude_scaled
 
 # Setup
 scenario_handler = ScenarioHandler(scenario)

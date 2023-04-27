@@ -41,14 +41,11 @@ class ScenarioHandler:
         Create the SLS optimiser.
         """
         if self.scenario['model'] == Model.ATTITUDE:
-            control_model = LinAttModel(orbital_height=self.scenario['orbital']['orbital_height'],
-                                        satellite_moment_of_inertia=self.scenario['physics']['inertia_tensor'])
+            control_model = LinAttModel(self.scenario)
         elif self.scenario['model'] == Model.ROE:
-            control_model = QuasiROE(orbital_height=self.scenario['orbital']['orbital_height'],
-                                     satellite_mass=self.scenario['physics']['mass'])
+            control_model = QuasiROE(self.scenario)
         elif self.scenario['model'] == Model.HCW:
-            control_model = RelCylHCW(orbital_height=self.scenario['orbital']['orbital_height'],
-                                      satellite_mass=self.scenario['physics']['mass'])
+            control_model = RelCylHCW(self.scenario)
         else:
             raise Exception(f"Model type {self.scenario['model']} not recognized!")
 
@@ -87,7 +84,8 @@ class ScenarioHandler:
         self.orbital_mech.create_bodies(number_of_satellites=self.scenario['number_of_sats'],
                                         satellite_mass=self.scenario['physics']['mass'],
                                         satellite_inertia=self.scenario['physics']['inertia_tensor'],
-                                        add_reference_satellite=True)
+                                        add_reference_satellite=True,
+                                        use_parameters_from_scenario=self.scenario)
 
         # Create thrust models
         self.orbital_mech.create_engine_models_thrust(control_timestep=self.scenario['control']['control_timestep'],

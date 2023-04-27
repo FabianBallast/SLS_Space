@@ -16,19 +16,19 @@ arbitrary_orbit = {'orbital_height': 750e3,
                    'longitude': 10,
                    'argument_of_periapsis': 0}
 
-equatorial_orbit_scaled = {'orbital_height': 55,
+equatorial_orbit_scaled = {'orbital_height': 15,
                            'inclination': 0,
                            'eccentricity': 0,
                            'longitude': 0,
                            'argument_of_periapsis': 0}
 
-tilted_orbit_45deg_scaled = {'orbital_height': 55,
+tilted_orbit_45deg_scaled = {'orbital_height': 15,
                              'inclination': 45,
                              'eccentricity': 0,
                              'longitude': 0,
                              'argument_of_periapsis': 0}
 
-arbitrary_orbit_scaled = {'orbital_height': 55,
+arbitrary_orbit_scaled = {'orbital_height': 15,
                           'inclination': 30,
                           'eccentricity': 0,
                           'longitude': 10,

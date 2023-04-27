@@ -10,8 +10,8 @@ class QuasiROE(TranslationalDynamics):
     """
     A class for the quasi ROE model
     """
-    def __init__(self, orbital_height: float, satellite_mass: float):
-        super().__init__(orbital_height, satellite_mass)
+    def __init__(self, scenario: dict):
+        super().__init__(scenario)
         self.is_LTI = False
 
     def create_model(self, sampling_time: float, argument_of_latitude: int = 0) -> ct.LinearIOSystem:
