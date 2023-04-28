@@ -4,13 +4,14 @@ import numpy as np
 from matplotlib import pyplot as plt
 from Dynamics.SystemDynamics import TranslationalDynamics
 import Visualisation.Plotting as Plot
+from Scenarios.MainScenarios import Scenario
 
 
 class QuasiROE(TranslationalDynamics):
     """
     A class for the quasi ROE model
     """
-    def __init__(self, scenario: dict):
+    def __init__(self, scenario: Scenario):
         super().__init__(scenario)
         self.is_LTI = False
 

@@ -1,16 +1,16 @@
 # Load standard modules
 from matplotlib import pyplot as plt
-from Scenarios.MainScenarios import *
+from Scenarios.MainScenarios import ScenarioEnum
 from Scenarios.ScenarioHandler import ScenarioHandler
 
 # Select desired scenario
-# scenario = simple_scenario_attitude
-# scenario = advanced_scenario_attitude
-# scenario = simple_scenario_attitude_scaled
-scenario = advanced_scenario_attitude_scaled
+# scenario = ScenarioEnum.simple_scenario_attitude
+scenario = ScenarioEnum.advanced_scenario_attitude
+# scenario = ScenarioEnum.simple_scenario_attitude_scaled
+# scenario = ScenarioEnum.advanced_scenario_attitude_scaled
 
 # Setup
-scenario_handler = ScenarioHandler(scenario)
+scenario_handler = ScenarioHandler(scenario.value)
 scenario_handler.create_sls_system()
 scenario_handler.create_storage_variables()
 

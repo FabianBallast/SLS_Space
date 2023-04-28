@@ -1,20 +1,20 @@
 # Load standard modules
 from matplotlib import pyplot as plt
-from Scenarios.MainScenarios import *
+from Scenarios.MainScenarios import ScenarioEnum
 from Scenarios.ScenarioHandler import ScenarioHandler
 
 # Select desired scenario
-# scenario = position_keeping_scenario_translation_HCW
-# scenario = position_keeping_scenario_translation_HCW_scaled
-# scenario = position_keeping_scenario_translation_ROE
-# scenario = position_keeping_scenario_translation_ROE_scaled
-# scenario = simple_scenario_translation_HCW
-scenario = simple_scenario_translation_HCW_scaled
-# scenario = simple_scenario_translation_ROE
-# scenario = simple_scenario_translation_ROE_scaled
+# scenario = ScenarioEnum.position_keeping_scenario_translation_HCW
+# scenario = ScenarioEnum.position_keeping_scenario_translation_HCW_scaled
+scenario = ScenarioEnum.position_keeping_scenario_translation_ROE
+# scenario = ScenarioEnum.position_keeping_scenario_translation_ROE_scaled
+# scenario = ScenarioEnum.simple_scenario_translation_HCW
+# scenario = ScenarioEnum.simple_scenario_translation_HCW_scaled
+# scenario = ScenarioEnum.simple_scenario_translation_ROE
+# scenario = ScenarioEnum.simple_scenario_translation_ROE_scaled
 
 # Setup
-scenario_handler = ScenarioHandler(scenario)
+scenario_handler = ScenarioHandler(scenario.value)
 scenario_handler.create_sls_system()
 scenario_handler.create_storage_variables()
 

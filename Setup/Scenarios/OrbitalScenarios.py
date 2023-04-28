@@ -1,53 +1,41 @@
-equatorial_orbit = {'orbital_height': 750e3,
-                    'inclination': 0,
-                    'eccentricity': 0,
-                    'longitude': 0,
-                    'argument_of_periapsis': 0}
-
-tilted_orbit_45deg = {'orbital_height': 750e3,
-                      'inclination': 45,
-                      'eccentricity': 0,
-                      'longitude': 0,
-                      'argument_of_periapsis': 0}
-
-arbitrary_orbit = {'orbital_height': 750e3,
-                   'inclination': 30,
-                   'eccentricity': 0,
-                   'longitude': 10,
-                   'argument_of_periapsis': 0}
-
-equatorial_orbit_scaled = {'orbital_height': 15,
-                           'inclination': 0,
-                           'eccentricity': 0,
-                           'longitude': 0,
-                           'argument_of_periapsis': 0}
-
-tilted_orbit_45deg_scaled = {'orbital_height': 15,
-                             'inclination': 45,
-                             'eccentricity': 0,
-                             'longitude': 0,
-                             'argument_of_periapsis': 0}
-
-arbitrary_orbit_scaled = {'orbital_height': 15,
-                          'inclination': 30,
-                          'eccentricity': 0,
-                          'longitude': 10,
-                          'argument_of_periapsis': 0}
-
-orbital_scenarios = {'equatorial_orbit': equatorial_orbit,
-                     'tilted_orbit_45deg': tilted_orbit_45deg,
-                     'equatorial_orbit_scaled': equatorial_orbit_scaled,
-                     'tilted_orbit_45deg_scaled': tilted_orbit_45deg_scaled,
-                     'arbitrary_orbit': arbitrary_orbit,
-                     'arbitrary_orbit_scaled': arbitrary_orbit_scaled}
+from enum import Enum
 
 
-def print_orbital_scenarios() -> None:
+class Orbit:
     """
-    Print the available scenarios regarding orbital parameters.
+    Very basic class representing an orbit.
     """
-    print(f"The available orbital scenarios are: {list(orbital_scenarios.keys())}")
+
+    def __init__(self, inclination=0, eccentricity=0, longitude=0, argument_of_periapsis=0):
+        """
+        Create an orbit using standard orbital elements, except for the radius and anomaly.
+
+        :param inclination: Inclination in deg.
+        :param eccentricity: Eccentricity.
+        :param longitude: Longitude in deg.
+        :param argument_of_periapsis: Argument of periapsis in deg.
+        """
+        self.inclination = inclination
+        self.eccentricity = eccentricity
+        self.longitude = longitude
+        self.argument_of_periapsis = argument_of_periapsis
+
+    def __repr__(self):
+        return self.__str__()
+
+    def __str__(self):
+        return f"Orbit with {self.inclination=}, {self.eccentricity=}, " \
+               f"{self.longitude=} and {self.argument_of_periapsis=}"
+
+
+class OrbitalScenarios(Enum):
+    """
+    An Enum for different orbits.
+    """
+    equatorial_orbit = Orbit()
+    tilted_orbit_45deg = Orbit(inclination=45)
+    arbitrary_orbit = Orbit(inclination=30, longitude=10)
 
 
 if __name__ == '__main__':
-    print_orbital_scenarios()
+    print(list(OrbitalScenarios))

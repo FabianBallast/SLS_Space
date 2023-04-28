@@ -4,6 +4,7 @@ import control as ct
 from abc import ABC, abstractmethod
 from scipy.linalg import block_diag
 from matplotlib import pyplot as plt
+from Scenarios.MainScenarios import Scenario
 
 
 class GeneralDynamics(ABC):
@@ -11,7 +12,7 @@ class GeneralDynamics(ABC):
     Abstract base class to deal with different dynamical models.
     """
 
-    def __init__(self, scenario: dict):
+    def __init__(self, scenario: Scenario):
         """
         Initialising the object for a translational model.
 
@@ -20,12 +21,12 @@ class GeneralDynamics(ABC):
                              - radius_Earth: The radius of the Earth in m.
                              - gravitational_parameter_Earth: The gravitational parameter of the Earth in m^3/s^2
         """
-        if not 500e3 < scenario['orbital']['orbital_height'] < 5000e3 and scenario['orbital']['orbital_height'] > 100:
+        if not 500e3 < scenario.physics.orbital_height < 5000e3 and scenario.physics.orbital_height > 100:
             raise Exception("Orbital height should be in meters!")
 
-        self.orbital_height = scenario['orbital']['orbital_height']  # m
-        self.earth_gravitational_parameter = scenario['physics']['gravitational_parameter_Earth']  # m^3 s^-2
-        self.earth_radius = scenario['physics']['radius_Earth']  # m
+        self.orbital_height = scenario.physics.orbital_height  # m
+        self.earth_gravitational_parameter = scenario.physics.gravitational_parameter_Earth  # m^3 s^-2
+        self.earth_radius = scenario.physics.radius_Earth  # m
         self.orbit_radius = (self.orbital_height + self.earth_radius)  # m
         self.mean_motion = np.sqrt(self.earth_gravitational_parameter / self.orbit_radius ** 3)  # rad/s
         self.is_LTI = True
@@ -148,7 +149,7 @@ class TranslationalDynamics(GeneralDynamics, ABC):
     Abstract base class to deal with different translational models.
     """
 
-    def __init__(self, scenario: dict):
+    def __init__(self, scenario: Scenario):
         """
         Initialising the object for a translational model.
 
@@ -159,7 +160,7 @@ class TranslationalDynamics(GeneralDynamics, ABC):
                              - mass: Mass of the satellite in kg.
         """
         super().__init__(scenario)
-        self.satellite_mass = scenario["physics"]["mass"]  # kg
+        self.satellite_mass = scenario.physics.mass  # kg
 
     @abstractmethod
     def get_positional_angles(self) -> np.ndarray[bool]:
@@ -196,7 +197,7 @@ class AttitudeDynamics(GeneralDynamics, ABC):
     Abstract base class to deal with different attitude models.
     """
 
-    def __init__(self, scenario: dict):
+    def __init__(self, scenario: Scenario):
         """
         Initialising the object for a translational model.
 
@@ -207,7 +208,7 @@ class AttitudeDynamics(GeneralDynamics, ABC):
                              - inertia_tensor: Moment of inertia tensor of the satellite in kg m^2.
         """
         super().__init__(scenario)
-        self.satellite_moment_of_inertia = scenario['physics']['inertia_tensor']  # kg m^2
+        self.satellite_moment_of_inertia = scenario.physics.inertia_tensor  # kg m^2
 
     @abstractmethod
     def create_initial_condition(self, quaternion: np.ndarray[float]) -> np.ndarray[float]:

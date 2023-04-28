@@ -8,7 +8,7 @@ from Space.EngineModel import ThrustModel, TorqueModel
 from Visualisation import Plotting as Plot
 from Dynamics import HCWDynamics, ROEDynamics, SystemDynamics, AttitudeDynamics
 from scipy.spatial.transform import Rotation
-
+from Scenarios.MainScenarios import Scenario
 
 class OrbitalMechSimulator:
     """
@@ -59,7 +59,7 @@ class OrbitalMechSimulator:
         self.mean_motion = None
 
     def create_bodies(self, number_of_satellites: int, satellite_mass: float, satellite_inertia: np.ndarray[3, 3],
-                      add_reference_satellite: bool = False, use_parameters_from_scenario: dict = None) -> None:
+                      add_reference_satellite: bool = False, use_parameters_from_scenario: Scenario = None) -> None:
         """
         Create the different bodies used during a simulation.
 
@@ -81,8 +81,8 @@ class OrbitalMechSimulator:
             bodies_to_create, global_frame_origin, global_frame_orientation)
 
         if use_parameters_from_scenario is not None:
-            body_settings.get('Earth').shape_settings.radius = use_parameters_from_scenario['physics']['radius_Earth']
-            body_settings.get('Earth').gravity_field_settings.gravitational_parameter = use_parameters_from_scenario['physics']['gravitational_parameter_Earth']
+            body_settings.get('Earth').shape_settings.radius = use_parameters_from_scenario.physics.radius_Earth
+            body_settings.get('Earth').gravity_field_settings.gravitational_parameter = use_parameters_from_scenario.physics.gravitational_parameter_Earth
 
         # Create system of bodies (in this case only Earth)
         self.bodies = environment_setup.create_system_of_bodies(body_settings)

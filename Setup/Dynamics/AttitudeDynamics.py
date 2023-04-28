@@ -80,7 +80,7 @@ class LinAttModel(AttitudeDynamics):
         :return: An array with the initial conditions.
         """
         return np.concatenate((self.quaternion_to_euler(quaternion),
-                               np.array([0, 0, 0]))).reshape((6, 1)) + 1e-2
+                               np.array([0, 0, 0]))).reshape((6, 1))
 
     def create_reference(self, quaternion: np.ndarray[float]) -> np.ndarray[float]:
         """

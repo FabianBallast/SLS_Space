@@ -1,28 +1,30 @@
 from enum import Enum
 
-control_attitude_default = {'control_timestep': 5,
-                            'tFIR': 10}
 
-control_attitude_far_ahead = {'control_timestep': 15,
-                              'tFIR': 20}
-
-control_position_default = {'control_timestep': 30,
-                            'tFIR': 10}
-
-control_position_far_ahead = {'control_timestep': 60,
-                              'tFIR': 20}
-
-control_scenarios = {'control_attitude_default': control_attitude_default,
-                     'control_attitude_far_ahead': control_attitude_far_ahead,
-                     'control_position_default': control_position_default,
-                     'control_position_far_ahead': control_position_far_ahead}
-
-
-def print_control_scenarios() -> None:
+class ControlParameters:
     """
-    Print the available scenarios regarding the control parameters.
+    Class to represent different control related parameters.
     """
-    print(f"The available control scenarios are: {list(control_scenarios.keys())}")
+
+    def __init__(self, control_timestep=5, tFIR=10):
+        self.control_timestep = control_timestep
+        self.tFIR = tFIR
+
+    def __repr__(self):
+        return self.__str__()
+
+    def __str__(self):
+        return f"Control parameters with {self.control_timestep=} and {self.tFIR=}"
+
+
+class ControlParameterScenarios(Enum):
+    """
+    Simple enum for different sets of control parameters.
+    """
+    control_attitude_default = ControlParameters()
+    control_attitude_far_ahead = ControlParameters(control_timestep=15, tFIR=20)
+    control_position_default = ControlParameters(control_timestep=30)
+    control_position_far_ahead = ControlParameters(control_timestep=60, tFIR=20)
 
 
 class Model(Enum):
@@ -35,4 +37,4 @@ class Model(Enum):
 
 
 if __name__ == '__main__':
-    print_control_scenarios()
+    print(list(ControlParameterScenarios))
