@@ -79,7 +79,7 @@ class ScenarioEnum(Enum):
                                                                    model=Model.ROE,
                                                                    initial_state_scenario=InitialStateScenarios.small_state_error)
 
-    j2_scenario_pos_keep_HCW = TranslationalScenario(physics_scenario=PhysicsScenarios.advanced_grav_physics)
+    j2_scenario_pos_keep_HCW = TranslationalScenario(physics_scenario=PhysicsScenarios.advanced_grav_physics, simulation_scenario=SimulationScenarios.sim_24_hour)
     j2_scenario_pos_keep_HCW_scaled = TranslationalScenario(physics_scenario=PhysicsScenarios.advanced_grav_physics_scaled)
     j2_scenario_pos_keep_ROE = TranslationalScenario(physics_scenario=PhysicsScenarios.advanced_grav_physics, model=Model.ROE)
     j2_scenario_pos_keep_ROE_scaled = TranslationalScenario(physics_scenario=PhysicsScenarios.advanced_grav_physics_scaled, model=Model.ROE)

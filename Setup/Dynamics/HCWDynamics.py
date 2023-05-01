@@ -3,13 +3,30 @@ import Visualisation.Plotting as Plot
 import control as ct
 import numpy as np
 from matplotlib import pyplot as plt
+from Dynamics.DynamicsParameters import DynamicParameters
 from Dynamics.SystemDynamics import TranslationalDynamics
+from Scenarios.MainScenarios import Scenario
+from Scenarios.PhysicsScenarios import ScaledPhysics
 
 
 class RelCylHCW(TranslationalDynamics):
     """
     A class for the relative cylindrical model.
     """
+
+    def __init__(self, scenario: Scenario):
+        super().__init__(scenario)
+
+        if isinstance(scenario.physics, ScaledPhysics):
+            self.param = DynamicParameters(state_limit=[1, 1, 1, 0.1, self.mean_motion / 10, 0.1],
+                                           input_limit=[0.1, 0.1, 0.1],
+                                           q_sqrt=np.diag(np.array([4, 50, 4, 0, 0, 0])),
+                                           r_sqrt_scalar=1e-2)
+        else:
+            self.param = DynamicParameters(state_limit=[10000, 10000, 100, 10, self.mean_motion / 10, 1],
+                                           input_limit=[100, 100, 100],
+                                           q_sqrt=np.diag(np.array([4, 50, 4, 0, 0, 0])),
+                                           r_sqrt_scalar=1e-2)
 
     def create_model(self, sampling_time: float, **kwargs) -> ct.LinearIOSystem:
         """

@@ -36,6 +36,7 @@ class ScenarioHandler:
         self.t_horizon_control = None
         self.control_simulation_ratio = None
         self.t_horizon_simulation = None
+        self.t_full_simulation_steps = None
 
     def create_sls_system(self) -> None:
         """
@@ -70,6 +71,8 @@ class ScenarioHandler:
         self.control_simulation_ratio = int(self.scenario.control.control_timestep /
                                             self.scenario.simulation.simulation_timestep)
         self.t_horizon_simulation = self.control_simulation_ratio * self.t_horizon_control
+        self.t_full_simulation_steps = self.scenario.simulation.simulation_duration // \
+                                       self.scenario.simulation.simulation_timestep
 
         # Also include reference for pos/rot states
         self.sls_states = np.zeros((self.t_horizon_simulation + 1, len(self.sls.x0)))
@@ -142,25 +145,29 @@ class ScenarioHandler:
                                                                      initial_angle_offset=self.scenario.initial_state.attitude_offset,
                                                                      initial_velocity_offset=angular_vel_offsets)
 
-    def __run_simulation_timestep(self, time: int, initial_setup: bool = False) -> None:
+    def __run_simulation_timestep(self, time: int, initial_setup: bool = False, full_simulation: bool = False) -> None:
         """
         Run a single simulation timestep.
 
         :param time: The time for which the simulation is.
         :param initial_setup: Whether this simulation is to provide some initial values.
-                              Simplified simulation in that case.
+                              Simplified simulation in that case.\
+        :param full_simulation: Whether to run the complete simulation in one go. No control possible in that case.
+                                Use time = 0 in that case.
         """
         self.__create_simulation()
 
         if initial_setup:
             self.__initialise_simulation()
             start_epoch = self.scenario.simulation.start_epoch
-            end_epoch = self.scenario.simulation.simulation_timestep
+            end_epoch = start_epoch + self.scenario.simulation.simulation_timestep
+        elif full_simulation:
+            start_epoch = self.scenario.simulation.start_epoch
+            end_epoch = start_epoch + self.scenario.simulation.simulation_duration
         else:
             start_epoch = self.scenario.simulation.start_epoch + \
                           time * self.scenario.control.control_timestep
-            end_epoch = self.scenario.simulation.start_epoch + \
-                        (time + 1) * self.scenario.control.control_timestep
+            end_epoch = start_epoch + self.scenario.control.control_timestep
 
         self.orbital_mech.set_initial_position(self.pos_states[time * self.control_simulation_ratio:
                                                                time * self.control_simulation_ratio + 1].T)
@@ -174,29 +181,34 @@ class ScenarioHandler:
 
         # Simulate system
         self.orbital_mech.simulate_system()
+        dep_vars_array = self.orbital_mech.dep_vars
+        control_states = self.orbital_mech.get_states_for_dynamical_model(self.sls.dynamics)
 
         # Store results
-        if not initial_setup:
-            index_selection = np.arange(time * self.control_simulation_ratio + 1,
-                                        (time + 1) * self.control_simulation_ratio + 1)
+        if initial_setup:
+            control_states = self.orbital_mech.get_states_for_dynamical_model(self.sls.dynamics)
+            self.sls_states[0:1] = control_states[0:1]
 
-            dep_vars_array = self.orbital_mech.dep_vars
-            self.pos_states[index_selection] = self.orbital_mech.translation_states[1:]
-            self.rot_states[index_selection] = self.orbital_mech.rotation_states[1:]
-
-            if self.dep_vars is None:
-                self.dep_vars = np.zeros((self.t_horizon_simulation + 1, dep_vars_array.shape[1]))
-                self.dep_vars[0] = dep_vars_array[0]
-                self.dep_vars_dict = self.orbital_mech.dependent_variables_dict
-            self.dep_vars[index_selection] = dep_vars_array[1:]
+            self.dep_vars = np.zeros((len(self.pos_states[:, 0]), dep_vars_array.shape[1]))
+            self.dep_vars[0] = dep_vars_array[0]
+            self.dep_vars_dict = self.orbital_mech.dependent_variables_dict
         else:
-            index_selection = np.arange(0, 1)
+            if full_simulation:
+                self.pos_states = self.orbital_mech.translation_states
+                self.rot_states = self.orbital_mech.rotation_states
+                self.dep_vars = self.orbital_mech.dep_vars
+                self.sls_states = control_states
+            else:
+                index_selection = np.arange(time * self.control_simulation_ratio + 1,
+                                            (time + 1) * self.control_simulation_ratio + 1)
 
-        control_states = self.orbital_mech.get_states_for_dynamical_model(self.sls.dynamics)
-        self.sls_states[index_selection] = control_states[1:self.control_simulation_ratio + 1]
+                self.pos_states[index_selection] = self.orbital_mech.translation_states[1:]
+                self.rot_states[index_selection] = self.orbital_mech.rotation_states[1:]
+                self.dep_vars[index_selection] = dep_vars_array[1:]
+                self.sls_states[index_selection] = control_states[1:self.control_simulation_ratio + 1]
 
         # Unwrap to prevent weird positions when positions are involved
-        if isinstance(self.sls.dynamics, TranslationalDynamics) and not initial_setup:
+        if isinstance(self.sls.dynamics, TranslationalDynamics) and not initial_setup and not full_simulation:
             unwrap_indices = np.arange(time * self.control_simulation_ratio,
                                        (time + 1) * self.control_simulation_ratio + 1)
             index_selection = np.ix_(unwrap_indices, self.sls.angle_states)
@@ -208,6 +220,8 @@ class ScenarioHandler:
 
         :param time: The time at which to synthesise the controller.
         """
+        # print(self.sls_states[time * self.control_simulation_ratio:
+        #                                                 time * self.control_simulation_ratio + 1].T)
         self.sls.set_initial_conditions(self.sls_states[time * self.control_simulation_ratio:
                                                         time * self.control_simulation_ratio + 1].T)
         self.sls.simulate_system(t_horizon=1, noise=None, inputs_to_store=1)
@@ -219,9 +233,9 @@ class ScenarioHandler:
             self.control_inputs_thrust = self.sls.u_inputs.reshape((self.scenario.number_of_satellites, 3, -1))
             self.control_inputs_torque = 0 * self.control_inputs_thrust
 
-    def simulate_system(self) -> None:
+    def simulate_system_closed_loop(self) -> None:
         """
-        Run a simulation for the provided scenario.
+        Run a simulation for the provided scenario with closed-loop control.
         """
         self.__run_simulation_timestep(0, initial_setup=True)
 
@@ -233,6 +247,17 @@ class ScenarioHandler:
 
             self.__synthesise_controller(t)
             self.__run_simulation_timestep(t)
+
+    def simulate_system_no_control(self) -> None:
+        """
+        Run a simulation for the provided scenario without control.
+        """
+        self.__run_simulation_timestep(0, initial_setup=True)
+
+        # Set large set of zero inputs for simulation
+        self.control_inputs_thrust = np.zeros((self.scenario.number_of_satellites, 3, self.t_horizon_simulation))
+        self.control_inputs_torque = np.zeros((self.scenario.number_of_satellites, 3, self.t_horizon_simulation))
+        self.__run_simulation_timestep(0, full_simulation=True)
 
     def export_results(self) -> OrbitalMechSimulator:
         """

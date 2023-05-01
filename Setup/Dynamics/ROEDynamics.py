@@ -2,9 +2,12 @@ from typing import Callable
 import control as ct
 import numpy as np
 from matplotlib import pyplot as plt
+
+from Dynamics.DynamicsParameters import DynamicParameters
 from Dynamics.SystemDynamics import TranslationalDynamics
 import Visualisation.Plotting as Plot
 from Scenarios.MainScenarios import Scenario
+from Scenarios.PhysicsScenarios import ScaledPhysics
 
 
 class QuasiROE(TranslationalDynamics):
@@ -14,6 +17,17 @@ class QuasiROE(TranslationalDynamics):
     def __init__(self, scenario: Scenario):
         super().__init__(scenario)
         self.is_LTI = False
+
+        if isinstance(scenario.physics, ScaledPhysics):
+            self.param = DynamicParameters(state_limit=[0.001, 1000, 0.001, 0.001, 1000, 1000],
+                                           input_limit=[0.1, 0.1, 0.1],
+                                           q_sqrt=np.diag(np.array([1000, 10, 1000, 1000, 0, 0])),
+                                           r_sqrt_scalar=1e-2)
+        else:
+            self.param = DynamicParameters(state_limit=[0.001, 1000, 0.001, 0.001, 1000, 1000],
+                                           input_limit=[100, 100, 100],
+                                           q_sqrt=np.diag(np.array([1000, 10, 1000, 1000, 0, 0])),
+                                           r_sqrt_scalar=1e-2)
 
     def create_model(self, sampling_time: float, argument_of_latitude: int = 0) -> ct.LinearIOSystem:
         """

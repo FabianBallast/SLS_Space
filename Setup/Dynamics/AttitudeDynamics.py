@@ -5,12 +5,28 @@ import numpy as np
 from matplotlib import pyplot as plt
 from Dynamics.SystemDynamics import AttitudeDynamics
 from scipy.spatial.transform import Rotation
+from Dynamics.DynamicsParameters import DynamicParameters
+from Scenarios.MainScenarios import Scenario
+from Scenarios.PhysicsScenarios import ScaledPhysics
 
 
 class LinAttModel(AttitudeDynamics):
     """
     A class for a linear attitude model.
     """
+    def __init__(self, scenario: Scenario):
+        super().__init__(scenario)
+
+        if isinstance(scenario.physics, ScaledPhysics):
+            self.param = DynamicParameters(state_limit=[2, 4, 2, 0.1, 0.1, 0.1],
+                                           input_limit=[0.1, 0.1, 0.1],
+                                           q_sqrt=np.diag(np.array([1, 1, 1, 0.1, 0.1, 0.1])),
+                                           r_sqrt_scalar=1)
+        else:
+            self.param = DynamicParameters(state_limit=[2, 4, 2, 0.1, 0.1, 0.1],
+                                           input_limit=[0.1, 0.1, 0.1],
+                                           q_sqrt=np.diag(np.array([1, 1, 1, 0.1, 0.1, 0.1])),
+                                           r_sqrt_scalar=1)
 
     def create_model(self, sampling_time: float, **kwargs) -> ct.LinearIOSystem:
         """
@@ -106,7 +122,7 @@ class LinAttModel(AttitudeDynamics):
 
         :return: List with maximum state values
         """
-        return [1, 4, 1, 0.1, 0.1, 0.1]
+        return self.param.state_limit
 
     def get_input_constraint(self) -> list[int | float | int, float]:
         """
@@ -114,7 +130,7 @@ class LinAttModel(AttitudeDynamics):
 
         :return: List with maximum input values
         """
-        return [0.1, 0.1, 0.1]
+        return self.param.input_limit
 
     def get_state_cost_matrix_sqrt(self) -> np.ndarray:
         """
@@ -122,7 +138,7 @@ class LinAttModel(AttitudeDynamics):
 
         :return: An nxn dimensional matrix representing Q_sqrt
         """
-        return np.diag(np.array([1, 1, 1, 0.1, 0.1, 0.1]))
+        return self.param.Q_sqrt
 
     def get_input_cost_matrix_sqrt(self) -> np.ndarray:
         """
@@ -130,9 +146,4 @@ class LinAttModel(AttitudeDynamics):
 
         :return: An nxm dimensional matrix representing R_sqrt
         """
-        return 1e-0 * 1 * np.array([[0, 0, 0],
-                                    [0, 0, 0],
-                                    [0, 0, 0],
-                                    [1, 0, 0],
-                                    [0, 1, 0],
-                                    [0, 0, 1]])
+        return self.param.R_sqrt

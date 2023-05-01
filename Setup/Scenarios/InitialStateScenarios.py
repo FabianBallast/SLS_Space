@@ -1,5 +1,4 @@
 from enum import Enum
-
 from scipy.spatial.transform import Rotation
 
 
@@ -26,7 +25,7 @@ class InitialStateScenarios(Enum):
     no_state_error = InitialStateError()
     small_state_error = InitialStateError(attitude_offset=Rotation.from_euler('XYZ', [6, -8, 4], degrees=True),
                                           angular_velocity_offset_magnitude=0.01, dropouts=1)
-    large_state_error = InitialStateError(attitude_offset=Rotation.from_euler('XYZ', [30, -41, 22], degrees=True),
+    large_state_error = InitialStateError(attitude_offset=Rotation.from_euler('XYZ', [90, -71, 112], degrees=True),
                                           angular_velocity_offset_magnitude=0.05, dropouts=2)
 
 

@@ -5,7 +5,7 @@ class Simulation:
     """
     A class with important variables regarding simulations, all in seconds.
     """
-    def __init__(self, start_epoch=0, simulation_duration=60, simulation_timestep=1):
+    def __init__(self, start_epoch=0, simulation_duration: int | float = 60, simulation_timestep: int | float = 1):
         self.start_epoch = start_epoch
         self.simulation_duration = simulation_duration
         self.simulation_timestep = simulation_timestep
