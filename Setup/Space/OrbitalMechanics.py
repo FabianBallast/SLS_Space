@@ -82,8 +82,15 @@ class OrbitalMechSimulator:
 
         if use_parameters_from_scenario is not None:
             body_settings.get('Earth').shape_settings.radius = use_parameters_from_scenario.physics.radius_Earth
-            body_settings.get('Earth').gravity_field_settings.gravitational_parameter = use_parameters_from_scenario.physics.gravitational_parameter_Earth
+            body_settings.get("Earth").gravity_field_settings = environment_setup.gravity_field.spherical_harmonic(
+                                    use_parameters_from_scenario.physics.gravitational_parameter_Earth,
+                                    use_parameters_from_scenario.physics.radius_Earth * 1.00111886533,   # Original value also slightly larger...
+                                    body_settings.get("Earth").gravity_field_settings.normalized_cosine_coefficients,
+                                    body_settings.get("Earth").gravity_field_settings.normalized_sine_coefficients,
+                                    body_settings.get("Earth").gravity_field_settings.associated_reference_frame)
 
+            # body_settings.get('Earth').gravity_field_settings.gravitational_parameter =
+            # body_settings.get('Earth').gravity_field_settings.reference_radius =
         # Create system of bodies (in this case only Earth)
         self.bodies = environment_setup.create_system_of_bodies(body_settings)
 
