@@ -70,7 +70,8 @@ class ScenarioEnum(Enum):
     position_keeping_scenario_translation_ROE = TranslationalScenario(model=Model.ROE)
     position_keeping_scenario_translation_ROE_scaled = TranslationalScenario(physics_scenario=PhysicsScenarios.basic_physics_scaled,
                                                                              model=Model.ROE)
-    simple_scenario_translation_HCW = TranslationalScenario(initial_state_scenario=InitialStateScenarios.small_state_error)
+    simple_scenario_translation_HCW = TranslationalScenario(initial_state_scenario=InitialStateScenarios.small_state_error,
+                                                            simulation_scenario=SimulationScenarios.sim_1_hour)
     simple_scenario_translation_HCW_scaled = TranslationalScenario(physics_scenario=PhysicsScenarios.basic_physics_scaled,
                                                                    initial_state_scenario=InitialStateScenarios.small_state_error)
     simple_scenario_translation_ROE = TranslationalScenario(model=Model.ROE,
@@ -79,15 +80,17 @@ class ScenarioEnum(Enum):
                                                                    model=Model.ROE,
                                                                    initial_state_scenario=InitialStateScenarios.small_state_error)
 
-    j2_scenario_pos_keep_HCW = TranslationalScenario(physics_scenario=PhysicsScenarios.advanced_grav_physics, simulation_scenario=SimulationScenarios.sim_24_hour)
-    j2_scenario_pos_keep_HCW_scaled = TranslationalScenario(physics_scenario=PhysicsScenarios.advanced_grav_physics_scaled)
+    j2_scenario_pos_keep_HCW = TranslationalScenario(physics_scenario=PhysicsScenarios.advanced_grav_physics)
+    j2_scenario_pos_keep_HCW_scaled = TranslationalScenario(physics_scenario=PhysicsScenarios.advanced_grav_physics_scaled,
+                                                            control_scenario=ControlParameterScenarios.control_position_fine)
     j2_scenario_pos_keep_ROE = TranslationalScenario(physics_scenario=PhysicsScenarios.advanced_grav_physics, model=Model.ROE)
     j2_scenario_pos_keep_ROE_scaled = TranslationalScenario(physics_scenario=PhysicsScenarios.advanced_grav_physics_scaled, model=Model.ROE)
 
     j2_scenario_moving_HCW = TranslationalScenario(physics_scenario=PhysicsScenarios.advanced_grav_physics,
                                                    initial_state_scenario=InitialStateScenarios.small_state_error)
     j2_scenario_moving_HCW_scaled = TranslationalScenario(physics_scenario=PhysicsScenarios.advanced_grav_physics_scaled,
-                                                          initial_state_scenario=InitialStateScenarios.small_state_error)
+                                                          initial_state_scenario=InitialStateScenarios.small_state_error,
+                                                            control_scenario=ControlParameterScenarios.control_position_default)
     j2_scenario_moving_ROE = TranslationalScenario(physics_scenario=PhysicsScenarios.advanced_grav_physics,
                                                    model=Model.ROE,
                                                    initial_state_scenario=InitialStateScenarios.small_state_error)

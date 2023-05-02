@@ -15,14 +15,15 @@ scenario_handler.create_sls_system()
 scenario_handler.create_storage_variables()
 
 # Run simulation
-# scenario_handler.simulate_system_closed_loop()
-scenario_handler.simulate_system_no_control()
+scenario_handler.simulate_system_closed_loop()
+# scenario_handler.simulate_system_no_control()
 
 orbital_sim = scenario_handler.export_results()
 
 # Plot results
 # orbital_sim.plot_quaternions()
-orbital_sim.plot_quaternions_rsw()
+# orbital_sim.plot_quaternions_rsw()
+orbital_sim.plot_cylindrical_states()
 orbital_sim.plot_euler_angles()
 orbital_sim.plot_angular_velocities()
 orbital_sim.plot_torques()

@@ -18,9 +18,9 @@ class RelCylHCW(TranslationalDynamics):
         super().__init__(scenario)
 
         if isinstance(scenario.physics, ScaledPhysics):
-            self.param = DynamicParameters(state_limit=[1, 1, 1, 0.1, self.mean_motion / 10, 0.1],
+            self.param = DynamicParameters(state_limit=[0.1, 10, 0.1, 0.1, self.mean_motion / 10, 0.1],
                                            input_limit=[0.1, 0.1, 0.1],
-                                           q_sqrt=np.diag(np.array([4, 50, 4, 0, 0, 0])),
+                                           q_sqrt=np.diag(np.array([4, 50, 15, 0, 0, 0])),
                                            r_sqrt_scalar=1e-2)
         else:
             self.param = DynamicParameters(state_limit=[10000, 10000, 100, 10, self.mean_motion / 10, 1],
@@ -101,7 +101,7 @@ class RelCylHCW(TranslationalDynamics):
 
         :return: List with maximum state values
         """
-        return [10000, 10000, 100, 10, self.mean_motion / 10, 1]
+        return self.param.state_limit
 
     def get_input_constraint(self) -> list[float | int | int, float]:
         """
@@ -109,7 +109,7 @@ class RelCylHCW(TranslationalDynamics):
 
         :return: List with maximum input values
         """
-        return [0.1, 0.1, 0.1]
+        return self.param.input_limit
 
     def get_state_cost_matrix_sqrt(self) -> np.ndarray:
         """
@@ -117,7 +117,7 @@ class RelCylHCW(TranslationalDynamics):
 
         :return: An nxn dimensional matrix representing Q_sqrt
         """
-        return np.diag(np.array([4, 50, 4, 0, 0, 0]))
+        return self.param.Q_sqrt
 
     def get_input_cost_matrix_sqrt(self) -> np.ndarray:
         """
@@ -125,12 +125,7 @@ class RelCylHCW(TranslationalDynamics):
 
         :return: An nxm dimensional matrix representing R_sqrt
         """
-        return 1e-2 * 1 * np.array([[0, 0, 0],
-                                    [0, 0, 0],
-                                    [0, 0, 0],
-                                    [1, 0, 0],
-                                    [0, 1, 0],
-                                    [0, 0, 1]])
+        return self.param.R_sqrt
 
 # Failed experiments
 # def create_scaled_hcw_model(orbital_height: float, satellite_mass: float, sampling_time: float) -> ct.LinearIOSystem:

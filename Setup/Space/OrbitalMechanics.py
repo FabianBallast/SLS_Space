@@ -478,7 +478,10 @@ class OrbitalMechSimulator:
         """
         self.simulation_timestep = simulation_step_size
         integrator_settings = propagation_setup.integrator.runge_kutta_4(self.simulation_timestep)
-        termination_settings = propagation_setup.propagator.time_termination(end_epoch)
+
+        # Small offset to prevent the simulation from doing another step at 4.99999 when going to 5
+        termination_settings = propagation_setup.propagator.time_termination(end_epoch - 0.0001)
+
 
         propagator_settings_list = []
         dependent_variables_list = []
@@ -833,7 +836,7 @@ class OrbitalMechSimulator:
         # Find correct satellites indices
         satellite_indices = []
         for satellite_name in satellite_names:
-            satellite_indices.append(self.controlled_satellite_names.index(satellite_name))
+            satellite_indices.append(self.all_satellite_names.index(satellite_name))
 
         satellite_indices = [x * state_length for x in satellite_indices]
 

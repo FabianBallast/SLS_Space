@@ -274,6 +274,7 @@ class ScenarioHandler:
         orbital_sim.dep_vars = self.dep_vars
         orbital_sim.dependent_variables_dict = self.dep_vars_dict
         orbital_sim.controlled_satellite_names = self.orbital_mech.controlled_satellite_names
+        orbital_sim.all_satellite_names = self.orbital_mech.all_satellite_names
         orbital_sim.satellite_mass = self.scenario.physics.mass
         orbital_sim.set_mean_motion(self.sls.dynamics.mean_motion)
 

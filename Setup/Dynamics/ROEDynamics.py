@@ -19,9 +19,9 @@ class QuasiROE(TranslationalDynamics):
         self.is_LTI = False
 
         if isinstance(scenario.physics, ScaledPhysics):
-            self.param = DynamicParameters(state_limit=[0.001, 1000, 0.001, 0.001, 1000, 1000],
+            self.param = DynamicParameters(state_limit=[0.01, 1000, 0.01, 0.01, 1000, 1000],
                                            input_limit=[0.1, 0.1, 0.1],
-                                           q_sqrt=np.diag(np.array([1000, 10, 1000, 1000, 0, 0])),
+                                           q_sqrt=np.diag(np.array([1000, 50, 1000, 1000, 0, 0])),
                                            r_sqrt_scalar=1e-2)
         else:
             self.param = DynamicParameters(state_limit=[0.001, 1000, 0.001, 0.001, 1000, 1000],
@@ -106,7 +106,7 @@ class QuasiROE(TranslationalDynamics):
 
         :return: List with maximum state values
         """
-        return [0.001, 1000, 0.001, 0.001, 1000, 1000]
+        return self.param.state_limit
 
     def get_input_constraint(self) -> list[int, float]:
         """
@@ -114,7 +114,7 @@ class QuasiROE(TranslationalDynamics):
 
         :return: List with maximum input values
         """
-        return [100, 100, 100]
+        return self.param.input_limit
 
     def get_state_cost_matrix_sqrt(self) -> np.ndarray:
         """
@@ -122,7 +122,7 @@ class QuasiROE(TranslationalDynamics):
 
         :return: An nxn dimensional matrix representing Q_sqrt
         """
-        return np.diag(np.array([1000, 10, 1000, 1000, 0, 0]))
+        return self.param.Q_sqrt
 
     def get_input_cost_matrix_sqrt(self) -> np.ndarray:
         """
@@ -130,9 +130,4 @@ class QuasiROE(TranslationalDynamics):
 
         :return: An nxm dimensional matrix representing R_sqrt
         """
-        return 1e-2 * 1 * np.array([[0, 0, 0],
-                                    [0, 0, 0],
-                                    [0, 0, 0],
-                                    [1, 0, 0],
-                                    [0, 1, 0],
-                                    [0, 0, 1]])
+        return self.param.R_sqrt

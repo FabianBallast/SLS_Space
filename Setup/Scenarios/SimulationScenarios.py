@@ -21,8 +21,8 @@ class SimulationScenarios(Enum):
     """
     Simple enum that provides different simulation scenarios.
     """
-    sim_1_minute = Simulation()
-    sim_10_minute = Simulation(simulation_duration=600)
+    sim_1_minute = Simulation(simulation_timestep=0.1)
+    sim_10_minute = Simulation(simulation_timestep=0.1, simulation_duration=600)
     sim_30_minute = Simulation(simulation_duration=1800)
     sim_1_hour = Simulation(simulation_duration=3600)
     sim_6_hour = Simulation(simulation_duration=6 * 3600)
