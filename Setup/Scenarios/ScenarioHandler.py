@@ -259,6 +259,16 @@ class ScenarioHandler:
         self.control_inputs_torque = np.zeros((self.scenario.number_of_satellites, 3, self.t_horizon_simulation))
         self.__run_simulation_timestep(0, full_simulation=True)
 
+    def simulate_system_controller_sim(self) -> None:
+        """
+        Run a simulation for the provided scenario with the controller model as a simulator.
+        """
+        # For initial value
+        self.__run_simulation_timestep(0, initial_setup=True)
+
+        self.sls.set_initial_conditions(self.sls_states[0:1].T)
+        self.sls.simulate_system(t_horizon=self.t_horizon_control, noise=None, progress=True)
+
     def export_results(self) -> OrbitalMechSimulator:
         """
         Export the results in an OrbitalMechSimulator object.

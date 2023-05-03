@@ -281,9 +281,11 @@ class SLSSetup:
             satellite_numbers = np.arange(0, self.number_of_systems)
 
         for satellite_number in satellite_numbers:
+            indices = np.arange(satellite_number * self.system_state_size,
+                                (satellite_number + 1) * self.system_state_size)
+            rel_states = self.x_states[indices, :].T - self.x_ref[indices].T
             plot_method = self.dynamics.get_plot_method()
-            figure = plot_method(self.x_states[satellite_number * self.system_state_size:
-                                               (satellite_number + 1) * self.system_state_size, :].T,
+            figure = plot_method(rel_states,
                                  self.sampling_time,
                                  f"SLS_prediction_{satellite_number}", figure, linestyle='--')
 
