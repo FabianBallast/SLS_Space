@@ -169,7 +169,7 @@ class SLSSetup:
             self.__fill_matrices(angles)
 
     def simulate_system(self, t_horizon: int, noise=None, progress: bool = False,
-                        inputs_to_store: int = None) -> (np.ndarray, np.ndarray):
+                        inputs_to_store: int = None, fast_computation: bool = False) -> (np.ndarray, np.ndarray):
         """
         Simulate the system assuming a perfect model is known.
 
@@ -178,10 +178,12 @@ class SLSSetup:
         :param progress: Whether to provide progress updates
         :param inputs_to_store: How many inputs to store in u_inputs.
                                 Usually equal to t_horizon, but for simulation with RK4 can be set to 1.
+        :param fast_computation: Whether to speed up the computations using a transformed problem.
         :return: Tuple with (x_states, u_inputs)
         """
         if noise is None:  # and self.synthesizer is None:
-            self.synthesizer = SLS(system_model=self.sys, FIR_horizon=self.tFIR, noise_free=True)
+            self.synthesizer = SLS(system_model=self.sys, FIR_horizon=self.tFIR, noise_free=True,
+                                   fast_computation=fast_computation)
 
             # set SLS objective
             self.synthesizer << SLS_Obj_H2()
@@ -216,17 +218,28 @@ class SLSSetup:
 
             # Set past position as initial state
             self.set_initial_conditions(self.x_states[:, t:t + 1])
-            self.sys.initialize(self.x0)
+
+            if fast_computation:
+                self.sys.initialize(self.x0 - self.x_ref)
+            else:
+                self.sys.initialize(self.x0)
 
             # Synthesise controller
             self.controller = self.synthesizer.synthesizeControllerModel(self.x_ref)
 
             # Update state and input
-            self.u_inputs[:, t] = self.controller._Phi_u[1] @ self.x_states[:, t]  # Do first, you append x in next step
-            self.x_states[:, t + 1] = self.controller._Phi_x[2] @ self.x_states[:, t]
+            if fast_computation:
+                self.u_inputs[:, t:t+1] = self.controller._Phi_u[1]
+                self.x_states[:, t+1:t+2] = self.controller._Phi_x[2] + self.x_ref
 
-            if inputs_to_store != t_horizon and inputs_to_store > 1:
-                self.u_inputs[:, t + 1] = self.controller._Phi_u[2] @ self.x_states[:, t]
+                if inputs_to_store != t_horizon and inputs_to_store > 1:
+                    self.u_inputs[:, t+1:t+2] = self.controller._Phi_u[2]
+            else:
+                self.u_inputs[:, t] = self.controller._Phi_u[1] @ self.x_states[:, t]
+                self.x_states[:, t + 1] = self.controller._Phi_x[2] @ self.x_states[:, t]
+
+                if inputs_to_store != t_horizon and inputs_to_store > 1:
+                    self.u_inputs[:, t + 1] = self.controller._Phi_u[2] @ self.x_states[:, t]
 
         return self.x_states, self.u_inputs
 

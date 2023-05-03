@@ -224,7 +224,7 @@ class ScenarioHandler:
         #                                                 time * self.control_simulation_ratio + 1].T)
         self.sls.set_initial_conditions(self.sls_states[time * self.control_simulation_ratio:
                                                         time * self.control_simulation_ratio + 1].T)
-        self.sls.simulate_system(t_horizon=1, noise=None, inputs_to_store=1)
+        self.sls.simulate_system(t_horizon=1, noise=None, inputs_to_store=1, fast_computation=True)
 
         if isinstance(self.sls.dynamics, LinAttModel):
             self.control_inputs_torque = self.sls.u_inputs.reshape((self.scenario.number_of_satellites, 3, -1))
@@ -267,7 +267,7 @@ class ScenarioHandler:
         self.__run_simulation_timestep(0, initial_setup=True)
 
         self.sls.set_initial_conditions(self.sls_states[0:1].T)
-        self.sls.simulate_system(t_horizon=self.t_horizon_control, noise=None, progress=True)
+        self.sls.simulate_system(t_horizon=self.t_horizon_control, noise=None, progress=True, fast_computation=True)
 
     def export_results(self) -> OrbitalMechSimulator:
         """
