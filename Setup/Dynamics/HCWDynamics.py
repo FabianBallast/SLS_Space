@@ -20,7 +20,7 @@ class RelCylHCW(TranslationalDynamics):
         if isinstance(scenario.physics, ScaledPhysics):
             self.param = DynamicParameters(state_limit=[0.1, 10, 0.1, 0.1, self.mean_motion / 10, 0.1],
                                            input_limit=[0.1, 0.1, 0.1],
-                                           q_sqrt=np.diag(np.array([4, 50, 15, 0, 0, 0])),
+                                           q_sqrt=np.diag(np.array([4, 50, 15, 200, 200, 200])),
                                            r_sqrt_scalar=1e-2)
         else:
             self.param = DynamicParameters(state_limit=[10000, 10000, 100, 10, self.mean_motion / 10, 1],
