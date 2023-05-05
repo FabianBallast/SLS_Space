@@ -18,7 +18,7 @@ class EngineModel:
         self.control_input = control_input
         self.control_timestep = control_timestep  # Length between different control signals [s]
         self.t0 = None
-        self.number_of_inputs = len(self.control_input[0, :])
+        self.number_of_inputs = self.control_input.shape[1]
         self.propagated_body = propagated_body
 
 
@@ -103,7 +103,7 @@ class ThrustModel(EngineModel):
             if self.t0 is None:
                 self.t0 = time
 
-            idx = int((time - self.t0) / self.control_timestep)
+            idx = int((time - self.t0) / self.control_timestep) - 1
             if idx < self.number_of_inputs:
                 # Find force in RSW frame
                 thrust_direction_rsw_frame = self.control_direction[:, idx]
@@ -137,6 +137,20 @@ class ThrustModel(EngineModel):
         # Return the thrust direction in the inertial frame
         return thrust_inertial_frame
 
+    def update_thrust(self, thrust_input: np.ndarray) -> None:
+        """
+        Update the thrust model with new inputs.
+
+        :param thrust_input: The thrust inputs in the shape (3, t).
+        """
+        self.t0 = None
+        self.control_input = thrust_input
+        self.number_of_inputs = thrust_input.shape[1]
+
+        self.control_magnitudes = np.zeros(self.number_of_inputs)
+        self.control_direction = np.zeros_like(self.control_input)
+        self.find_magnitude_and_direction()
+
 
 class TorqueModel(EngineModel):
     """
@@ -148,7 +162,7 @@ class TorqueModel(EngineModel):
 
         :param torque_input: Numpy array of shape (3, t) with the torque inputs over time.
         :param control_timestep: Timestep used for control purposes.
-        :param propagated_body: The body that is being propagatedby this engine.
+        :param propagated_body: The body that is being propagated by this engine.
         """
         super().__init__(torque_input, control_timestep, propagated_body)
 
@@ -191,3 +205,13 @@ class TorqueModel(EngineModel):
 
         # Return the thrust direction in the inertial frame and swap order (for weird frame of model)
         return torque_inertial_frame
+
+    def update_torque(self, torque_input: np.ndarray) -> None:
+        """
+        Update the torque model with new inputs.
+
+        :param torque_input: The thrust inputs in the shape (3, t).
+        """
+        self.control_input = torque_input
+        self.number_of_inputs = torque_input.shape[1]
+        self.t0 = None

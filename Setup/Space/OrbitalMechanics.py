@@ -24,6 +24,8 @@ class OrbitalMechSimulator:
         self.number_of_controlled_satellites = None
         self.acceleration_model = None
         self.torque_model = None
+        self.input_thrust_model = None
+        self.input_torque_model = None
         self.torque_engine_models = None
         self.mass_rate_models = None
         self.satellite_mass = None
@@ -129,19 +131,21 @@ class OrbitalMechSimulator:
         :param thrust_inputs: Numpy array of control inputs of the shape (number_of_satellites, 3, time).
         :param specific_impulse: Specific impulse for each engine.
         """
+        self.input_thrust_model = [None] * self.number_of_controlled_satellites
+
         # Add thruster model for every satellite
         for idx, satellite_name in enumerate(self.controlled_satellite_names):
             # Set up the thrust model for the satellite
-            current_thrust_model = ThrustModel(thrust_inputs[idx], control_timestep, specific_impulse,
-                                               self.bodies.get(satellite_name))
+            self.input_thrust_model[idx] = ThrustModel(thrust_inputs[idx], control_timestep, specific_impulse,
+                                                       self.bodies.get(satellite_name))
 
             rotation_model_settings = environment_setup.rotation_model.custom_inertial_direction_based(
-                current_thrust_model.get_thrust_direction, "J2000", "VehicleFixed")
+                self.input_thrust_model[idx].get_thrust_direction, "J2000", "VehicleFixed")
             environment_setup.add_rotation_model(self.bodies, satellite_name, rotation_model_settings)
 
             # Define the thrust magnitude settings for the satellite from the custom functions
             thrust_magnitude_settings = propagation_setup.thrust.custom_thrust_magnitude(
-                current_thrust_model.get_thrust_magnitude, current_thrust_model.get_specific_impulse)
+                self.input_thrust_model[idx].get_thrust_magnitude, self.input_thrust_model[idx].get_specific_impulse)
 
             environment_setup.add_engine_model(satellite_name, satellite_name + "_thrust_engine",
                                                thrust_magnitude_settings, self.bodies)
@@ -156,14 +160,27 @@ class OrbitalMechSimulator:
         :param specific_impulse: Specific impulse for each engine.
         """
         self.torque_engine_models = [None] * self.number_of_controlled_satellites
+        self.input_torque_model = [None] * self.number_of_controlled_satellites
 
         # Add thruster model for every satellite
         for idx, satellite_name in enumerate(self.controlled_satellite_names):
             # Set up the thrust model for the satellite
-            current_torque_model = TorqueModel(torque_inputs[idx], control_timestep, self.bodies.get(satellite_name))
+            self.input_torque_model[idx] = TorqueModel(torque_inputs[idx], control_timestep,
+                                                       self.bodies.get(satellite_name))
 
             # Define the thrust magnitude settings for the satellite from the custom functions
-            self.torque_engine_models[idx] = propagation_setup.torque.custom_torque(current_torque_model.get_torque)
+            self.torque_engine_models[idx] = propagation_setup.torque.custom_torque(self.input_torque_model[idx].get_torque)
+
+    def update_engine_models(self, thrust_inputs: np.ndarray, torque_inputs: np.ndarray) -> None:
+        """
+        Update the engine models with these new inputs.
+
+        :param thrust_inputs: Thrust inputs in shape (satellites, 3, time).
+        :param torque_inputs: Torque inputs in shape (satellites, 3, time).
+        """
+        for i in range(self.number_of_controlled_satellites):
+            self.input_thrust_model[i].update_thrust(thrust_inputs[i])
+            self.input_torque_model[i].update_torque(torque_inputs[i])
 
     def create_acceleration_model(self, order_of_zonal_harmonics: int = 0) -> None:
         """
@@ -569,6 +586,13 @@ class OrbitalMechSimulator:
             self.rotation_states = self.states[:, 7 * self.number_of_total_satellites + 1:]
         elif self.torque_model is not None:
             self.rotation_states = self.states[:, 6 * self.number_of_total_satellites + 1:]
+
+        # Reset variables possibly used before
+        self.cylindrical_states = None
+        self.quasi_roe = None
+        self.euler_angles = None
+        self.angular_velocities = None
+        self.rsw_quaternions = None
 
         if len(dep_vars) == 0:
             return self.states

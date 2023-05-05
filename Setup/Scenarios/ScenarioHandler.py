@@ -93,13 +93,15 @@ class ScenarioHandler:
 
         # Create thrust models
         self.orbital_mech.create_engine_models_thrust(control_timestep=self.scenario.control.control_timestep,
-                                                      thrust_inputs=self.control_inputs_thrust,
-                                                      specific_impulse=self.scenario.physics.specific_impulse)
+                                                  thrust_inputs=self.control_inputs_thrust,
+                                                  specific_impulse=self.scenario.physics.specific_impulse)
 
-        # Create torque models
+        # Create torque models/update them
+        # if self.orbital_mech.input_torque_model is None:
         self.orbital_mech.create_engine_models_torque(control_timestep=self.scenario.control.control_timestep,
                                                       torque_inputs=self.control_inputs_torque,
                                                       specific_impulse=self.scenario.physics.specific_impulse)
+
 
         # Add acceleration to the model
         if self.scenario.physics.J2_perturbation:
@@ -115,6 +117,7 @@ class ScenarioHandler:
                                                               add_rsw_rotation_matrix=True,
                                                               add_thrust_accel=True)
         self.orbital_mech.set_dependent_variables_rotation(add_control_torque=True, add_torque_norm=False)
+
 
     def __initialise_simulation(self) -> None:
         """
@@ -155,7 +158,10 @@ class ScenarioHandler:
         :param full_simulation: Whether to run the complete simulation in one go. No control possible in that case.
                                 Use time = 0 in that case.
         """
-        self.__create_simulation()
+        if self.orbital_mech is None:
+            self.__create_simulation()
+        else:
+            self.orbital_mech.update_engine_models(self.control_inputs_thrust, self.control_inputs_torque)
 
         if initial_setup:
             self.__initialise_simulation()
@@ -186,7 +192,6 @@ class ScenarioHandler:
 
         # Store results
         if initial_setup:
-            control_states = self.orbital_mech.get_states_for_dynamical_model(self.sls.dynamics)
             self.sls_states[0:1] = control_states[0:1]
 
             self.dep_vars = np.zeros((len(self.pos_states[:, 0]), dep_vars_array.shape[1]))
