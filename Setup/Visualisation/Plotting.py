@@ -130,7 +130,7 @@ def plot_onto_axes(states: np.ndarray, time: np.ndarray, axes_list: list[plt.axe
         axes.set_ylabel(y_label_names[idx])
         axes.set_xlim([min(time), max(time)])
         axes.grid()
-        axes.legend()
+        # axes.legend()
 
     plt.tight_layout()
 
