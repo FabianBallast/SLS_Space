@@ -1,6 +1,6 @@
 from matplotlib import pyplot as plt
 
-from SLS.SLS_setup import SLSSetup
+from Controllers.SLS_setup import SLSSetup
 import numpy as np
 
 # Create system basics

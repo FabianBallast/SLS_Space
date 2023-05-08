@@ -4,7 +4,7 @@ from Dynamics.ROEDynamics import QuasiROE
 from Dynamics.SystemDynamics import TranslationalDynamics
 from Scenarios.MainScenarios import Scenario
 from Space.OrbitalMechanics import OrbitalMechSimulator
-from SLS.SLS_setup import SLSSetup
+from Controllers.SLS_setup import SLSSetup
 from Scenarios.ControlScenarios import Model
 import numpy as np
 

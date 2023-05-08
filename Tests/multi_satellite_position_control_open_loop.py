@@ -4,7 +4,7 @@ from tudatpy.kernel.interface import spice
 from Dynamics.HCWDynamics import RelCylHCW
 from Dynamics.ROEDynamics import QuasiROE
 from Space.OrbitalMechanics import OrbitalMechSimulator
-from SLS.SLS_setup import SLSSetup
+from Controllers.SLS_setup import SLSSetup
 
 # Find default physical parameters
 spice.load_standard_kernels()
