@@ -42,10 +42,6 @@ class SLSSetup:
 
         :param number_of_systems: Number of satellites.
         """
-        # system = self.dynamics.create_model(sampling_time=self.sampling_time, argument_of_latitude=0)
-        # self.system_state_size, system_input_size = system.B.shape
-        # self.total_state_size = number_of_systems * self.system_state_size
-        # self.total_input_size = number_of_systems * system_input_size
         self.number_of_systems = number_of_systems
         self.system_state_size = self.dynamics.state_size
         self.total_state_size = self.number_of_systems * self.system_state_size
@@ -55,13 +51,6 @@ class SLSSetup:
         self.sys = LTV_System(Nx=self.total_state_size, Nu=self.total_input_size, Nw=3, tFIR=self.tFIR)
         self.__fill_matrices(np.linspace(0, 0, self.number_of_systems))  # Is updated before use when setting init. pos
         self.sys._C2 = np.eye(self.total_state_size)  # All states as measurements
-
-        # A_system = np.kron(np.eye(self.number_of_systems, dtype=int), np.round(system.A, 10))
-        # B2_system = np.kron(np.eye(self.number_of_systems, dtype=int), np.round(system.B, 10))
-        #
-        # self.sys._A = A_system
-        # self.sys._B1 = np.tile(system.B, (self.number_of_systems, 1))
-        # self.sys._B2 = B2_system
 
         # Some parameters to use later for translational systems
         if isinstance(self.dynamics, SysDyn.TranslationalDynamics):
