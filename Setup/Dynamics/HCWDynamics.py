@@ -6,7 +6,6 @@ from matplotlib import pyplot as plt
 from Dynamics.DynamicsParameters import DynamicParameters
 from Dynamics.SystemDynamics import TranslationalDynamics
 from Scenarios.MainScenarios import Scenario
-from Scenarios.PhysicsScenarios import ScaledPhysics
 
 
 class RelCylHCW(TranslationalDynamics):
@@ -126,66 +125,3 @@ class RelCylHCW(TranslationalDynamics):
         :return: An nxm dimensional matrix representing R_sqrt
         """
         return self.param.R_sqrt
-
-# Failed experiments
-# def create_scaled_hcw_model(orbital_height: float, satellite_mass: float, sampling_time: float) -> ct.LinearIOSystem:
-#     # States: [rho, theta, z, rho_dot, theta_dot, z_dot]
-#     # Units: [m, deg, m, m/s, deg/s, m/s]
-#     # Inputs: [N, N, N]
-#     rad2deg = 1 #  np.rad2deg(1)
-#
-#     orbit_radius = (orbital_height + earth_radius) * 1e0  # km
-#     mean_motion = np.sqrt(earth_gravitational_parameter * 1e0 / orbit_radius ** 3)
-#
-#     A_matrix = np.array([[0, 0, 0, 1, 0, 0],
-#                          [0, 0, 0, 0, 1, 0],
-#                          [0, 0, 0, 0, 0, 1],
-#                          [3 * mean_motion ** 2, 0, 0, 0, 2 * orbit_radius * mean_motion / rad2deg, 0],
-#                          [0, 0, 0, -2 * mean_motion * rad2deg / orbit_radius, 0, 0],
-#                          [0, 0, 0, 0, 0, -mean_motion ** 2]])
-#
-#     B_matrix = np.array([[0, 0, 0],
-#                          [0, 0, 0],
-#                          [0, 0, 0],
-#                          [1 / satellite_mass, 0, 0],
-#                          [0, 1 / satellite_mass, 0],
-#                          [0, 0, 1 / satellite_mass]])
-#
-#     system_state_size, _ = B_matrix.shape
-#     system_continuous = ct.ss(A_matrix, B_matrix, np.eye(system_state_size), 0)
-#
-#     # Find discrete system
-#     system_discrete = ct.sample_system(system_continuous, sampling_time)
-#
-#     return system_discrete
-#
-#
-# def create_scaled_hcw_model_2(orbital_height: float, satellite_mass: float, sampling_time: float) -> ct.LinearIOSystem:
-#     # States: [rho, R * theta, z, rho_dot, R * theta_dot, z_dot]
-#     # Units: [m, m, m, m/s, m/s, m/s]
-#     # Inputs: [N, N, N]
-#
-#     orbit_radius = (orbital_height + earth_radius) * 1e3  # m
-#     mean_motion = np.sqrt(earth_gravitational_parameter * 1e9 / orbit_radius ** 3)
-#
-#     A_matrix = np.array([[0, 0, 0, 1, 0, 0],
-#                          [0, 0, 0, 0, 1, 0],
-#                          [0, 0, 0, 0, 0, 1],
-#                          [3 * mean_motion ** 2, 0, 0, 0, 2 * mean_motion, 0],
-#                          [0, 0, 0, -2 * mean_motion, 0, 0],
-#                          [0, 0, 0, 0, 0, -mean_motion ** 2]])
-#
-#     B_matrix = np.array([[0, 0, 0],
-#                          [0, 0, 0],
-#                          [0, 0, 0],
-#                          [1 / satellite_mass, 0, 0],
-#                          [0, 1 / satellite_mass, 0],
-#                          [0, 0, 1 / satellite_mass]])
-#
-#     system_state_size, _ = B_matrix.shape
-#     system_continuous = ct.ss(A_matrix, B_matrix, np.eye(system_state_size), 0)
-#
-#     # Find discrete system
-#     system_discrete = ct.sample_system(system_continuous, sampling_time)
-#
-#     return system_discrete

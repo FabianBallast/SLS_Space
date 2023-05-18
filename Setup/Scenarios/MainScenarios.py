@@ -75,7 +75,7 @@ class ScenarioEnum(Enum):
     simple_scenario_translation_HCW_scaled = TranslationalScenario(physics_scenario=PhysicsScenarios.basic_physics_scaled,
                                                                    initial_state_scenario=InitialStateScenarios.small_state_error,
                                                                    number_of_satellites=10,
-                                                                   simulation_scenario=SimulationScenarios.sim_30_minute)
+                                                                   simulation_scenario=SimulationScenarios.sim_15_minute)
     simple_scenario_translation_ROE = TranslationalScenario(model=Model.ROE,
                                                             initial_state_scenario=InitialStateScenarios.small_state_error)
     simple_scenario_translation_ROE_scaled = TranslationalScenario(physics_scenario=PhysicsScenarios.basic_physics_scaled,
