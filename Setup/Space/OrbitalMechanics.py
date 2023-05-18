@@ -1,6 +1,7 @@
 import numpy as np
 from matplotlib import pyplot as plt
 from matplotlib.animation import FuncAnimation
+from tudatpy import util
 from tudatpy.kernel.numerical_simulation import environment_setup, propagation_setup, create_dynamics_simulator
 from tudatpy.kernel.astro import element_conversion, frame_conversion
 from tudatpy.util import result2array
@@ -9,6 +10,7 @@ from Visualisation import Plotting as Plot
 from Dynamics import HCWDynamics, ROEDynamics, SystemDynamics, AttitudeDynamics, DifferentialDragDynamics
 from scipy.spatial.transform import Rotation
 from Scenarios.MainScenarios import Scenario
+
 
 class OrbitalMechSimulator:
     """
@@ -568,7 +570,8 @@ class OrbitalMechSimulator:
                  and the dependent variables, or only the states.
         """
         # Create simulation object and propagate the dynamics
-        dynamics_simulator = create_dynamics_simulator(self.bodies, self.propagator_settings)
+        with util.redirect_std():
+            dynamics_simulator = create_dynamics_simulator(self.bodies, self.propagator_settings)
 
         states = dynamics_simulator.state_history
         dep_vars = dynamics_simulator.dependent_variable_history

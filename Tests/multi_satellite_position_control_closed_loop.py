@@ -13,7 +13,7 @@ from Scenarios.ScenarioHandler import ScenarioHandler
 # scenario = ScenarioEnum.position_keeping_scenario_translation_ROE_scaled
 
 # scenario = ScenarioEnum.simple_scenario_translation_HCW
-# scenario = ScenarioEnum.simple_scenario_translation_HCW_scaled
+scenario = ScenarioEnum.simple_scenario_translation_HCW_scaled
 
 # scenario = ScenarioEnum.simple_scenario_translation_ROE
 # scenario = ScenarioEnum.simple_scenario_translation_ROE_scaled
@@ -22,7 +22,7 @@ from Scenarios.ScenarioHandler import ScenarioHandler
 # scenario = ScenarioEnum.j2_scenario_pos_keep_HCW_scaled
 # scenario = ScenarioEnum.j2_scenario_moving_HCW_scaled
 
-scenario = ScenarioEnum.simple_scenario_translation_SimAn_scaled
+# scenario = ScenarioEnum.simple_scenario_translation_SimAn_scaled
 
 # Setup
 scenario_handler = ScenarioHandler(scenario.value)
