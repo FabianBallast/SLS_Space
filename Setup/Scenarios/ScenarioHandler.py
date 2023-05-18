@@ -1,10 +1,12 @@
 from Dynamics.AttitudeDynamics import LinAttModel
 from Dynamics.HCWDynamics import RelCylHCW
 from Dynamics.ROEDynamics import QuasiROE
+from Dynamics.DifferentialDragDynamics import DifferentialDragDynamics
 from Dynamics.SystemDynamics import TranslationalDynamics
 from Scenarios.MainScenarios import Scenario
 from Space.OrbitalMechanics import OrbitalMechSimulator
 from Controllers.SLS_setup import SLSSetup
+from Controllers.SimulatedAnnealing import SimulatedAnnealing
 from Scenarios.ControlScenarios import Model
 import numpy as np
 
@@ -21,7 +23,7 @@ class ScenarioHandler:
         :param scenario: A dict with the scenario to run.
         """
         self.scenario = scenario
-        self.sls = None
+        self.controller = None
         self.orbital_mech = None
 
         self.control_inputs_thrust = np.zeros((self.scenario.number_of_satellites, 3, 2))
@@ -48,19 +50,29 @@ class ScenarioHandler:
             control_model = QuasiROE(self.scenario)
         elif self.scenario.model == Model.HCW:
             control_model = RelCylHCW(self.scenario)
+        elif self.scenario.model == Model.DIFFERENTIAL_DRAG:
+            control_model = DifferentialDragDynamics(self.scenario)
         else:
             raise Exception(f"Model type {self.scenario.model} not recognized!")
 
-        self.sls = SLSSetup(sampling_time=self.scenario.control.control_timestep, system_dynamics=control_model,
-                            tFIR=self.scenario.control.tFIR)
-        self.sls.create_system(number_of_systems=self.scenario.number_of_satellites)
+        if self.scenario.model == Model.DIFFERENTIAL_DRAG:
+            control_method = SimulatedAnnealing
+        else:
+            control_method = SLSSetup
+
+        self.controller = control_method(sampling_time=self.scenario.control.control_timestep,
+                                         system_dynamics=control_model,
+                                         prediction_horizon=self.scenario.control.tFIR)
+        self.controller.create_system(number_of_systems=self.scenario.number_of_satellites)
 
         # Add cost matrices
-        self.sls.create_cost_matrices()
+        if isinstance(self.controller, SLSSetup):
+            self.controller.create_cost_matrices()
 
         # Create x0 and x_ref
-        self.sls.create_x0(number_of_dropouts=self.scenario.initial_state.dropouts)
-        self.sls.create_reference()
+        self.controller.create_x0(number_of_dropouts=int(self.scenario.initial_state.dropouts *
+                                                         self.scenario.number_of_satellites) + 1)
+        self.controller.create_reference()
 
     def create_storage_variables(self) -> None:
         """
@@ -75,7 +87,7 @@ class ScenarioHandler:
                                        self.scenario.simulation.simulation_timestep
 
         # Also include reference for pos/rot states
-        self.sls_states = np.zeros((self.t_horizon_simulation + 1, len(self.sls.x0)))
+        self.sls_states = np.zeros((self.t_horizon_simulation + 1, len(self.controller.x0)))
         self.pos_states = np.zeros((self.t_horizon_simulation + 1, (self.scenario.number_of_satellites + 1) * 6))
         self.rot_states = np.zeros((self.t_horizon_simulation + 1, (self.scenario.number_of_satellites + 1) * 7))
 
@@ -84,7 +96,7 @@ class ScenarioHandler:
         Create an OrbitalMechSim and set most of the parameters, except initial positions.
         """
         self.orbital_mech = OrbitalMechSimulator()
-        self.orbital_mech.set_mean_motion(self.sls.dynamics.mean_motion)
+        self.orbital_mech.set_mean_motion(self.controller.dynamics.mean_motion)
         self.orbital_mech.create_bodies(number_of_satellites=self.scenario.number_of_satellites,
                                         satellite_mass=self.scenario.physics.mass,
                                         satellite_inertia=self.scenario.physics.inertia_tensor,
@@ -93,15 +105,14 @@ class ScenarioHandler:
 
         # Create thrust models
         self.orbital_mech.create_engine_models_thrust(control_timestep=self.scenario.control.control_timestep,
-                                                  thrust_inputs=self.control_inputs_thrust,
-                                                  specific_impulse=self.scenario.physics.specific_impulse)
+                                                      thrust_inputs=self.control_inputs_thrust,
+                                                      specific_impulse=self.scenario.physics.specific_impulse)
 
         # Create torque models/update them
         # if self.orbital_mech.input_torque_model is None:
         self.orbital_mech.create_engine_models_torque(control_timestep=self.scenario.control.control_timestep,
                                                       torque_inputs=self.control_inputs_torque,
                                                       specific_impulse=self.scenario.physics.specific_impulse)
-
 
         # Add acceleration to the model
         if self.scenario.physics.J2_perturbation:
@@ -118,16 +129,17 @@ class ScenarioHandler:
                                                               add_thrust_accel=True)
         self.orbital_mech.set_dependent_variables_rotation(add_control_torque=True, add_torque_norm=False)
 
-
     def __initialise_simulation(self) -> None:
         """
         Initialise the simulation by setting the correct initial positions.
         """
         # Set the initial position of the satellites
-        if isinstance(self.sls.dynamics, LinAttModel):
+        if isinstance(self.controller.dynamics, LinAttModel):
             true_anomalies = np.linspace(0, 360, self.scenario.number_of_satellites, endpoint=False).tolist()
+        elif isinstance(self.controller.dynamics, DifferentialDragDynamics):
+            true_anomalies = [0] + np.rad2deg(self.controller.x0[self.controller.angle_states].reshape((-1,))).tolist()
         else:
-            true_anomalies = np.rad2deg(self.sls.x0[self.sls.angle_states].reshape((-1,))).tolist()
+            true_anomalies = np.rad2deg(self.controller.x0[self.controller.angle_states].reshape((-1,))).tolist()
 
         self.pos_states[0:1] = \
             self.orbital_mech.convert_orbital_elements_to_cartesian(true_anomalies=true_anomalies,
@@ -137,7 +149,7 @@ class ScenarioHandler:
                                                                     eccentricity=self.scenario.orbital.eccentricity,
                                                                     argument_of_periapsis=self.scenario.orbital.argument_of_periapsis)
 
-        angular_vel = np.array([0, 0, -1 * self.sls.dynamics.mean_motion])
+        angular_vel = np.array([0, 0, -1 * self.controller.dynamics.mean_motion])
         angular_vel_offsets = np.random.rand(3, self.scenario.number_of_satellites) * \
                               self.scenario.initial_state.angular_velocity_offset_magnitude
         self.rot_states[0:1] = \
@@ -188,7 +200,7 @@ class ScenarioHandler:
         # Simulate system
         self.orbital_mech.simulate_system()
         dep_vars_array = self.orbital_mech.dep_vars
-        control_states = self.orbital_mech.get_states_for_dynamical_model(self.sls.dynamics)
+        control_states = self.orbital_mech.get_states_for_dynamical_model(self.controller.dynamics)
 
         # Store results
         if initial_setup:
@@ -213,10 +225,10 @@ class ScenarioHandler:
                 self.sls_states[index_selection] = control_states[1:self.control_simulation_ratio + 1]
 
         # Unwrap to prevent weird positions when positions are involved
-        if isinstance(self.sls.dynamics, TranslationalDynamics) and not initial_setup and not full_simulation:
+        if isinstance(self.controller.dynamics, TranslationalDynamics) and not initial_setup and not full_simulation:
             unwrap_indices = np.arange(time * self.control_simulation_ratio,
                                        (time + 1) * self.control_simulation_ratio + 1)
-            index_selection = np.ix_(unwrap_indices, self.sls.angle_states)
+            index_selection = np.ix_(unwrap_indices, self.controller.angle_states)
             self.sls_states[index_selection] = np.unwrap(self.sls_states[index_selection], axis=0)
 
     def __synthesise_controller(self, time: int) -> None:
@@ -227,15 +239,39 @@ class ScenarioHandler:
         """
         # print(self.sls_states[time * self.control_simulation_ratio:
         #                                                 time * self.control_simulation_ratio + 1].T)
-        self.sls.set_initial_conditions(self.sls_states[time * self.control_simulation_ratio:
-                                                        time * self.control_simulation_ratio + 1].T)
-        self.sls.simulate_system(t_horizon=1, noise=None, inputs_to_store=1, fast_computation=True)
+        self.controller.set_initial_conditions(self.sls_states[time * self.control_simulation_ratio:
+                                                               time * self.control_simulation_ratio + 1].T)
+        _, control_inputs = self.controller.simulate_system(t_horizon=1, noise=None, inputs_to_store=1,
+                                                            fast_computation=True)
 
-        if isinstance(self.sls.dynamics, LinAttModel):
-            self.control_inputs_torque = self.sls.u_inputs.reshape((self.scenario.number_of_satellites, 3, -1))
+        if isinstance(self.controller.dynamics, LinAttModel):
+            self.control_inputs_torque = control_inputs.reshape((self.scenario.number_of_satellites,
+                                                                 self.controller.dynamics.input_size, -1))
             self.control_inputs_thrust = 0 * self.control_inputs_torque
+        elif isinstance(self.controller.dynamics, DifferentialDragDynamics):
+            inputs_theta = control_inputs.reshape((self.scenario.number_of_satellites,
+                                                   self.controller.dynamics.input_size, -1))
+
+            inputs_sat = inputs_theta[0] - inputs_theta
+            theta_ddot = inputs_sat / self.scenario.physics.mass / self.controller.dynamics.orbit_radius
+
+            cyl_states = self.orbital_mech.convert_to_cylindrical_coordinates()
+
+            r_avg = cyl_states[-1, 0::6] + 0.5 * self.controller.sampling_time * cyl_states[-1, 3::6]
+            theta_dot_avg = cyl_states[-1, 4::6] + 0.5 * self.controller.sampling_time * theta_ddot.flatten()
+            inputs_r = (-3 * self.controller.dynamics.mean_motion ** 2 * r_avg -
+                        2 * self.controller.dynamics.orbit_radius * self.controller.dynamics.mean_motion
+                        * theta_dot_avg).reshape((self.scenario.number_of_satellites,
+                                                  self.controller.dynamics.input_size, -1))
+
+            self.control_inputs_thrust = np.concatenate((inputs_r * self.scenario.physics.mass,
+                                                         inputs_sat,
+                                                         0 * inputs_theta), axis=1)
+            self.control_inputs_torque = 0 * self.control_inputs_thrust
+
         else:
-            self.control_inputs_thrust = self.sls.u_inputs.reshape((self.scenario.number_of_satellites, 3, -1))
+            self.control_inputs_thrust = control_inputs.reshape((self.scenario.number_of_satellites,
+                                                                 self.controller.dynamics.input_size, -1))
             self.control_inputs_torque = 0 * self.control_inputs_thrust
 
     def simulate_system_closed_loop(self) -> None:
@@ -271,8 +307,9 @@ class ScenarioHandler:
         # For initial value
         self.__run_simulation_timestep(0, initial_setup=True)
 
-        self.sls.set_initial_conditions(self.sls_states[0:1].T)
-        self.sls.simulate_system(t_horizon=self.t_horizon_control, noise=None, progress=True, fast_computation=True)
+        self.controller.set_initial_conditions(self.sls_states[0:1].T)
+        self.controller.simulate_system(t_horizon=self.t_horizon_control, noise=None, progress=True,
+                                        fast_computation=True)
 
     def export_results(self) -> OrbitalMechSimulator:
         """
@@ -291,7 +328,6 @@ class ScenarioHandler:
         orbital_sim.controlled_satellite_names = self.orbital_mech.controlled_satellite_names
         orbital_sim.all_satellite_names = self.orbital_mech.all_satellite_names
         orbital_sim.satellite_mass = self.scenario.physics.mass
-        orbital_sim.set_mean_motion(self.sls.dynamics.mean_motion)
+        orbital_sim.set_mean_motion(self.controller.dynamics.mean_motion)
 
         return orbital_sim
-

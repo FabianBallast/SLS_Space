@@ -3,8 +3,15 @@ from scipy.spatial.transform import Rotation
 
 
 class InitialStateError:
-    def __init__(self, attitude_offset=Rotation.from_euler('x', 0), angular_velocity_offset_magnitude=0.0, dropouts=0,
-                 initial_velocity_error=0):
+    def __init__(self, attitude_offset: Rotation = Rotation.from_euler('x', 0),
+                 angular_velocity_offset_magnitude: float = 0.0, dropouts: float = 0.0,
+                 initial_velocity_error: float = 0):
+        """
+        :param attitude_offset: Rotation error for attitude control.
+        :param angular_velocity_offset_magnitude: Magnitude of angular velocity error. Direction is randomised.
+        :param dropouts: Percentage of dropouts in satellite swarm,
+        :param initial_velocity_error: Magnitude of initial velocity error.
+        """
         self.attitude_offset = attitude_offset
         self.angular_velocity_offset_magnitude = angular_velocity_offset_magnitude
         self.dropouts = dropouts
@@ -24,9 +31,9 @@ class InitialStateScenarios(Enum):
     """
     no_state_error = InitialStateError()
     small_state_error = InitialStateError(attitude_offset=Rotation.from_euler('XYZ', [6, -8, 4], degrees=True),
-                                          angular_velocity_offset_magnitude=0.01, dropouts=1)
+                                          angular_velocity_offset_magnitude=0.01, dropouts=0.1)
     large_state_error = InitialStateError(attitude_offset=Rotation.from_euler('XYZ', [90, -71, 112], degrees=True),
-                                          angular_velocity_offset_magnitude=0.05, dropouts=2)
+                                          angular_velocity_offset_magnitude=0.05, dropouts=0.2)
 
 
 if __name__ == '__main__':

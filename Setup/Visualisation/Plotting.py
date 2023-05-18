@@ -192,6 +192,30 @@ def plot_thrust_forces(inputs: np.ndarray, timestep: float, satellite_name: str 
     return fig
 
 
+def plot_drag_forces(inputs: np.ndarray, timestep: float, satellite_name: str = None,
+                     figure: plt.figure = None, **kwargs) -> plt.figure:
+    """
+    Method to plot the control inputs over time.
+
+    :param inputs: 2D-array with the inputs over time with shape (t, 1).
+    :param timestep: Amount of time between each input in s.
+    :param satellite_name: Name to place as a label for the legend.
+    :param figure: Figure to plot the inputs into. If not provided, a new one is created.
+    :param kwargs: Kwargs for plotting purposes.
+    :return: Figure with the added control inputs.
+    """
+    time_hours = get_time_axis(inputs, timestep)
+
+    fig, axes = get_figure_and_axes(figure, (1, 1))
+    fig.suptitle('Control inputs over the course of the propagation.')
+
+    is_angle_list = [False] * 1
+    y_label_list = ['u_drag [N]']
+    plot_onto_axes(inputs, time_hours, list(axes), is_angle_list, y_label_list, satellite_name, **kwargs)
+
+    return fig
+
+
 def plot_control_torques(inputs: np.ndarray, timestep: float, satellite_name: str = None,
                          figure: plt.figure = None, **kwargs) -> plt.figure:
     """
@@ -357,4 +381,28 @@ def animation_function(t: int, points: silent_list[p3.Path3DCollection], states:
         point.set_offsets(states[t, satellite_indices[idx]:satellite_indices[idx] + 2] / 1E3)
         point.set_3d_properties(zs=states[t, satellite_indices[idx] + 2] / 1E3, zdir='z')
     return points, None
+
+
+def plot_differential_drag_states(diff_drag_states: np.ndarray, timestep: float, satellite_name: str = None,
+                                  figure: plt.figure = None, **kwargs) -> plt.figure:
+    """
+    Method to plot the relative differential drag states over time.
+
+    :param diff_drag_states: 2D-array with the differential drag states over time with shape (t, 2).
+    :param timestep: Amount of time between each state in s.
+    :param satellite_name: Name to place as a label for the legend.
+    :param figure: Figure to plot the states into. If not provided, a new one is created.
+    :param kwargs: Kwargs for plotting purposes.
+    :return: Figure with the added differential drag states.
+    """
+    time_hours = get_time_axis(diff_drag_states[:, 0:1], timestep)
+
+    fig, axes = get_figure_and_axes(figure, (1, 1))
+    fig.suptitle('Evolution of relative differential drag states compared to reference.')
+
+    is_angle_list = [True]
+    y_label_list = ['relative angle [deg]']
+    plot_onto_axes(diff_drag_states[:, 0:1], time_hours, list(axes), is_angle_list, y_label_list, satellite_name, **kwargs)
+
+    return fig
 

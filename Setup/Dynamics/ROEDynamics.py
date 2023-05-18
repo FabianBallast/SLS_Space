@@ -18,7 +18,7 @@ class QuasiROE(TranslationalDynamics):
         super().__init__(scenario)
         self.is_LTI = False
 
-        if isinstance(scenario.physics, ScaledPhysics):
+        if self.is_scaled:
             self.param = DynamicParameters(state_limit=[0.01, 1000, 0.01, 0.01, 1000, 1000],
                                            input_limit=[0.1, 0.1, 0.1],
                                            q_sqrt=np.diag(np.array([1000, 50, 1000, 1000, 0, 0])),

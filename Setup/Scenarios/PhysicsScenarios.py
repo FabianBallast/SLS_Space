@@ -15,12 +15,26 @@ class Physics:
 
     def __init__(self, radius_earth=body_settings.get('Earth').shape_settings.radius,
                  grav_param_earth=body_settings.get('Earth').gravity_field_settings.gravitational_parameter,
-                 orbital_height=750e3, mass=400, inertia_tensor=np.array([[10, 1, -1], [1, 10, 1], [-1, 1, 10]]),
+                 orbital_height=750e3, atmosphere_density=1e-13, mass=400, inertia_tensor=np.array([[10, 1, -1], [1, 10, 1], [-1, 1, 10]]),
                  specific_impulse=1e10, j2_perturbation=False, aerodynamic_forces=False, third_bodies=False,
                  second_order_grav_torques=False):
+        """
+        :param radius_earth: Radius of the Earth in m.
+        :param grav_param_earth: Gravitational parameter of the Earth in m^2/s^3
+        :param orbital_height: Height above the surface of the Earth in m.
+        :param atmosphere_density: Density of the air in kg/m^3
+        :param mass: Mass of the satellite in kg.
+        :param inertia_tensor: Mass moment of inertia tensor in kg m^2
+        :param specific_impulse: Specific impulse in N/s
+        :param j2_perturbation: Whether to simulate J2 perturbations.
+        :param aerodynamic_forces: Whether to simulate aerodynamic forces.
+        :param third_bodies: Whether to simulate third body gravitational forces.
+        :param second_order_grav_torques: Whether to simulate second order gravitational torques.
+        """
         self.radius_Earth = radius_earth
         self.gravitational_parameter_Earth = grav_param_earth
         self.orbital_height = orbital_height
+        self.atmosphere_density = atmosphere_density
         self.mass = mass
         self.inertia_tensor = inertia_tensor
         self.specific_impulse = specific_impulse
@@ -43,8 +57,8 @@ class ScaledPhysics(Physics):
     Create the parameters related to the scaled physics.
     """
 
-    def __init__(self, radius_earth=40, grav_param_earth=100, orbital_height=15, **kwargs):
-        super().__init__(radius_earth, grav_param_earth, orbital_height, **kwargs)
+    def __init__(self, radius_earth=40, grav_param_earth=100, orbital_height=15, atmosphere_density=1e-6, **kwargs):
+        super().__init__(radius_earth, grav_param_earth, orbital_height, atmosphere_density, **kwargs)
 
 
 class PhysicsScenarios(Enum):

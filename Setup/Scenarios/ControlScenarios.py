@@ -6,7 +6,11 @@ class ControlParameters:
     Class to represent different control related parameters.
     """
 
-    def __init__(self, control_timestep=5, tFIR=10):
+    def __init__(self, control_timestep: int = 5, tFIR: int = 10):
+        """
+        :param control_timestep: Controller sampling time in s.
+        :param tFIR: Prediction horizon in steps.
+        """
         self.control_timestep = control_timestep
         self.tFIR = tFIR
 
@@ -27,6 +31,8 @@ class ControlParameterScenarios(Enum):
     control_position_fine = ControlParameters(control_timestep=10)
     control_position_far_ahead = ControlParameters(control_timestep=60, tFIR=20)
 
+    control_differential_drag = ControlParameters(control_timestep=20, tFIR=30)
+
 
 class Model(Enum):
     """
@@ -35,6 +41,7 @@ class Model(Enum):
     ATTITUDE = 1
     HCW = 2
     ROE = 3
+    DIFFERENTIAL_DRAG = 4
 
 
 if __name__ == '__main__':

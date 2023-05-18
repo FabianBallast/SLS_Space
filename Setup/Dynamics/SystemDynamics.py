@@ -5,6 +5,7 @@ from abc import ABC, abstractmethod
 from scipy.linalg import block_diag
 from matplotlib import pyplot as plt
 from Scenarios.MainScenarios import Scenario
+from Scenarios.PhysicsScenarios import ScaledPhysics
 
 
 class GeneralDynamics(ABC):
@@ -32,6 +33,7 @@ class GeneralDynamics(ABC):
         self.is_LTI = True
         self.state_size = 6  # Default state size
         self.input_size = 3  # Default input size
+        self.is_scaled = isinstance(scenario.physics, ScaledPhysics)
 
     @abstractmethod
     def create_model(self, sampling_time: float, **kwargs) -> ct.LinearIOSystem:

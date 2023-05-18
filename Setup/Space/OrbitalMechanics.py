@@ -6,7 +6,7 @@ from tudatpy.kernel.astro import element_conversion, frame_conversion
 from tudatpy.util import result2array
 from Space.EngineModel import ThrustModel, TorqueModel
 from Visualisation import Plotting as Plot
-from Dynamics import HCWDynamics, ROEDynamics, SystemDynamics, AttitudeDynamics
+from Dynamics import HCWDynamics, ROEDynamics, SystemDynamics, AttitudeDynamics, DifferentialDragDynamics
 from scipy.spatial.transform import Rotation
 from Scenarios.MainScenarios import Scenario
 
@@ -729,7 +729,12 @@ class OrbitalMechSimulator:
 
         return self.euler_angles
 
-    def convert_to_angular_velocities(self):
+    def convert_to_angular_velocities(self) -> np.ndarray:
+        """
+        Find the angular velocities of the body frame with respect to the LVLH frame.
+
+        :return: Array with velocities in shape (t, 3 * number_of_satellites).
+        """
         if self.mean_motion is None:
             raise Exception("Set the mean motion of the satellites first!")
 
@@ -743,6 +748,7 @@ class OrbitalMechSimulator:
                 omega_body = np.dot(inertial_to_body_frame, omega_inertial)
                 omega_body = np.array([omega_body[1], -omega_body[2], -omega_body[0]])
                 self.angular_velocities[t, idx*3:(idx+1)*3] = omega_body - np.array([0, self.mean_motion, 0])
+        return self.angular_velocities
 
     def convert_to_euler_state(self) -> np.ndarray:
         """
@@ -785,6 +791,10 @@ class OrbitalMechSimulator:
             return self.convert_to_cylindrical_coordinates()
         elif isinstance(dynamical_model, ROEDynamics.QuasiROE):
             return self.convert_to_quasi_roe()
+        elif isinstance(dynamical_model, DifferentialDragDynamics.DifferentialDragDynamics):
+            zero_satellite = np.tile(self.convert_to_cylindrical_coordinates()[:, 1:6:3],
+                                     self.number_of_controlled_satellites - 1)
+            return self.convert_to_cylindrical_coordinates()[:, 7::3] - zero_satellite
         elif isinstance(dynamical_model, AttitudeDynamics.LinAttModel):
             return self.convert_to_euler_state()
         else:
@@ -995,7 +1005,7 @@ class OrbitalMechSimulator:
 
             # Plot relative error if possible
             if reference_angles is not None:
-                rel_states[:, 1] -= reference_angles[idx]
+                rel_states[:, 1] -= reference_angles[self.all_satellite_names.index(satellite_name)]
 
             figure = Plot.plot_cylindrical_states(rel_states,
                                                   self.simulation_timestep,

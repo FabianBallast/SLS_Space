@@ -17,9 +17,9 @@ class LinAttModel(AttitudeDynamics):
     def __init__(self, scenario: Scenario):
         super().__init__(scenario)
 
-        if isinstance(scenario.physics, ScaledPhysics):
-            self.param = DynamicParameters(state_limit=[2, 4, 2, 0.1, 0.1, 0.1],
-                                           input_limit=[0.1, 0.1, 0.1],
+        if self.is_scaled:
+            self.param = DynamicParameters(state_limit=[2, 4, 2, 0.5, 0.5, 0.5],
+                                           input_limit=[0.05, 0.05, 0.05],
                                            q_sqrt=np.diag(np.array([1, 1, 1, 0.1, 0.1, 0.1])),
                                            r_sqrt_scalar=1)
         else:
