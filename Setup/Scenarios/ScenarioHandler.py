@@ -283,8 +283,8 @@ class ScenarioHandler:
         progress = 0
         for t in range(self.t_horizon_control):
             if t / self.t_horizon_control * 100 > progress:
-                print(f"Progress: {int(t / self.t_horizon_control * 100)}%")
-                progress = int(t / self.t_horizon_control * 100) + 1
+                print(f"Progress: {int(t / self.t_horizon_control * 100 / 5) * 5}%")
+                progress = int(t / self.t_horizon_control * 100 / 5) * 5 + 5
 
             self.__synthesise_controller(t)
             self.__run_simulation_timestep(t)
