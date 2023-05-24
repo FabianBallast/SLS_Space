@@ -49,5 +49,5 @@ orbital_sim.plot_cylindrical_states(reference_angles=reference)
 # orbital_sim.plot_quasi_roe_states(satellite_names=['Satellite_1'])
 input_fig = orbital_sim.plot_thrusts()
 # anim = orbital_sim.create_animation()
-plt.show()
+# plt.show()
 

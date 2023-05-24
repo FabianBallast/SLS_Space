@@ -4,6 +4,7 @@ from slspy import SLS, SLS_Obj_H2, LTV_System, SLS_Cons_Input, SLS_Cons_State
 from Visualisation import Plotting as Plot
 import matplotlib.pyplot as plt
 from Controllers.Controller import Controller
+from Optimisation.OSQP_Solver import OSQP_Synthesiser
 
 
 class SLSSetup(Controller):
@@ -103,24 +104,31 @@ class SLSSetup(Controller):
         :param fast_computation: Whether to speed up the computations using a transformed problem.
         :return: Tuple with (x_states, u_inputs)
         """
-        if noise is None:  # and self.synthesizer is None:
-            self.synthesizer = SLS(system_model=self.sys, FIR_horizon=self.prediction_horizon, noise_free=True,
-                                   fast_computation=fast_computation)
+        if self.synthesizer is None:
+            if noise is None and not fast_computation:  # and self.synthesizer is None:
+                self.synthesizer = SLS(system_model=self.sys, FIR_horizon=self.prediction_horizon, noise_free=True,
+                                       fast_computation=fast_computation)
 
-            # set SLS objective
-            self.synthesizer << SLS_Obj_H2()
+                # set SLS objective
+                self.synthesizer << SLS_Obj_H2()
 
-            input_constraint = np.array(self.dynamics.get_input_constraint() * self.number_of_systems).reshape((-1, 1))
-            self.synthesizer << SLS_Cons_Input(state_feedback=True,
-                                               maximum_input=input_constraint)
+                input_constraint = np.array(self.dynamics.get_input_constraint() * self.number_of_systems).reshape((-1, 1))
+                self.synthesizer << SLS_Cons_Input(state_feedback=True,
+                                                   maximum_input=input_constraint)
 
-            state_constraint = np.array(self.dynamics.get_state_constraint() * self.number_of_systems).reshape((-1, 1))
-            self.synthesizer += SLS_Cons_State(state_feedback=True,
-                                               maximum_state=state_constraint)
-            # Make it distributed
-            # self.synthesizer << SLS_Cons_dLocalized(d=4)
-        elif noise is not None:
-            raise Exception("Sorry, not implemented yet!")
+                state_constraint = np.array(self.dynamics.get_state_constraint() * self.number_of_systems).reshape((-1, 1))
+                self.synthesizer += SLS_Cons_State(state_feedback=True,
+                                                   maximum_state=state_constraint)
+                # Make it distributed
+                # self.synthesizer << SLS_Cons_dLocalized(d=4)
+            elif noise is None:
+                self.synthesizer = OSQP_Synthesiser(self.number_of_systems, self.prediction_horizon, self.sys, 0*self.x_ref)
+                self.synthesizer.create_optimisation_problem(self.dynamics.get_state_cost_matrix_sqrt(),
+                                                             self.dynamics.get_input_cost_matrix_sqrt()[3:],
+                                                             self.dynamics.get_state_constraint(),
+                                                             self.dynamics.get_input_constraint())
+            elif noise is not None:
+                raise Exception("Sorry, not implemented yet!")
 
         if inputs_to_store is None:
             inputs_to_store = t_horizon
