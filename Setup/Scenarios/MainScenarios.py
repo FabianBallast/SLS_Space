@@ -74,13 +74,14 @@ class ScenarioEnum(Enum):
                                                             simulation_scenario=SimulationScenarios.sim_1_hour)
     simple_scenario_translation_HCW_scaled = TranslationalScenario(physics_scenario=PhysicsScenarios.basic_physics_scaled,
                                                                    initial_state_scenario=InitialStateScenarios.small_state_error,
-                                                                   number_of_satellites=100,
+                                                                   number_of_satellites=10,
                                                                    simulation_scenario=SimulationScenarios.sim_30_minute)
     simple_scenario_translation_ROE = TranslationalScenario(model=Model.ROE,
                                                             initial_state_scenario=InitialStateScenarios.small_state_error)
     simple_scenario_translation_ROE_scaled = TranslationalScenario(physics_scenario=PhysicsScenarios.basic_physics_scaled,
                                                                    model=Model.ROE,
-                                                                   initial_state_scenario=InitialStateScenarios.small_state_error)
+                                                                   initial_state_scenario=InitialStateScenarios.small_state_error,
+                                                                   control_scenario=ControlParameterScenarios.control_position_fine)
 
     j2_scenario_pos_keep_HCW = TranslationalScenario(physics_scenario=PhysicsScenarios.advanced_grav_physics)
     j2_scenario_pos_keep_HCW_scaled = TranslationalScenario(physics_scenario=PhysicsScenarios.advanced_grav_physics_scaled,
@@ -107,6 +108,16 @@ class ScenarioEnum(Enum):
         number_of_satellites=4,
         simulation_scenario=SimulationScenarios.sim_2_hour,
         control_scenario=ControlParameterScenarios.control_differential_drag)
+
+    simple_scenario_translation_ROEV2_scaled = TranslationalScenario(
+        physics_scenario=PhysicsScenarios.basic_physics_scaled,
+        initial_state_scenario=InitialStateScenarios.small_state_error,
+        model=Model.ROE_V2,
+        number_of_satellites=5,
+        simulation_scenario=SimulationScenarios.sim_30_minute,
+        control_scenario=ControlParameterScenarios.control_position_fine,
+        orbital_scenario=OrbitalScenarios.eccentric_orbit
+    )
 
 #
 # simple_scenario_attitude = {'orbital': OrbitalScenarios.arbitrary_orbit.value,

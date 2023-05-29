@@ -36,8 +36,8 @@ class DifferentialDragDynamics(TranslationalDynamics):
     def create_model(self, sampling_time: float, **kwargs) -> ct.LinearIOSystem:
         """
         Create a discrete-time model with an A, B, C and D matrix.
-        States: [rho (m), theta (rad), z (m), rho_dot (m/s), theta_dot (rad/s), z_dot (m/s)]
-        Inputs: [u_rho (N), u_theta (N), u_z (N)]
+        States: [theta (rad), theta_dot (rad/s)]
+        Inputs: [u_theta (N)]
 
         :param sampling_time: Sampling time of the controller in s.
         :param kwargs: Not used here.
@@ -74,3 +74,11 @@ class DifferentialDragDynamics(TranslationalDynamics):
 
     def get_input_cost_matrix_sqrt(self) -> np.ndarray:
         pass
+
+    def get_angles_list(self) -> list[bool]:
+        """
+        Find all the values that represent an angle.
+
+        :return: Return a list with True for every state that represents an angle.
+        """
+        return [True, False]

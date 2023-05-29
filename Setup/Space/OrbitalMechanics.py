@@ -49,6 +49,7 @@ class OrbitalMechSimulator:
         self.control_torques = None
         self.cylindrical_states = None
         self.quasi_roe = None
+        self.roe = None
         self.euler_angles = None
         self.angular_velocities = None
         self.rsw_quaternions = None
@@ -87,11 +88,12 @@ class OrbitalMechSimulator:
         if use_parameters_from_scenario is not None:
             body_settings.get('Earth').shape_settings.radius = use_parameters_from_scenario.physics.radius_Earth
             body_settings.get("Earth").gravity_field_settings = environment_setup.gravity_field.spherical_harmonic(
-                                    use_parameters_from_scenario.physics.gravitational_parameter_Earth,
-                                    use_parameters_from_scenario.physics.radius_Earth * 1.00111886533,   # Original value also slightly larger...
-                                    body_settings.get("Earth").gravity_field_settings.normalized_cosine_coefficients,
-                                    body_settings.get("Earth").gravity_field_settings.normalized_sine_coefficients,
-                                    body_settings.get("Earth").gravity_field_settings.associated_reference_frame)
+                use_parameters_from_scenario.physics.gravitational_parameter_Earth,
+                use_parameters_from_scenario.physics.radius_Earth * 1.00111886533,
+                # Original value also slightly larger...
+                body_settings.get("Earth").gravity_field_settings.normalized_cosine_coefficients,
+                body_settings.get("Earth").gravity_field_settings.normalized_sine_coefficients,
+                body_settings.get("Earth").gravity_field_settings.associated_reference_frame)
 
             # body_settings.get('Earth').gravity_field_settings.gravitational_parameter =
             # body_settings.get('Earth').gravity_field_settings.reference_radius =
@@ -171,7 +173,8 @@ class OrbitalMechSimulator:
                                                        self.bodies.get(satellite_name))
 
             # Define the thrust magnitude settings for the satellite from the custom functions
-            self.torque_engine_models[idx] = propagation_setup.torque.custom_torque(self.input_torque_model[idx].get_torque)
+            self.torque_engine_models[idx] = propagation_setup.torque.custom_torque(
+                self.input_torque_model[idx].get_torque)
 
     def update_engine_models(self, thrust_inputs: np.ndarray, torque_inputs: np.ndarray) -> None:
         """
@@ -501,7 +504,6 @@ class OrbitalMechSimulator:
         # Small offset to prevent the simulation from doing another step at 4.99999 when going to 5
         termination_settings = propagation_setup.propagator.time_termination(end_epoch - 0.0001)
 
-
         propagator_settings_list = []
         dependent_variables_list = []
         if self.acceleration_model is not None:
@@ -673,10 +675,45 @@ class OrbitalMechSimulator:
             delta_ex = kepler_sat[:, 1:2] * np.cos(kepler_sat[:, 3:4]) - kepler_ref[:, 1:2] * np.cos(kepler_ref[:, 3:4])
             delta_ey = kepler_sat[:, 1:2] * np.sin(kepler_sat[:, 3:4]) - kepler_ref[:, 1:2] * np.sin(kepler_ref[:, 3:4])
             delta_ix = kepler_sat[:, 2:3] - kepler_ref[:, 2:3]
-            delta_iy = (kepler_sat[:, 4:5] - kepler_ref[:, 4:5]) * kepler_ref[:, 2:3]
+            delta_iy = (kepler_sat[:, 4:5] - kepler_ref[:, 4:5]) * np.sin(kepler_ref[:, 2:3])
             self.quasi_roe[:, idx * 6:(idx + 1) * 6] = np.concatenate((delta_a, delta_lambda, delta_ex,
                                                                        delta_ey, delta_ix, delta_iy), axis=1)
         return self.quasi_roe
+
+    def convert_to_roe(self) -> np.ndarray:
+        """
+        Convert the states from keplerian coordinates to ROE.
+
+        :return: Array with ROE in shape (t, 6 * number_of_controlled_satellites)
+        """
+        self.roe = np.zeros_like(self.translation_states[:, :-6])
+        kepler_ref = self.dep_vars[:, self.dependent_variables_dict["keplerian state"][self.reference_satellite_name]]
+
+        mean_anomaly_ref = np.zeros_like(kepler_ref[:, 0:1])  % (2*np.pi)
+        for t in range(kepler_ref.shape[0]):
+            mean_anomaly_ref[t] = element_conversion.true_to_mean_anomaly(kepler_ref[t, 1], kepler_ref[t, 5]) % (2*np.pi)
+
+        for idx, satellite_name in enumerate(self.controlled_satellite_names):
+            kepler_sat = self.dep_vars[:, self.dependent_variables_dict["keplerian state"][satellite_name]]
+            delta_a = (kepler_sat[:, 0:1] - kepler_ref[:, 0:1]) / kepler_ref[:, 0:1]
+            delta_ex = kepler_sat[:, 1:2] - kepler_ref[:, 1:2]
+            delta_ey = kepler_sat[:, 3:4] - kepler_ref[:, 3:4] + (kepler_sat[:, 4:5] - kepler_ref[:, 4:5]) * np.cos(
+                kepler_ref[:, 2:3])
+            delta_ix = kepler_sat[:, 2:3] - kepler_ref[:, 2:3]
+            delta_iy = (kepler_sat[:, 4:5] - kepler_ref[:, 4:5]) * np.sin(kepler_ref[:, 2:3])
+
+            mean_anomaly_sat = np.zeros_like(kepler_sat[:, 0:1])
+            for t in range(kepler_sat.shape[0]):
+                mean_anomaly_sat[t] = element_conversion.true_to_mean_anomaly(kepler_sat[t, 1], kepler_sat[t, 5]) % (2*np.pi)
+
+            delta_lambda = mean_anomaly_sat - mean_anomaly_ref + np.sqrt(1 - kepler_ref[:, 1:2] ** 2) * delta_ey
+
+            if delta_ey[0] > 0.999 * 2 * np.pi:
+                delta_ey[0] = 0
+
+            self.roe[:, idx * 6:(idx + 1) * 6] = np.concatenate((delta_a, delta_lambda, delta_ex,
+                                                                 delta_ey, delta_ix, delta_iy), axis=1)
+        return self.roe
 
     def convert_to_rsw_quaternions(self) -> np.ndarray:
         """
@@ -693,15 +730,16 @@ class OrbitalMechSimulator:
         for i in range(self.number_of_controlled_satellites):
             for t in range(len(self.rotation_states[:, 0])):
                 rsw_rotation_matrix = self.dep_vars[t, self.dependent_variables_dict["rsw rotation matrix"]
-                                                    [self.controlled_satellite_names[i]]].reshape((3, 3))
+                [self.controlled_satellite_names[i]]].reshape((3, 3))
                 quaternion_rsw2inertial = Rotation.from_matrix(rsw_rotation_matrix)
 
-                q_scalar_first = self.rotation_states[t, i*7:i*7 + 4]  # We need to swap the order for scipy: scalar last
+                q_scalar_first = self.rotation_states[t,
+                                 i * 7:i * 7 + 4]  # We need to swap the order for scipy: scalar last
                 quaternion_body2inertial = Rotation.from_quat(q_scalar_first[[1, 2, 3, 0]])
                 # quaternion_body2rsw = quaternion_body2inertial * quaternion_rsw2inertial
 
                 q_scalar_last = (quaternion_body2inertial * quaternion_rsw2inertial).as_quat()
-                self.rsw_quaternions[t, i*4:(i+1)*4] = q_scalar_last[[3, 0, 1, 2]]  # Put scalar first again
+                self.rsw_quaternions[t, i * 4:(i + 1) * 4] = q_scalar_last[[3, 0, 1, 2]]  # Put scalar first again
 
         return self.rsw_quaternions
 
@@ -722,7 +760,7 @@ class OrbitalMechSimulator:
 
         for i in range(self.number_of_controlled_satellites):
             for t in range(len(self.rotation_states[:, 0])):
-                q_scalar_first = self.rsw_quaternions[t, i*4:(i+1)*4]
+                q_scalar_first = self.rsw_quaternions[t, i * 4:(i + 1) * 4]
                 # quaternion = Rotation.from_quat(q_scalar_first[[1, 2, 3, 0]]) * rotation_convention  # Put scalar last
                 # pitch_yaw_roll = quaternion.as_euler('YZX')
                 # self.euler_angles[t, i*3:(i+1)*3] = pitch_yaw_roll[[2, 0, 1]]
@@ -745,12 +783,12 @@ class OrbitalMechSimulator:
 
         for idx, satellite_name in enumerate(self.controlled_satellite_names):
             for t in range(len(self.angular_velocities[:, 0])):
-                omega_inertial = self.rotation_states[t, idx*7+4:(idx+1)*7]
+                omega_inertial = self.rotation_states[t, idx * 7 + 4:(idx + 1) * 7]
                 inertial_to_body_frame = self.dep_vars[
                     t, self.dependent_variables_dict["body rotation matrix"][satellite_name]].reshape((3, 3)).T
                 omega_body = np.dot(inertial_to_body_frame, omega_inertial)
                 omega_body = np.array([omega_body[1], -omega_body[2], -omega_body[0]])
-                self.angular_velocities[t, idx*3:(idx+1)*3] = omega_body - np.array([0, self.mean_motion, 0])
+                self.angular_velocities[t, idx * 3:(idx + 1) * 3] = omega_body - np.array([0, self.mean_motion, 0])
         return self.angular_velocities
 
     def convert_to_euler_state(self) -> np.ndarray:
@@ -770,8 +808,8 @@ class OrbitalMechSimulator:
 
         for idx, satellite_name in enumerate(self.controlled_satellite_names):
             for t in range(len(states_euler[:, 0])):
-                states_euler[t, idx*6:idx*6+3] = self.euler_angles[t, idx*3:(idx+1)*3]
-                states_euler[t, idx*6+3:(idx+1)*6] = self.angular_velocities[t, idx*3:(idx+1)*3]
+                states_euler[t, idx * 6:idx * 6 + 3] = self.euler_angles[t, idx * 3:(idx + 1) * 3]
+                states_euler[t, idx * 6 + 3:(idx + 1) * 6] = self.angular_velocities[t, idx * 3:(idx + 1) * 3]
 
         return states_euler
 
@@ -794,6 +832,8 @@ class OrbitalMechSimulator:
             return self.convert_to_cylindrical_coordinates()
         elif isinstance(dynamical_model, ROEDynamics.QuasiROE):
             return self.convert_to_quasi_roe()
+        elif isinstance(dynamical_model, ROEDynamics.ROE):
+            return self.convert_to_roe()
         elif isinstance(dynamical_model, DifferentialDragDynamics.DifferentialDragDynamics):
             zero_satellite = np.tile(self.convert_to_cylindrical_coordinates()[:, 1:6:3],
                                      self.number_of_controlled_satellites - 1)
@@ -816,6 +856,8 @@ class OrbitalMechSimulator:
             return self.plot_cylindrical_states(figure=figure)
         elif isinstance(dynamical_model, ROEDynamics.QuasiROE):
             return self.plot_quasi_roe_states(figure=figure)
+        elif isinstance(dynamical_model, ROEDynamics.ROE):
+            return self.plot_roe_states()
         else:
             raise Exception("No conversion for this type of model has been implemented yet. ")
 
@@ -854,9 +896,11 @@ class OrbitalMechSimulator:
                 all_torques = self.dep_vars[
                     t, self.dependent_variables_dict["control torque"][satellite_name]]
                 control_torques_inertial = all_torques[:3] - all_torques[3:]
-                inertial_to_body_frame = self.dep_vars[t, self.dependent_variables_dict["body rotation matrix"][satellite_name]].reshape((3, 3)).T
+                inertial_to_body_frame = self.dep_vars[
+                    t, self.dependent_variables_dict["body rotation matrix"][satellite_name]].reshape((3, 3)).T
                 control_torques_body = np.dot(inertial_to_body_frame, control_torques_inertial)
-                self.control_torques[t, :, idx] = np.array([control_torques_body[1], -control_torques_body[2], -control_torques_body[0]])
+                self.control_torques[t, :, idx] = np.array(
+                    [control_torques_body[1], -control_torques_body[2], -control_torques_body[0]])
 
     def find_satellite_names_and_indices(self, satellite_names: list[str],
                                          state_length: int = 6) -> tuple[list[str], list[int]]:
@@ -890,9 +934,10 @@ class OrbitalMechSimulator:
         satellite_names, satellite_indices = self.find_satellite_names_and_indices(satellite_names)
 
         for idx, satellite_name in enumerate(satellite_names):
-            figure = Plot.plot_3d_trajectory(self.translation_states[:, satellite_indices[idx]:satellite_indices[idx] + 3],
-                                             state_label_name=satellite_name,
-                                             figure=figure)
+            figure = Plot.plot_3d_trajectory(
+                self.translation_states[:, satellite_indices[idx]:satellite_indices[idx] + 3],
+                state_label_name=satellite_name,
+                figure=figure)
         return figure
 
     def create_animation(self, satellite_names: list[str] = None, figure: plt.figure = None) -> FuncAnimation:
@@ -906,9 +951,10 @@ class OrbitalMechSimulator:
         satellite_names, satellite_indices = self.find_satellite_names_and_indices(satellite_names)
 
         for idx, satellite_name in enumerate(satellite_names):
-            figure = Plot.plot_3d_position(self.translation_states[0, satellite_indices[idx]:satellite_indices[idx] + 3],
-                                           state_label_name=satellite_name,
-                                           figure=figure)
+            figure = Plot.plot_3d_position(
+                self.translation_states[0, satellite_indices[idx]:satellite_indices[idx] + 3],
+                state_label_name=satellite_name,
+                figure=figure)
         satellite_points = figure.get_axes()[0].collections[1:]  # First one is the Earth
 
         animation = FuncAnimation(figure,
@@ -1047,6 +1093,37 @@ class OrbitalMechSimulator:
 
         return figure
 
+    def plot_roe_states(self, satellite_names: list[str] = None, figure: plt.figure = None,
+                        reference_angles: list[float] = None) -> plt.figure:
+        """
+        Plot the roe.
+
+        :param satellite_names: Names of the satellites to plot. If none, all are plotted.
+        :param figure: Figure to plot into. If none, a new one is created.
+        :param reference_angles: Reference angles to plot.
+        :return: Figure with the added states.
+        """
+        # Find roe states if not yet done
+        if self.roe is None:
+            self.convert_to_roe()
+
+        satellite_names, satellite_indices = self.find_satellite_names_and_indices(satellite_names)
+
+        # Plot required input forces
+        for idx, satellite_name in enumerate(satellite_names):
+            rel_states = self.roe[:, satellite_indices[idx]: satellite_indices[idx] + 6]
+
+            # Plot relative error if possible
+            if reference_angles is not None:
+                rel_states[:, 1] -= reference_angles[idx]
+
+            figure = Plot.plot_roe(rel_states,
+                                   self.simulation_timestep,
+                                   satellite_name=satellite_name,
+                                   figure=figure)
+
+        return figure
+
     def plot_quaternions(self, satellite_names: list[str] = None, figure: plt.figure = None) -> plt.figure:
         """
         Plot the quaternions from body-fixed to inertial frame over time.
@@ -1060,7 +1137,7 @@ class OrbitalMechSimulator:
         # Plot required input forces
         for idx, satellite_name in enumerate(satellite_names):
             figure = Plot.plot_quaternion(self.rotation_states[:, satellite_indices[idx]:
-                                                               satellite_indices[idx] + 4],
+                                                                  satellite_indices[idx] + 4],
                                           self.simulation_timestep,
                                           satellite_name=satellite_name,
                                           figure=figure)
@@ -1084,7 +1161,7 @@ class OrbitalMechSimulator:
         # Plot required input forces
         for idx, satellite_name in enumerate(satellite_names):
             figure = Plot.plot_quaternion(self.rsw_quaternions[:, satellite_indices[idx]:
-                                                               satellite_indices[idx] + 4],
+                                                                  satellite_indices[idx] + 4],
                                           self.simulation_timestep,
                                           satellite_name=satellite_name,
                                           figure=figure)
@@ -1108,7 +1185,7 @@ class OrbitalMechSimulator:
         # Plot required euler angles
         for idx, satellite_name in enumerate(satellite_names):
             figure = Plot.plot_euler_angles(self.euler_angles[:, satellite_indices[idx]:
-                                            satellite_indices[idx] + 3],
+                                                                 satellite_indices[idx] + 3],
                                             self.simulation_timestep,
                                             satellite_name=satellite_name,
                                             figure=figure)
@@ -1132,7 +1209,7 @@ class OrbitalMechSimulator:
         # Plot required input forces
         for idx, satellite_name in enumerate(satellite_names):
             figure = Plot.plot_angular_velocities(self.angular_velocities[:, satellite_indices[idx]:
-                                                  satellite_indices[idx] + 3],
+                                                                             satellite_indices[idx] + 3],
                                                   self.simulation_timestep,
                                                   satellite_name=satellite_name,
                                                   figure=figure)

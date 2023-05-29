@@ -125,3 +125,11 @@ class RelCylHCW(TranslationalDynamics):
         :return: An nxm dimensional matrix representing R_sqrt
         """
         return self.param.R_sqrt
+
+    def get_angles_list(self) -> list[bool]:
+        """
+        Find all the values that represent an angle.
+
+        :return: Return a list with True for every state that represents an angle.
+        """
+        return [False, True, False, False, False, False]

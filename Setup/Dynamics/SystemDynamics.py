@@ -35,6 +35,12 @@ class GeneralDynamics(ABC):
         self.input_size = 3  # Default input size
         self.is_scaled = isinstance(scenario.physics, ScaledPhysics)
 
+        # For updating ROE
+        self.J2_active = scenario.physics.J2_perturbation
+        self.inclination = np.deg2rad(scenario.orbital.inclination)
+        self.eccentricity = scenario.orbital.eccentricity
+        self.periapsis = np.deg2rad(scenario.orbital.argument_of_periapsis)
+
     @abstractmethod
     def create_model(self, sampling_time: float, **kwargs) -> ct.LinearIOSystem:
         """
@@ -69,9 +75,12 @@ class GeneralDynamics(ABC):
             C = []
             D = []
 
-            keyword_name = list(kwargs.keys())[0].replace("_list", "")
-            for keyword_value in list(kwargs.values())[0]:
-                model = self.create_model(sampling_time, **{keyword_name: keyword_value})
+            keyword_name_0 = list(kwargs.keys())[0].replace("_list", "")
+            keyword_name_1 = list(kwargs.keys())[1].replace("_list", "")
+
+            for idx, keyword_value in enumerate(list(kwargs.values())[0]):
+                model = self.create_model(sampling_time, **{keyword_name_0: keyword_value},
+                                          **{keyword_name_1: list(kwargs.values())[1][idx]})
                 A.append(model.A)
                 B.append(model.B)
                 C.append(model.C)
@@ -145,6 +154,19 @@ class GeneralDynamics(ABC):
         """
         pass
 
+    def get_orbital_differentiation(self) -> np.ndarray:
+        """
+        Return the derivative of orbital elements.
+
+        :return: Derivatives in shape (6,).
+        """
+        if self.J2_active:
+            J2 = 1.08262668e-3
+            scaling_factor = 0.75 * J2 * (self.earth_radius / (self.orbit_radius * (1-self.eccentricity**2)))**2 * self.mean_motion
+            return scaling_factor * np.array([0, 0, 0, -2 * np.cos(self.inclination), 5 * np.cos(self.inclination)**2 - 1, np.sqrt(1-self.eccentricity**2) * (3 * np.cos(self.inclination)**2 - 1)])
+        else:
+            return np.zeros(6)
+
 
 class TranslationalDynamics(GeneralDynamics, ABC):
     """
@@ -190,6 +212,15 @@ class TranslationalDynamics(GeneralDynamics, ABC):
 
         :param relative_angle: The relative angle with respect to a reference in degrees.
         :return: An array with the reference.
+        """
+        pass
+
+    @abstractmethod
+    def get_angles_list(self) -> list[bool]:
+        """
+        Find all the values that represent an angle.
+
+        :return: Return a list with True for every state that represents an angle.
         """
         pass
 

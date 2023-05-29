@@ -33,6 +33,7 @@ class Controller(ABC):
         self.u_inputs = None
         self.angle_states = None
         self.dynamics = system_dynamics
+        self.all_angle_states = None
 
     @abstractmethod
     def create_system(self, number_of_systems: int) -> None:

@@ -32,20 +32,35 @@ def get_figure_and_axes(figure: plt.figure, shape_of_plots: tuple) -> (plt.figur
     return fig, fig.get_axes()
 
 
-def create_3d_plot(max_distance: int) -> tuple[plt.figure, plt.axes]:
+def get_scaling_parameters(state: np.ndarray) -> tuple[int, str, int]:
+    """
+    Find different parameters used to deal with different scaling.
+
+    :param state: Example of a state that has to be plotted in m.
+
+    :return: Tuple with maximum size of plots, units to use in labels for plots and how much to divide each value by.
+    """
+    if np.linalg.norm(state) > 1000:
+        return 7500, 'km', 1000
+    else:
+        return 60, 'm', 1
+
+
+def create_3d_plot(max_distance: int, unit_label: str = 'km') -> tuple[plt.figure, plt.axes]:
     """
     Basis for a 3D plot with the Earth.
 
     :param max_distance: Maximum distance from satellite to Earth in km for scaling the plot.
+    :param unit_label: The unit to use in the label. Defaults to km.
     :return: Tuple with figure and corresponding axes.
     """
     # Define a 3D figure using pyplot
     figure = plt.figure(figsize=(6, 6), dpi=150)
     ax = figure.add_subplot(111, projection='3d')
     ax.set_title(f'Satellite trajectories around Earth')
-    ax.set_xlabel('x [km]')
-    ax.set_ylabel('y [km]')
-    ax.set_zlabel('z [km]')
+    ax.set_xlabel(f'x [{unit_label}]')
+    ax.set_ylabel(f'y [{unit_label}]')
+    ax.set_zlabel(f'z [{unit_label}]')
     ax.scatter(0.0, 0.0, 0.0, label="Earth", marker='o', color='blue')
     ax.set_xlim(-max_distance, max_distance)
     ax.set_ylim(-max_distance, max_distance)
@@ -63,14 +78,16 @@ def plot_3d_trajectory(states: np.ndarray, state_label_name: str, figure: plt.fi
     :param figure: Figure to plot the trajectories in. If not provided, a new one is created.
     :return: Figure with the added trajectory.
     """
+    max_distance, units, scaling_factor = get_scaling_parameters(states[0])
+
     if figure is None:
-        figure, ax = create_3d_plot(max_distance=min(np.max(states), 6500))
+        figure, ax = create_3d_plot(max_distance=max_distance, unit_label=units)
     else:
         ax = figure.get_axes()[0]
 
     # Plot the positional state history
-    ax.plot(states[:, 0] / 1E3, states[:, 1] / 1E3,
-            states[:, 2] / 1E3, label=state_label_name, linestyle='-')
+    ax.plot(states[:, 0] / scaling_factor, states[:, 1] / scaling_factor,
+            states[:, 2] / scaling_factor, label=state_label_name, linestyle='-')
 
     # Add the legend
     ax.legend()
@@ -87,13 +104,16 @@ def plot_3d_position(position: np.ndarray, state_label_name: str, figure: plt.fi
     :param figure: Figure to plot the trajectories in. If not provided, a new one is created.
     :return: Figure with the added trajectory.
     """
+    max_distance, units, scaling_factor = get_scaling_parameters(position)
+
     if figure is None:
-        figure, ax = create_3d_plot(max_distance=7500)
+        figure, ax = create_3d_plot(max_distance=max_distance, unit_label=units)
     else:
         ax = figure.get_axes()[0]
 
     # Plot the positional state history
-    ax.scatter(position[0] / 1E3, position[1] / 1E3, position[2] / 1E3, label=state_label_name, marker='o')
+    ax.scatter(position[0] / scaling_factor, position[1] / scaling_factor, position[2] / scaling_factor,
+               label=state_label_name, marker='o')
 
     # Add the legend
     ax.legend()
@@ -291,6 +311,32 @@ def plot_quasi_roe(quasi_roe_states: np.ndarray, timestep: float, satellite_name
     return fig
 
 
+def plot_roe(roe_states: np.ndarray, timestep: float, satellite_name: str = None,
+             figure: plt.figure = None, **kwargs) -> plt.figure:
+    """
+    Method to plot the ROE states over time.
+
+    :param roe_states: 2D-array with the quasi ROE states over time with shape (t, 6).
+    :param timestep: Amount of time between each state in s.
+    :param satellite_name: Name to place as a label for the legend.
+    :param figure: Figure to plot the states into. If not provided, a new one is created.
+    :param kwargs: Kwargs for plotting purposes.
+    :return: Figure with the added ROE states.
+    """
+    time_hours = get_time_axis(roe_states, timestep)
+
+    fig, axes = get_figure_and_axes(figure, (3, 2))
+    fig.suptitle('Evolution of ROE.')
+
+    is_angle_list = [False, True, False, True, True, True]
+    y_label_list = ['delta a [-]', 'delta lambda [deg]',
+                    'delta e_x [-]', "delta e_y [deg]",
+                    'delta i_x [deg]', 'delta i_y [deg]']
+    plot_onto_axes(roe_states, time_hours, list(axes), is_angle_list, y_label_list, satellite_name, **kwargs)
+
+    return fig
+
+
 def plot_quaternion(quaternion_states: np.ndarray, timestep: float, satellite_name: str = None,
                     figure: plt.figure = None, **kwargs) -> plt.figure:
     """
@@ -377,9 +423,11 @@ def animation_function(t: int, points: silent_list[p3.Path3DCollection], states:
     :param satellite_indices: The indices of the satellites to plot.
     :return: Tuple with update points and None
     """
+    _, _, scaling_factor = get_scaling_parameters(states[0, :3])
+
     for idx, point in enumerate(points):
-        point.set_offsets(states[t, satellite_indices[idx]:satellite_indices[idx] + 2] / 1E3)
-        point.set_3d_properties(zs=states[t, satellite_indices[idx] + 2] / 1E3, zdir='z')
+        point.set_offsets(states[t, satellite_indices[idx]:satellite_indices[idx] + 2] / scaling_factor)
+        point.set_3d_properties(zs=states[t, satellite_indices[idx] + 2] / scaling_factor, zdir='z')
     return points, None
 
 

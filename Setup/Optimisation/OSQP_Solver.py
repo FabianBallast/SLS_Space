@@ -9,6 +9,7 @@ class OSQP_Solver():
     """
     Class to use OSQP solver for SLS purposes.
     """
+
     def __init__(self, number_of_satellites: int, prediction_horizon: int, model: LTV_System,
                  reference_state: np.ndarray):
         self._problem = osqp.OSQP()
@@ -24,6 +25,9 @@ class OSQP_Solver():
         _, self._nx, self._nu = self.model._B2.shape
         self.x_ref = reference_state.reshape((-1,))
         self.result = None
+        self._settings = None
+
+        self._A_ineq = None  # Can be reused when A_eq is updated
 
     def initialise_phi(self, sls) -> None:
         """
@@ -66,29 +70,22 @@ class OSQP_Solver():
         umax = np.array(input_limit * self.number_of_satellites)
 
         # Linear dynamics
-        # sparse_A = [sparse.csc_matrix(self.model._A[i]) for i in range(self.prediction_horizon)]
-        Ax = sparse.kron(sparse.eye(self.prediction_horizon + 1), -sparse.eye(self._nx)) + \
-             sparse.vstack([sparse.csc_matrix((self._nx, self._nx * (self.prediction_horizon + 1))),
-                            sparse.hstack([sparse.block_diag(self.model._A, format='csc'),
-                                           sparse.csc_matrix((self._nx * self.prediction_horizon, self._nx))])])
-
-        sparse_B2 = [sparse.csc_matrix(self.model._B2[i]) for i in range(self.prediction_horizon)]
-        Bu = sparse.vstack([sparse.csc_matrix((self._nx, self.prediction_horizon * self._nu)),
-                            sparse.block_diag(sparse_B2, format='csc')])
-
-        Aeq = sparse.hstack([Ax, Bu])
         leq = np.zeros((self.prediction_horizon + 1) * self._nx)  # Set x0 later (fist nx elements)
         ueq = leq
 
         # - input and state constraints
-        Aineq = sparse.eye((self.prediction_horizon + 1) * self._nx + self.prediction_horizon * self._nu)
+        self._A_ineq = sparse.eye((self.prediction_horizon + 1) * self._nx + self.prediction_horizon * self._nu)
         lineq = np.hstack([np.kron(np.ones(self.prediction_horizon + 1), xmin),
                            np.kron(np.ones(self.prediction_horizon), umin)])
         uineq = np.hstack([np.kron(np.ones(self.prediction_horizon + 1), xmax),
                            np.kron(np.ones(self.prediction_horizon), umax)])
 
+        # Ignore constraints for x0 (as it is already given, and can only make problem unfeasible if start is not allowed
+        lineq[:self._nx] = -np.inf
+        uineq[:self._nx] = np.inf
+
         # - OSQP constraints
-        self._A = sparse.vstack([Aeq, Aineq], format='csc')
+        self._A = sparse.vstack([self.__find_A_eq(), self._A_ineq], format='csc')
         self._l = np.hstack([leq, lineq])
         self._u = np.hstack([ueq, uineq])
 
@@ -103,13 +100,29 @@ class OSQP_Solver():
         self._u[:self._nx] = -x0
         self._problem.update(l=self._l, u=self._u)
 
+    def update_model(self, model: LTV_System, initialised: bool) -> None:
+        """
+        Update the model used for synthesis.
+
+        :param model: Model that is updated.
+        :param initialised: Whether the model is already initialised.
+        """
+        self.model = model
+        self._A = sparse.vstack([self.__find_A_eq(), self._A_ineq], format='csc')
+
+        if initialised:
+            # self._problem.update(Ax=self._A.data)
+            self._problem = osqp.OSQP()
+            self._problem.setup(self._P, self._q, self._A, self._l, self._u, **self._settings)
+
     def initialise_problem(self, **kwargs) -> None:
         """
         Initialise the problem.
 
         :param kwargs: Options for the solver, e.g. warm_start=True and verbose=False.
         """
-        self._problem.setup(self._P, self._q, self._A, self._l, self._u, **kwargs)
+        self._settings = kwargs
+        self._problem.setup(self._P, self._q, self._A, self._l, self._u, **self._settings)
 
     def solve(self) -> tuple[float, SLS_StateFeedback_FIR_Controller]:
         self.result = self._problem.solve()
@@ -118,15 +131,36 @@ class OSQP_Solver():
             raise Exception(f"Could not find a solution! {self.result.info.status}")
 
         controller = SLS_StateFeedback_FIR_Controller(Nx=self._nx, Nu=self._nu, FIR_horizon=self.prediction_horizon)
-        controller._Phi_x = [None] * (self.prediction_horizon + 1)
+        controller._Phi_x = [None] * (self.prediction_horizon + 2)
         controller._Phi_u = [None] * (self.prediction_horizon + 1)
-        states = self.result.x[:(self.prediction_horizon + 1)*self._nx].reshape((-1, 1))
-        inputs = self.result.x[(self.prediction_horizon + 1)*self._nx:].reshape((-1, 1))
+        states = self.result.x[:(self.prediction_horizon + 1) * self._nx].reshape((-1, 1))
+        inputs = self.result.x[(self.prediction_horizon + 1) * self._nx:].reshape((-1, 1))
+
         for t in range(self.prediction_horizon):
             controller._Phi_x[t + 1] = states[t * self._nx:(t + 1) * self._nx]
             controller._Phi_u[t + 1] = inputs[t * self._nu:(t + 1) * self._nu]
 
+        controller._Phi_x[self.prediction_horizon + 1] = states[self.prediction_horizon * self._nx:
+                                                                (self.prediction_horizon + 1) * self._nx]
+
         return self.result.info.obj_val, controller
+
+    def __find_A_eq(self):
+        """
+        Find the equality matrix for a given model.
+
+        :return: Sparse matrix with A_eq
+        """
+        Ax = sparse.kron(sparse.eye(self.prediction_horizon + 1), -sparse.eye(self._nx)) + \
+             sparse.vstack([sparse.csc_matrix((self._nx, self._nx * (self.prediction_horizon + 1))),
+                            sparse.hstack([sparse.block_diag(self.model._A, format='csc'),
+                                           sparse.csc_matrix((self._nx * self.prediction_horizon, self._nx))])])
+
+        sparse_B2 = [sparse.csc_matrix(self.model._B2[i]) for i in range(self.prediction_horizon)]
+        Bu = sparse.vstack([sparse.csc_matrix((self._nx, self.prediction_horizon * self._nu)),
+                            sparse.block_diag(sparse_B2, format='csc')])
+
+        return sparse.hstack([Ax, Bu])
 
 
 class OSQP_Synthesiser(SynthesisAlgorithm):
@@ -141,14 +175,23 @@ class OSQP_Synthesiser(SynthesisAlgorithm):
         self._solver.set_cost_matrices(Q_sqrt, R_sqrt)
         self._solver.set_constraints(state_limit, input_limit)
 
-    def synthesizeControllerModel(self, x_ref: np.ndarray=None) -> SLS_StateFeedback_FIR_Controller:
+    def update_model(self, model: LTV_System) -> None:
+        """
+        Update the synthesiser with a new model.
+
+        :param model: New model.
+        """
+        self._solver.update_model(model, self.initialised)
+
+    def synthesizeControllerModel(self, x_ref: np.ndarray = None) -> SLS_StateFeedback_FIR_Controller:
         """
         Synthesise the controller and find the optimal inputs.
 
         :param x_ref: Not used here. Does not do anything.
         """
         if not self.initialised:
-            self._solver.initialise_problem(warm_start=True, verbose=False)
+            self._solver.initialise_problem(warm_start=True, verbose=False, polish=True, check_termination=10,
+                                            eps_abs=1e-4, eps_rel=1e-4, max_iter=10000)
             self.initialised = True
 
         self._solver.update_x0()
@@ -177,7 +220,7 @@ if __name__ == '__main__':
     sys._B2 = np.zeros((scenario.control.tFIR, total_state_size, total_input_size))
     for t in range(scenario.control.tFIR):
         model = dynamics.create_multi_satellite_model(scenario.control.control_timestep,
-                                                      argument_of_latitude_list=[0]*scenario.number_of_satellites)
+                                                      argument_of_latitude_list=[0] * scenario.number_of_satellites)
         sys._A[t], sys._B2[t] = model.A, model.B
     sys._C2 = np.eye(total_state_size)  # All states as measurements
 
@@ -216,12 +259,11 @@ if __name__ == '__main__':
     for t in range(nsim):
         sys.initialize(x[:, t])
         controller = synthesizer.synthesizeControllerModel(xr)
-        x[:, t+1] = controller._Phi_x[2].flatten()
+        x[:, t + 1] = controller._Phi_x[2].flatten()
 
         time_now = time.time()
         print(f"Last elapsed time: {(time_now - t_last)}")
         t_last = time_now
-
 
     print("End!")
 

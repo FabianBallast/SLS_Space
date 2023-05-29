@@ -6,7 +6,8 @@ class Orbit:
     Very basic class representing an orbit.
     """
 
-    def __init__(self, inclination=0, eccentricity=0, longitude=0, argument_of_periapsis=0):
+    def __init__(self, inclination: float = 0, eccentricity: float = 0, longitude: float = 0,
+                 argument_of_periapsis: float = 0):
         """
         Create an orbit using standard orbital elements, except for the radius and anomaly.
 
@@ -33,8 +34,9 @@ class OrbitalScenarios(Enum):
     An Enum for different orbits.
     """
     equatorial_orbit = Orbit()
-    tilted_orbit_45deg = Orbit(inclination=45)
+    tilted_orbit_45deg = Orbit(inclination=45, argument_of_periapsis=10, longitude=20)
     arbitrary_orbit = Orbit(inclination=30, longitude=10)
+    eccentric_orbit = Orbit(inclination=45, eccentricity=0.1, argument_of_periapsis=10, longitude=20)
 
 
 if __name__ == '__main__':

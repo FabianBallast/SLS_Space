@@ -1,3 +1,5 @@
+from tudatpy.kernel.astro import element_conversion
+
 from Dynamics import SystemDynamics as SysDyn
 import numpy as np
 from slspy import SLS, SLS_Obj_H2, LTV_System, SLS_Cons_Input, SLS_Cons_State
@@ -22,6 +24,9 @@ class SLSSetup(Controller):
         """
         super().__init__(sampling_time, system_dynamics, prediction_horizon)
 
+        self.arguments_of_latitude = None
+        self.arguments_of_periapsis = None
+
     def create_system(self, number_of_systems: int) -> None:
         """
         Create a system of several homogeneous satellites. For LTV systems, these matrices are updated when setting the
@@ -36,7 +41,7 @@ class SLSSetup(Controller):
 
         # Always create an LTV system. For LTI, this simply contains the same matrices over time.
         self.sys = LTV_System(Nx=self.total_state_size, Nu=self.total_input_size, Nw=3, tFIR=self.prediction_horizon)
-        self.__fill_matrices(np.linspace(0, 0, self.number_of_systems))  # Is updated before use when setting init. pos
+        self.__fill_matrices(np.linspace(0, 0, self.number_of_systems), np.linspace(0, 0, self.number_of_systems))  # Is updated before use when setting init. pos
         self.sys._C2 = np.eye(self.total_state_size)  # All states as measurements
 
         # Some parameters to use later for translational systems
@@ -44,7 +49,10 @@ class SLSSetup(Controller):
             angle_bools = np.tile(self.dynamics.get_positional_angles(), self.number_of_systems)
             self.angle_states = np.arange(0, self.total_state_size)[angle_bools]
 
-    def __fill_matrices(self, arguments_of_latitude: np.ndarray) -> None:
+            all_angle_bools = np.array(self.dynamics.get_angles_list() * self.number_of_systems)
+            self.all_angle_states = np.arange(0, self.total_state_size)[all_angle_bools]
+
+    def __fill_matrices(self, arguments_of_latitude: np.ndarray, argument_of_periapsis: np.ndarray) -> None:
         """
         Fill the A and B matrices of the system for the given current arguments of latitude.
 
@@ -52,10 +60,25 @@ class SLSSetup(Controller):
         """
         self.sys._A = np.zeros((self.prediction_horizon, self.total_state_size, self.total_state_size))
         self.sys._B2 = np.zeros((self.prediction_horizon, self.total_state_size, self.total_input_size))
+        argument_of_periapsis_dot = self.dynamics.get_orbital_differentiation()[4]
+        true_anomaly_start = arguments_of_latitude - argument_of_periapsis
+        mean_anomaly_start = np.zeros_like(true_anomaly_start)
+        true_anomalies = np.zeros_like(true_anomaly_start)
+
+        for idx, true_anomaly in enumerate(true_anomaly_start):
+            mean_anomaly_start[idx] = element_conversion.true_to_mean_anomaly(self.dynamics.eccentricity, true_anomaly)
+
         for t in range(self.prediction_horizon):
-            latitude_list = arguments_of_latitude + t * self.dynamics.mean_motion * self.sampling_time
+            mean_anomalies = mean_anomaly_start + (t + 0.5) * self.dynamics.mean_motion * self.sampling_time
+            for idx, mean_anomaly in enumerate(mean_anomalies):
+                true_anomalies[idx] = element_conversion.mean_to_true_anomaly(self.dynamics.eccentricity, mean_anomaly)
+
+            arguments_of_periapsis = argument_of_periapsis + (t + 0.5) * argument_of_periapsis_dot * self.sampling_time
+
+            latitude_list = true_anomalies + arguments_of_periapsis
             model = self.dynamics.create_multi_satellite_model(self.sampling_time,
-                                                               argument_of_latitude_list=latitude_list)
+                                                               argument_of_latitude_list=latitude_list.tolist(),
+                                                               true_anomaly_list=true_anomalies.tolist())
             self.sys._A[t], self.sys._B2[t] = model.A, model.B
 
     def create_cost_matrices(self, Q_matrix_sqrt: np.ndarray = None, R_matrix_sqrt: np.ndarray = None) -> None:
@@ -79,20 +102,25 @@ class SLSSetup(Controller):
         self.sys._C1 = full_Q_matrix
         self.sys._D12 = full_R_matrix
 
-    def set_initial_conditions(self, x0: np.ndarray) -> None:
+    def set_initial_conditions(self, x0: np.ndarray, time_since_start: int = 0) -> None:
         """
         Set the initial condition for SLS. If the system is LTV, the matrices are updated according to the initial
         condition.
 
         :param x0: The initial condition to set.
+        :param time_since_start: Time since start of the simulation in s.
         """
         self.x0 = x0
         if not self.dynamics.is_LTI:  # Update every time for LTV system
-            angles = np.rad2deg(self.x0[self.angle_states].reshape((-1,)))
-            self.__fill_matrices(angles)
+            self.arguments_of_latitude, self.arguments_of_periapsis = self.dynamics.get_latitude_and_periapsis(x0, time_since_start)
+            # print(x0, self.arguments_of_latitude, self.arguments_of_periapsis)
+            self.__fill_matrices(self.arguments_of_latitude, self.arguments_of_periapsis)
 
-    def simulate_system(self, t_horizon: int, noise=None, progress: bool = False,
-                        inputs_to_store: int = None, fast_computation: bool = False) -> (np.ndarray, np.ndarray):
+            if self.synthesizer is not None:
+                self.synthesizer.update_model(self.sys)
+
+    def simulate_system(self, t_horizon: int, noise=None, progress: bool = False, inputs_to_store: int = 1,
+                        fast_computation: bool = False, time_since_start: int = 0) -> (np.ndarray, np.ndarray):
         """
         Simulate the system assuming a perfect model is known.
 
@@ -102,6 +130,7 @@ class SLSSetup(Controller):
         :param inputs_to_store: How many inputs to store in u_inputs.
                                 Usually equal to t_horizon, but for simulation with RK4 can be set to 1.
         :param fast_computation: Whether to speed up the computations using a transformed problem.
+        :param time_since_start: Time since start of all simulations in s. Used for latitude calculations.
         :return: Tuple with (x_states, u_inputs)
         """
         if self.synthesizer is None:
@@ -130,13 +159,14 @@ class SLSSetup(Controller):
             elif noise is not None:
                 raise Exception("Sorry, not implemented yet!")
 
-        if inputs_to_store is None:
-            inputs_to_store = t_horizon
-        elif inputs_to_store != 1:
+        if inputs_to_store != 1 and t_horizon != 1:
             raise Exception("This value is not supported yet!")
+            # inputs_to_store = t_horizon
+        # elif inputs_to_store != 1 and inputs_to_store != self.prediction_horizon:
+        #
 
-        self.x_states = np.zeros((self.total_state_size, t_horizon + 1))
-        self.u_inputs = np.zeros((self.total_input_size, inputs_to_store))
+        self.x_states = np.zeros((self.total_state_size, t_horizon * inputs_to_store + 1))
+        self.u_inputs = np.zeros((self.total_input_size, t_horizon * inputs_to_store))
 
         self.x_states[:, 0:1] = self.x0
         progress_counter = 0
@@ -147,7 +177,7 @@ class SLSSetup(Controller):
                 progress_counter = max(progress_counter + 10, int(t / t_horizon * 100))
 
             # Set past position as initial state
-            self.set_initial_conditions(self.x_states[:, t:t + 1])
+            self.set_initial_conditions(self.x_states[:, t:t + 1], time_since_start + t * self.sampling_time)
 
             if fast_computation:
                 self.sys.initialize(self.x0 - self.x_ref)
@@ -157,13 +187,15 @@ class SLSSetup(Controller):
             # Synthesise controller
             self.controller = self.synthesizer.synthesizeControllerModel(self.x_ref)
 
+            # print(f"Predicted next state: {(self.controller._Phi_x[2] + self.x_ref).T}")
             # Update state and input
             if fast_computation:
-                self.u_inputs[:, t:t + 1] = self.controller._Phi_u[1]
-                self.x_states[:, t + 1:t + 2] = self.controller._Phi_x[2] + self.x_ref
+                for i in range(inputs_to_store):
+                    self.u_inputs[:, t + i:t + i + 1] = self.controller._Phi_u[i+1]
+                    self.x_states[:, t + i + 1:t + i + 2] = self.controller._Phi_x[i+2] + self.x_ref
 
-                if inputs_to_store != t_horizon and inputs_to_store > 1:
-                    self.u_inputs[:, t + 1:t + 2] = self.controller._Phi_u[2]
+                # if inputs_to_store > 1:
+                #     self.u_inputs[:, t + 1:t + 2] = self.controller._Phi_u[]
             else:
                 self.u_inputs[:, t] = self.controller._Phi_u[1] @ self.x_states[:, t]
                 self.x_states[:, t + 1] = self.controller._Phi_x[2] @ self.x_states[:, t]

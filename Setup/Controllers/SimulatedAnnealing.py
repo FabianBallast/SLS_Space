@@ -95,6 +95,9 @@ class SimulatedAnnealing(Controller):
         angle_bools = np.tile(self.dynamics.get_positional_angles(), self.number_of_systems)
         self.angle_states = np.arange(0, self.total_state_size)[angle_bools]
 
+        all_angle_bools = np.array(self.dynamics.get_angles_list() * self.number_of_systems)
+        self.all_angle_states = np.arange(0, self.total_state_size)[all_angle_bools]
+
     def set_initial_conditions(self, x0: np.ndarray) -> None:
         """
         Set the initial condition for SLS. If the system is LTV, the matrices are updated according to the initial

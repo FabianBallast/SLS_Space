@@ -1,6 +1,6 @@
 from Dynamics.AttitudeDynamics import LinAttModel
 from Dynamics.HCWDynamics import RelCylHCW
-from Dynamics.ROEDynamics import QuasiROE
+from Dynamics.ROEDynamics import QuasiROE, ROE
 from Dynamics.DifferentialDragDynamics import DifferentialDragDynamics
 from Dynamics.SystemDynamics import TranslationalDynamics
 from Scenarios.MainScenarios import Scenario
@@ -52,6 +52,8 @@ class ScenarioHandler:
             control_model = RelCylHCW(self.scenario)
         elif self.scenario.model == Model.DIFFERENTIAL_DRAG:
             control_model = DifferentialDragDynamics(self.scenario)
+        elif self.scenario.model == Model.ROE_V2:
+            control_model = ROE(self.scenario)
         else:
             raise Exception(f"Model type {self.scenario.model} not recognized!")
 
@@ -228,21 +230,21 @@ class ScenarioHandler:
         if isinstance(self.controller.dynamics, TranslationalDynamics) and not initial_setup and not full_simulation:
             unwrap_indices = np.arange(time * self.control_simulation_ratio,
                                        (time + 1) * self.control_simulation_ratio + 1)
-            index_selection = np.ix_(unwrap_indices, self.controller.angle_states)
+            index_selection = np.ix_(unwrap_indices, self.controller.all_angle_states)
             self.sls_states[index_selection] = np.unwrap(self.sls_states[index_selection], axis=0)
+            # print(f"Actual state: {self.sls_states[(time + 1) * self.control_simulation_ratio]}")
 
-    def __synthesise_controller(self, time: int) -> None:
+    def __synthesise_controller(self, time: int, simulation_length: int = 1) -> None:
         """
         Synthesise the controller and generate optimal control inputs.
 
         :param time: The time at which to synthesise the controller.
+        :param simulation_length: How many inputs and states to use from the MPC results. Usually 1.
         """
-        # print(self.sls_states[time * self.control_simulation_ratio:
-        #                                                 time * self.control_simulation_ratio + 1].T)
         self.controller.set_initial_conditions(self.sls_states[time * self.control_simulation_ratio:
                                                                time * self.control_simulation_ratio + 1].T)
-        _, control_inputs = self.controller.simulate_system(t_horizon=1, noise=None, inputs_to_store=1,
-                                                            fast_computation=True)
+        control_states, control_inputs = self.controller.simulate_system(t_horizon=1, noise=None,
+                                                                         inputs_to_store=simulation_length, fast_computation=True, time_since_start=time * self.scenario.control.control_timestep)
 
         if isinstance(self.controller.dynamics, LinAttModel):
             self.control_inputs_torque = control_inputs.reshape((self.scenario.number_of_satellites,
@@ -286,8 +288,18 @@ class ScenarioHandler:
                 print(f"Progress: {int(t / self.t_horizon_control * 100 / 5) * 5}%")
                 progress = int(t / self.t_horizon_control * 100 / 5) * 5 + 5
 
+            # print(t)
             self.__synthesise_controller(t)
             self.__run_simulation_timestep(t)
+
+    def simulate_system_single_shot(self) -> None:
+        """
+        Perform one optimisation loop and store all results.
+        """
+        self.__run_simulation_timestep(0, initial_setup=True)
+
+        self.__synthesise_controller(0, self.scenario.control.tFIR)
+        self.__run_simulation_timestep(0, full_simulation=True)
 
     def simulate_system_no_control(self) -> None:
         """
@@ -310,6 +322,23 @@ class ScenarioHandler:
         self.controller.set_initial_conditions(self.sls_states[0:1].T)
         self.controller.simulate_system(t_horizon=self.t_horizon_control, noise=None, progress=True,
                                         fast_computation=True)
+
+    def simulate_system_controller_then_full_sim(self) -> None:
+        """
+        Simulate the controller with its own model, then use all inputs for simulation.
+        """
+        self.__run_simulation_timestep(0, initial_setup=True)
+
+        self.controller.set_initial_conditions(self.sls_states[0:1].T)
+        states, inputs = self.controller.simulate_system(t_horizon=self.t_horizon_control, noise=None, progress=True,
+                                                         fast_computation=True)
+
+        # Set large set of zero inputs for simulation
+        self.control_inputs_thrust = inputs.reshape((self.scenario.number_of_satellites,
+                                                             self.controller.dynamics.input_size, -1))
+        self.control_inputs_torque = 0 * self.control_inputs_thrust
+        self.__run_simulation_timestep(0, full_simulation=True)
+
 
     def export_results(self) -> OrbitalMechSimulator:
         """
