@@ -62,6 +62,7 @@ class OrbitalMechSimulator:
         self.rotation_states = None
 
         self.mean_motion = None
+        self.orbital_derivative = None
 
     def create_bodies(self, number_of_satellites: int, satellite_mass: float, satellite_inertia: np.ndarray[3, 3],
                       add_reference_satellite: bool = False, use_parameters_from_scenario: Scenario = None) -> None:
@@ -687,9 +688,13 @@ class OrbitalMechSimulator:
         :return: Array with ROE in shape (t, 6 * number_of_controlled_satellites)
         """
         self.roe = np.zeros_like(self.translation_states[:, :-6])
+
+        # kepler_ref_0 = self.dep_vars[0, self.dependent_variables_dict["keplerian state"][self.reference_satellite_name]]
+        # time = np.arange(0, self.roe[:, 0].shape[0], self.simulation_timestep).reshape((-1, 1))
+        # kepler_ref = kepler_ref_0 + time * self.orbital_derivative
         kepler_ref = self.dep_vars[:, self.dependent_variables_dict["keplerian state"][self.reference_satellite_name]]
 
-        mean_anomaly_ref = np.zeros_like(kepler_ref[:, 0:1])  % (2*np.pi)
+        mean_anomaly_ref = np.zeros_like(kepler_ref[:, 0:1]) % (2*np.pi)
         for t in range(kepler_ref.shape[0]):
             mean_anomaly_ref[t] = element_conversion.true_to_mean_anomaly(kepler_ref[t, 1], kepler_ref[t, 5]) % (2*np.pi)
 
@@ -813,13 +818,14 @@ class OrbitalMechSimulator:
 
         return states_euler
 
-    def set_mean_motion(self, mean_motion: float) -> None:
+    def set_mean_motion_and_orbital_diff(self, mean_motion: float, orbital_diff: np.ndarray) -> None:
         """
         Set the mean motion of the satellites.
 
         :param mean_motion: The mean motion of the satellites in rad/s
         """
         self.mean_motion = mean_motion
+        self.orbital_derivative = orbital_diff
 
     def get_states_for_dynamical_model(self, dynamical_model: SystemDynamics.TranslationalDynamics) -> np.ndarray:
         """

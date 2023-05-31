@@ -16,14 +16,16 @@ from Scenarios.ScenarioHandler import ScenarioHandler
 # scenario = ScenarioEnum.simple_scenario_translation_HCW_scaled
 
 # scenario = ScenarioEnum.simple_scenario_translation_ROE
-scenario = ScenarioEnum.simple_scenario_translation_ROE_scaled
+# scenario = ScenarioEnum.simple_scenario_translation_ROE_scaled
 
 # scenario = ScenarioEnum.j2_scenario_pos_keep_HCW
 # scenario = ScenarioEnum.j2_scenario_pos_keep_HCW_scaled
 # scenario = ScenarioEnum.j2_scenario_moving_HCW_scaled
+scenario = ScenarioEnum.j2_scenario_moving_ROE_scaled
 
 # scenario = ScenarioEnum.simple_scenario_translation_SimAn_scaled
 # scenario = ScenarioEnum.simple_scenario_translation_ROEV2_scaled
+# scenario = ScenarioEnum.j2_scenario_translation_ROEV2_scaled
 
 # Setup
 scenario_handler = ScenarioHandler(scenario.value)
@@ -48,12 +50,12 @@ reference = scenario_handler.controller.x_ref[scenario_handler.controller.angle_
 
 if scenario.value.model == Model.DIFFERENTIAL_DRAG:
     reference = np.concatenate((np.array([0]), reference.reshape((-1,))))
-orbital_sim.plot_cylindrical_states(reference_angles=reference)
+# orbital_sim.plot_cylindrical_states(reference_angles=reference)
 # orbital_sim.plot_keplerian_states(satellite_names=['Satellite_1', 'Satellite_ref'])
 orbital_sim.plot_quasi_roe_states(reference_angles=reference, figure=None)
-# orbital_sim.plot_roe_states(reference_angles=reference, figure=None)
-# orbital_sim.plot_keplerian_states(plot_argument_of_latitude=True)
+# orbital_sim.plot_roe_states(reference_angles=reference, figure=None, satellite_names=['Satellite_1', "Satellite_3"])
+# orbital_sim.plot_keplerian_states(plot_argument_of_latitude=False)
 input_fig = orbital_sim.plot_thrusts(figure=None)
-# anim = orbital_sim.create_animation()
+anim = orbital_sim.create_animation()
 plt.show()
 

@@ -37,9 +37,11 @@ class GeneralDynamics(ABC):
 
         # For updating ROE
         self.J2_active = scenario.physics.J2_perturbation
+        self.J2_value = scenario.physics.J2_value
         self.inclination = np.deg2rad(scenario.orbital.inclination)
         self.eccentricity = scenario.orbital.eccentricity
         self.periapsis = np.deg2rad(scenario.orbital.argument_of_periapsis)
+        self.J2_scaling_factor = 0.75 * self.J2_value * (self.earth_radius / (self.orbit_radius * (1-self.eccentricity**2)))**2 * self.mean_motion
 
     @abstractmethod
     def create_model(self, sampling_time: float, **kwargs) -> ct.LinearIOSystem:
@@ -161,9 +163,7 @@ class GeneralDynamics(ABC):
         :return: Derivatives in shape (6,).
         """
         if self.J2_active:
-            J2 = 1.08262668e-3
-            scaling_factor = 0.75 * J2 * (self.earth_radius / (self.orbit_radius * (1-self.eccentricity**2)))**2 * self.mean_motion
-            return scaling_factor * np.array([0, 0, 0, -2 * np.cos(self.inclination), 5 * np.cos(self.inclination)**2 - 1, np.sqrt(1-self.eccentricity**2) * (3 * np.cos(self.inclination)**2 - 1)])
+            return self.J2_scaling_factor * np.array([0, 0, 0, -2 * np.cos(self.inclination), 5 * np.cos(self.inclination)**2 - 1, np.sqrt(1-self.eccentricity**2) * (3 * np.cos(self.inclination)**2 - 1)])
         else:
             return np.zeros(6)
 

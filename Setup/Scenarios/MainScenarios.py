@@ -99,7 +99,8 @@ class ScenarioEnum(Enum):
                                                    initial_state_scenario=InitialStateScenarios.small_state_error)
     j2_scenario_moving_ROE_scaled = TranslationalScenario(physics_scenario=PhysicsScenarios.advanced_grav_physics_scaled,
                                                           initial_state_scenario=InitialStateScenarios.small_state_error,
-                                                          model=Model.ROE)
+                                                          model=Model.ROE,
+                                                          simulation_scenario=SimulationScenarios.sim_15_minute)
 
     simple_scenario_translation_SimAn_scaled = TranslationalScenario(
         physics_scenario=PhysicsScenarios.basic_physics_scaled,
@@ -114,6 +115,16 @@ class ScenarioEnum(Enum):
         initial_state_scenario=InitialStateScenarios.small_state_error,
         model=Model.ROE_V2,
         number_of_satellites=5,
+        simulation_scenario=SimulationScenarios.sim_30_minute,
+        control_scenario=ControlParameterScenarios.control_position_fine,
+        orbital_scenario=OrbitalScenarios.eccentric_orbit
+    )
+
+    j2_scenario_translation_ROEV2_scaled = TranslationalScenario(
+        physics_scenario=PhysicsScenarios.advanced_grav_physics_scaled,
+        initial_state_scenario=InitialStateScenarios.small_state_error,
+        model=Model.ROE_V2,
+        number_of_satellites=8,
         simulation_scenario=SimulationScenarios.sim_30_minute,
         control_scenario=ControlParameterScenarios.control_position_fine,
         orbital_scenario=OrbitalScenarios.eccentric_orbit

@@ -98,7 +98,8 @@ class ScenarioHandler:
         Create an OrbitalMechSim and set most of the parameters, except initial positions.
         """
         self.orbital_mech = OrbitalMechSimulator()
-        self.orbital_mech.set_mean_motion(self.controller.dynamics.mean_motion)
+        self.orbital_mech.set_mean_motion_and_orbital_diff(self.controller.dynamics.mean_motion,
+                                                           self.controller.dynamics.get_orbital_differentiation())
         self.orbital_mech.create_bodies(number_of_satellites=self.scenario.number_of_satellites,
                                         satellite_mass=self.scenario.physics.mass,
                                         satellite_inertia=self.scenario.physics.inertia_tensor,
@@ -244,7 +245,9 @@ class ScenarioHandler:
         self.controller.set_initial_conditions(self.sls_states[time * self.control_simulation_ratio:
                                                                time * self.control_simulation_ratio + 1].T)
         control_states, control_inputs = self.controller.simulate_system(t_horizon=1, noise=None,
-                                                                         inputs_to_store=simulation_length, fast_computation=True, time_since_start=time * self.scenario.control.control_timestep)
+                                                                         inputs_to_store=simulation_length,
+                                                                         fast_computation=True,
+                                                                         time_since_start=time * self.scenario.control.control_timestep)
 
         if isinstance(self.controller.dynamics, LinAttModel):
             self.control_inputs_torque = control_inputs.reshape((self.scenario.number_of_satellites,
@@ -335,10 +338,9 @@ class ScenarioHandler:
 
         # Set large set of zero inputs for simulation
         self.control_inputs_thrust = inputs.reshape((self.scenario.number_of_satellites,
-                                                             self.controller.dynamics.input_size, -1))
+                                                     self.controller.dynamics.input_size, -1))
         self.control_inputs_torque = 0 * self.control_inputs_thrust
         self.__run_simulation_timestep(0, full_simulation=True)
-
 
     def export_results(self) -> OrbitalMechSimulator:
         """
@@ -357,6 +359,7 @@ class ScenarioHandler:
         orbital_sim.controlled_satellite_names = self.orbital_mech.controlled_satellite_names
         orbital_sim.all_satellite_names = self.orbital_mech.all_satellite_names
         orbital_sim.satellite_mass = self.scenario.physics.mass
-        orbital_sim.set_mean_motion(self.controller.dynamics.mean_motion)
+        orbital_sim.set_mean_motion_and_orbital_diff(self.controller.dynamics.mean_motion,
+                                                     self.controller.dynamics.get_orbital_differentiation())
 
         return orbital_sim

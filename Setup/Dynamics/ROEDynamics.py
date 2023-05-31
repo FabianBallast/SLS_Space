@@ -14,6 +14,7 @@ class ROE(TranslationalDynamics):
     """
     A class for the ROE model
     """
+
     def __init__(self, scenario: Scenario):
         super().__init__(scenario)
         self.is_LTI = False
@@ -34,7 +35,7 @@ class ROE(TranslationalDynamics):
                      true_anomaly: float = 0) -> ct.LinearIOSystem:
         """
         Create a discrete-time model with an A, B, C and D matrix.
-        States: [(a_d-a_c)/a_c (-), u_d-u_c+eta(omega_d - omega_c + (Omega_d-Omega_c) cos i_c) (rad),
+        States: [(a_d-a_c)/a_c (-), M_d-M_c+eta(omega_d - omega_c + (Omega_d-Omega_c) cos i_c) (rad),
                  e_d-e_c (-), omega_d - omega_c + (Omega_d-Omega_c) cos i_c (rad),
                  i_d-i_c (rad), (Omega_d-Omega_c) sin i_c (rad)]
         Inputs: [u_r (N), u_t (N), u_n (N)]
@@ -47,7 +48,7 @@ class ROE(TranslationalDynamics):
         # argument_of_latitude = np.deg2rad(argument_of_latitude)
         # true_anomaly = np.deg2rad(true_anomaly)
 
-        eta = np.sqrt(1-self.e_c**2)
+        eta = np.sqrt(1 - self.e_c ** 2)
         kappa = 1 + self.e_c * np.cos(true_anomaly)
 
         A_matrix = np.array([[0, 0, 0, 0, 0, 0],
@@ -57,12 +58,35 @@ class ROE(TranslationalDynamics):
                              [0, 0, 0, 0, 0, 0],
                              [0, 0, 0, 0, 0, 0]])
 
-        B_matrix = np.array([[2/eta * self.e_c * np.sin(true_anomaly), 2/eta * kappa, 0],
-                             [-2 * eta**2/kappa, 0, 0],
-                             [eta * np.sin(true_anomaly), eta * (self.e_c + np.cos(true_anomaly)*(1 + kappa)) / kappa, 0],
-                             [-eta / self.e_c * np.cos(true_anomaly), eta / self.e_c * np.sin(true_anomaly) * (1+kappa) / kappa, 0],
+        if self.J2_active:
+            P = 3 * np.cos(self.inclination) ** 2 - 1
+            Q = 5 * np.cos(self.inclination) ** 2 - 1
+            R = np.cos(self.inclination)
+            S = np.sin(2 * self.inclination)
+            U = np.sin(self.inclination)
+            G = 1 / eta**2
+            M_dot = np.array([-7 / 2 * eta * P, 0, 3 * self.eccentricity * eta * G * P, 0, -3 * eta * S, 0])
+            omega_dot = np.array([-7 / 2 * Q, 0, 4 * self.eccentricity * G * Q, 0, -5 * S, 0])
+            Omega_dot = np.array([7 * self.inclination, 0, -8 * self.eccentricity * G * R, 0, 2 * U, 0])
+
+            A_J2 = self.J2_scaling_factor * np.array([np.zeros(6),
+                                                      M_dot + eta * (omega_dot + Omega_dot * np.cos(self.inclination)),
+                                                      np.zeros(6),
+                                                      omega_dot + Omega_dot * np.cos(self.inclination),
+                                                      np.zeros(6),
+                                                      Omega_dot * np.sin(self.inclination)])
+
+            A_matrix += A_J2
+
+        B_matrix = np.array([[2 / eta * self.e_c * np.sin(true_anomaly), 2 / eta * kappa, 0],
+                             [-2 * eta ** 2 / kappa, 0, 0],
+                             [eta * np.sin(true_anomaly), eta * (self.e_c + np.cos(true_anomaly) * (1 + kappa)) / kappa,
+                              0],
+                             [-eta / self.e_c * np.cos(true_anomaly),
+                              eta / self.e_c * np.sin(true_anomaly) * (1 + kappa) / kappa, 0],
                              [0, 0, eta * np.cos(argument_of_latitude) / kappa],
-                             [0, 0, eta * np.sin(argument_of_latitude) / kappa]]) / self.satellite_mass / self.mean_motion / self.orbit_radius
+                             [0, 0, eta * np.sin(
+                                 argument_of_latitude) / kappa]]) / self.satellite_mass / self.mean_motion / self.orbit_radius
 
         system_state_size, _ = B_matrix.shape
         system_continuous = ct.ss(A_matrix, B_matrix, np.eye(system_state_size), 0)
@@ -152,7 +176,7 @@ class ROE(TranslationalDynamics):
         relative_periapsis = state[3::6] - RAAN
         absolute_periapsis = relative_periapsis + argument_of_periapsis_dot * time_since_start + self.periapsis
 
-        relative_mean_anomaly = state[1::6] - np.sqrt(1-self.eccentricity**2) * state[3::6]
+        relative_mean_anomaly = state[1::6] - np.sqrt(1 - self.eccentricity ** 2) * state[3::6]
         absolute_mean_anomaly = relative_mean_anomaly + self.mean_motion * time_since_start
 
         true_anomaly = np.zeros_like(absolute_mean_anomaly)
@@ -176,12 +200,13 @@ class QuasiROE(TranslationalDynamics):
     """
     A class for the quasi ROE model
     """
+
     def __init__(self, scenario: Scenario):
         super().__init__(scenario)
         self.is_LTI = False
 
         if self.is_scaled:
-            self.param = DynamicParameters(state_limit=[0.008, 1000, 0.008, 0.008, 0.001, 0.001],
+            self.param = DynamicParameters(state_limit=[0.01, 1000, 0.008, 0.008, 0.02, 0.01],
                                            input_limit=[0.1, 0.1, 0.1],
                                            q_sqrt=np.diag(np.array([200, 50, 100, 100, 15, 15])),
                                            r_sqrt_scalar=1e-2)
@@ -212,12 +237,30 @@ class QuasiROE(TranslationalDynamics):
                              [0, 0, 0, 0, 0, 0],
                              [0, 0, 0, 0, 0, 0]])
 
+        if self.J2_active:
+            eta = np.sqrt(1 - self.eccentricity ** 2)
+            E = 1 + eta
+            F = 4 + 3 * eta
+            P = 3 * np.cos(self.inclination) ** 2 - 1
+            S = np.sin(2 * self.inclination)
+            T = np.sin(self.inclination)**2
+
+            A_J2 = self.J2_scaling_factor * np.array([np.zeros(6),
+                                                      np.array([-7/2*E*P, 0, 0, 0, -F*S, 0]),
+                                                      np.zeros(6),
+                                                      np.zeros(6),
+                                                      np.zeros(6),
+                                                      np.array([7/2*S, 0, 0, 0, 2*T, 0])])
+
+            A_matrix += A_J2
+
         B_matrix = np.array([[0, 2, 0],
                              [-2, 0, 0],
                              [np.sin(argument_of_latitude), 2 * np.cos(argument_of_latitude), 0],
                              [-np.cos(argument_of_latitude), 2 * np.sin(argument_of_latitude), 0],
                              [0, 0, np.cos(argument_of_latitude)],
-                             [0, 0, np.sin(argument_of_latitude)]]) / self.satellite_mass / self.mean_motion / self.orbit_radius
+                             [0, 0, np.sin(
+                                 argument_of_latitude)]]) / self.satellite_mass / self.mean_motion / self.orbit_radius
 
         system_state_size, _ = B_matrix.shape
         system_continuous = ct.ss(A_matrix, B_matrix, np.eye(system_state_size), 0)
@@ -305,7 +348,8 @@ class QuasiROE(TranslationalDynamics):
         argument_of_periapsis_dot = self.get_orbital_differentiation()[4]
         RAAN = state[5::6] / np.tan(self.inclination)
         relative_latitude = (state[1::6] - RAAN).flatten()
-        absolute_latitude = (relative_latitude + (self.mean_motion + argument_of_periapsis_dot) * time_since_start) % (2 * np.pi)
+        absolute_latitude = (relative_latitude + (self.mean_motion + argument_of_periapsis_dot) * time_since_start) % (
+                    2 * np.pi)
         return absolute_latitude, np.zeros_like(relative_latitude)
 
     def get_angles_list(self) -> list[bool]:
@@ -315,5 +359,3 @@ class QuasiROE(TranslationalDynamics):
         :return: Return a list with True for every state that represents an angle.
         """
         return [False, True, False, False, True, True]
-
-

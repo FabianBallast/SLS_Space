@@ -16,8 +16,8 @@ class Physics:
     def __init__(self, radius_earth=body_settings.get('Earth').shape_settings.radius,
                  grav_param_earth=body_settings.get('Earth').gravity_field_settings.gravitational_parameter,
                  orbital_height=750e3, atmosphere_density=1e-13, mass=400, inertia_tensor=np.array([[10, 1, -1], [1, 10, 1], [-1, 1, 10]]),
-                 specific_impulse=1e10, j2_perturbation=False, aerodynamic_forces=False, third_bodies=False,
-                 second_order_grav_torques=False):
+                 specific_impulse=1e10, j2_perturbation=False, j2_value = 1.08262668e-3, aerodynamic_forces=False,
+                 third_bodies=False, second_order_grav_torques=False):
         """
         :param radius_earth: Radius of the Earth in m.
         :param grav_param_earth: Gravitational parameter of the Earth in m^2/s^3
@@ -38,6 +38,7 @@ class Physics:
         self.mass = mass
         self.inertia_tensor = inertia_tensor
         self.specific_impulse = specific_impulse
+        self.J2_value = j2_value
         self.J2_perturbation = j2_perturbation
         self.aerodynamic_forces = aerodynamic_forces
         self.third_bodies = third_bodies
