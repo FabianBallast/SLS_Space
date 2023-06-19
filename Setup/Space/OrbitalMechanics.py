@@ -261,7 +261,8 @@ class OrbitalMechSimulator:
 
     def convert_orbital_elements_to_cartesian(self, true_anomalies: list[float], orbit_height: float,
                                               eccentricity: float = 0, inclination: float = 0,
-                                              argument_of_periapsis: float = 0, longitude: float = 0) -> np.ndarray:
+                                              argument_of_periapsis: float = 0, longitude: float = 0,
+                                              orbital_element_offsets: list[int|float] = None) -> np.ndarray:
         """
         Create a desired state array in cartesian coordinates provided the orbital elements for all satellites,
         assuming the that all satellites are in the same orbit (but the true anomalies differ).
@@ -272,6 +273,7 @@ class OrbitalMechSimulator:
         :param inclination: Inclination of the orbit.
         :param argument_of_periapsis: Argument of periapsis of the orbit.
         :param longitude: Longitude of the ascending node of the orbit.
+        :param orbital_element_offsets: List with offsets for the orbital elements.
         :return: Numpy array with the states of all satellites in cartesian coordinates.
         """
         if not len(true_anomalies) == self.number_of_controlled_satellites:
@@ -293,17 +295,20 @@ class OrbitalMechSimulator:
         true_anomalies = [element_conversion.mean_to_true_anomaly(eccentricity, np.deg2rad(mean_anomaly)) for mean_anomaly in true_anomalies]
         orbit_anomalies = true_anomalies
 
+        if orbital_element_offsets is None:
+            orbital_element_offsets = np.zeros((6, (len(true_anomalies) + 1)))
+
         initial_states = np.array([])
 
-        for anomaly in orbit_anomalies:
+        for idx, anomaly in enumerate(orbit_anomalies):
             initial_states = np.append(initial_states,
                                        element_conversion.keplerian_to_cartesian_elementwise(
                                            gravitational_parameter=earth_gravitational_parameter,
-                                           semi_major_axis=orbit_semi_major_axis,
+                                           semi_major_axis=orbit_semi_major_axis + orbital_element_offsets[0, idx],
                                            eccentricity=orbit_eccentricity,
-                                           inclination=orbit_inclination,
+                                           inclination=orbit_inclination + orbital_element_offsets[2, idx],
                                            argument_of_periapsis=orbit_argument_of_periapsis,
-                                           longitude_of_ascending_node=orbit_longitude,
+                                           longitude_of_ascending_node=orbit_longitude + orbital_element_offsets[4, idx],
                                            true_anomaly=anomaly
                                        ))
 
@@ -311,11 +316,11 @@ class OrbitalMechSimulator:
             initial_states = np.append(initial_states,
                                        element_conversion.keplerian_to_cartesian_elementwise(
                                            gravitational_parameter=earth_gravitational_parameter,
-                                           semi_major_axis=orbit_semi_major_axis,
+                                           semi_major_axis=orbit_semi_major_axis + + orbital_element_offsets[0, -1],
                                            eccentricity=orbit_eccentricity,
-                                           inclination=orbit_inclination,
+                                           inclination=orbit_inclination + orbital_element_offsets[2, -1],
                                            argument_of_periapsis=orbit_argument_of_periapsis,
-                                           longitude_of_ascending_node=orbit_longitude,
+                                           longitude_of_ascending_node=orbit_longitude + orbital_element_offsets[4, -1],
                                            true_anomaly=0  # Reference always at 0
                                        ))
 
@@ -641,12 +646,12 @@ class OrbitalMechSimulator:
                          np.cos(ref_theta) * ref_states_rsw[:, 4:5]) / ref_rho
         ref_z_dot = ref_states_rsw[:, 5:6]
 
-        kepler_ref = self.dep_vars[:, self.dependent_variables_dict["keplerian state"][self.reference_satellite_name]]
-        mean_anomaly_ref = np.zeros_like(kepler_ref[:, 0:1]) % (2 * np.pi)
-        for t in range(kepler_ref.shape[0]):
-            mean_anomaly_ref[t] = element_conversion.true_to_mean_anomaly(kepler_ref[t, 1], kepler_ref[t, 5] - 0 * self.mean_motion * t * self.simulation_timestep)
-        mean_anomaly_ref[kepler_ref[:, 1] < 1e-6] = ref_theta[kepler_ref[:, 1] < 1e-6]
-        mean_anomaly_ref = np.unwrap(mean_anomaly_ref, axis=0)
+        # kepler_ref = self.dep_vars[:, self.dependent_variables_dict["keplerian state"][self.reference_satellite_name]]
+        # mean_anomaly_ref = np.zeros_like(kepler_ref[:, 0:1]) % (2 * np.pi)
+        # for t in range(kepler_ref.shape[0]):
+        #     mean_anomaly_ref[t] = element_conversion.true_to_mean_anomaly(kepler_ref[t, 1], kepler_ref[t, 5] - 0 * self.mean_motion * t * self.simulation_timestep)
+        # mean_anomaly_ref[kepler_ref[:, 1] < 1e-6] = ref_theta[kepler_ref[:, 1] < 1e-6]
+        # mean_anomaly_ref = np.unwrap(mean_anomaly_ref, axis=0)
 
 
         # Find relative positions in cylindrical frame
@@ -654,13 +659,13 @@ class OrbitalMechSimulator:
             states_satellite = states_rsw[:, satellite * 6:(satellite + 1) * 6]
 
             # Find rho_ref and theta_ref also for elliptic orbits
-            kepler_sat = self.dep_vars[:, self.dependent_variables_dict["keplerian state"][self.controlled_satellite_names[satellite]]]
-            # ref_rho = kepler_ref[:, 0:1] * (1 - kepler_ref[:, 1:2]**2) / (1 + kepler_ref[:, 1:2] * np.cos(kepler_sat[:, 5:6]))
-
-            mean_anomaly_sat = np.zeros_like(kepler_sat[:, 0:1])
-            for t in range(kepler_sat.shape[0]):
-                mean_anomaly_sat[t] = element_conversion.true_to_mean_anomaly(kepler_sat[t, 1], kepler_sat[t, 5] - 0 * self.mean_motion * t * self.simulation_timestep)
-            mean_anomaly_sat[kepler_sat[:, 1] < 1e-6] = np.unwrap(np.arctan2(states_satellite[:, 1:2], states_satellite[:, 0:1]), axis=0)[kepler_sat[:, 1] < 1e-6]
+            # kepler_sat = self.dep_vars[:, self.dependent_variables_dict["keplerian state"][self.controlled_satellite_names[satellite]]]
+            # # ref_rho = kepler_ref[:, 0:1] * (1 - kepler_ref[:, 1:2]**2) / (1 + kepler_ref[:, 1:2] * np.cos(kepler_sat[:, 5:6]))
+            #
+            # mean_anomaly_sat = np.zeros_like(kepler_sat[:, 0:1])
+            # for t in range(kepler_sat.shape[0]):
+            #     mean_anomaly_sat[t] = element_conversion.true_to_mean_anomaly(kepler_sat[t, 1], kepler_sat[t, 5] - 0 * self.mean_motion * t * self.simulation_timestep)
+            # mean_anomaly_sat[kepler_sat[:, 1] < 1e-6] = np.unwrap(np.arctan2(states_satellite[:, 1:2], states_satellite[:, 0:1]), axis=0)[kepler_sat[:, 1] < 1e-6]
 
             # Actual conversion
             rho = np.sqrt(states_satellite[:, 0:1] ** 2 + states_satellite[:, 1:2] ** 2) - ref_rho

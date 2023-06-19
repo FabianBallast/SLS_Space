@@ -26,7 +26,7 @@ class Orbit:
 
     def __str__(self):
         return f"Orbit with {self.inclination=}, {self.eccentricity=}, " \
-               f"{self.longitude=} and {self.argument_of_periapsis=}"
+               f"{self.raan=} and {self.argument_of_periapsis=}"
 
 
 class OrbitalScenarios(Enum):

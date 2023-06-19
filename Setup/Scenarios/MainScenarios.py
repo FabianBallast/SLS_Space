@@ -96,7 +96,7 @@ class ScenarioEnum(Enum):
     j2_scenario_moving_HCW_scaled = TranslationalScenario(physics_scenario=PhysicsScenarios.advanced_grav_physics_scaled,
                                                           initial_state_scenario=InitialStateScenarios.small_state_error,
                                                           control_scenario=ControlParameterScenarios.control_position_default,
-                                                          simulation_scenario=SimulationScenarios.sim_45_minute,
+                                                          simulation_scenario=SimulationScenarios.sim_orbital_period,
                                                           number_of_satellites=10)
     j2_scenario_moving_ROE = TranslationalScenario(physics_scenario=PhysicsScenarios.advanced_grav_physics,
                                                    model=Model.ROE,

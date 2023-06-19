@@ -1,5 +1,7 @@
 from enum import Enum
 
+import numpy as np
+
 
 class Simulation:
     """
@@ -38,6 +40,7 @@ class SimulationScenarios(Enum):
     sim_6_hour = Simulation(simulation_duration=6 * 3600)
     sim_12_hour = Simulation(simulation_duration=12 * 3600)
     sim_24_hour = Simulation(simulation_duration=24 * 3600)
+    sim_orbital_period = Simulation(simulation_duration=int(2 * np.pi / np.sqrt(100 / 55**3)))
 
 
 if __name__ == '__main__':

@@ -40,6 +40,8 @@ class ScenarioHandler:
         self.t_horizon_simulation = None
         self.t_full_simulation_steps = None
 
+        self.orbital_element_offsets = None
+
     def create_sls_system(self) -> None:
         """
         Create the SLS optimiser.
@@ -150,7 +152,8 @@ class ScenarioHandler:
                                                                     inclination=self.scenario.orbital.inclination,
                                                                     longitude=self.scenario.orbital.longitude,
                                                                     eccentricity=self.scenario.orbital.eccentricity,
-                                                                    argument_of_periapsis=self.scenario.orbital.argument_of_periapsis)
+                                                                    argument_of_periapsis=self.scenario.orbital.argument_of_periapsis,
+                                                                    orbital_element_offsets=self.orbital_element_offsets)
 
         angular_vel = np.array([0, 0, -1 * self.controller.dynamics.mean_motion])
         angular_vel_offsets = np.random.rand(3, self.scenario.number_of_satellites) * \
@@ -162,6 +165,46 @@ class ScenarioHandler:
                                                                      longitude=self.scenario.orbital.longitude,
                                                                      initial_angle_offset=self.scenario.initial_state.attitude_offset,
                                                                      initial_velocity_offset=angular_vel_offsets)
+
+    def __find_osculation_offsets(self):
+
+        self.__create_simulation()
+        self.__initialise_simulation()
+        start_epoch = self.scenario.simulation.start_epoch
+        end_epoch = start_epoch + int(2 * np.pi / self.controller.dynamics.mean_motion)
+
+        self.orbital_mech.set_initial_position(self.pos_states[0:1].T)
+        self.orbital_mech.set_initial_orientation(self.rot_states[0:1].T)
+
+        # Create propagation settings
+        self.orbital_mech.create_propagation_settings(start_epoch=start_epoch,
+                                                      end_epoch=end_epoch,
+                                                      simulation_step_size=self.scenario.simulation.simulation_timestep)
+
+        # Simulate system
+        self.orbital_mech.simulate_system()
+        indices = np.array(list(self.orbital_mech.dependent_variables_dict["keplerian state"].values())).reshape((-1,))
+        kep_var = self.orbital_mech.dep_vars[:, indices]
+
+        # Semi major axis
+        semi_major_axes = kep_var[:, 0::6]
+        self.orbital_element_offsets = np.zeros((6, semi_major_axes.shape[1]))
+        self.orbital_element_offsets[0] = (self.scenario.physics.orbital_height + self.scenario.physics.radius_Earth) - \
+                                           (np.max(semi_major_axes, axis=0) + np.min(semi_major_axes, axis=0)) / 2
+
+        # Inclination
+        inclinations = kep_var[:, 2::6]
+        self.orbital_element_offsets[2] = np.deg2rad(self.scenario.orbital.inclination) - \
+                                          (np.max(inclinations, axis=0) + np.min(inclinations, axis=0)) / 2
+
+        # RAAN
+        RAAN = kep_var[:, 4::6]
+        t = np.arange(0, RAAN.shape[0], 1).reshape((-1, 1))
+        RAAN_osc = RAAN - self.orbital_mech.orbital_derivative[3] * t
+
+        self.orbital_element_offsets[4] = np.deg2rad(self.scenario.orbital.longitude) - \
+                                          (np.max(RAAN_osc, axis=0) + np.min(RAAN_osc, axis=0)) / 2
+        self.orbital_mech = None
 
     def __run_simulation_timestep(self, time: int, initial_setup: bool = False, full_simulation: bool = False) -> None:
         """
@@ -283,6 +326,7 @@ class ScenarioHandler:
         """
         Run a simulation for the provided scenario with closed-loop control.
         """
+        self.__find_osculation_offsets()
         self.__run_simulation_timestep(0, initial_setup=True)
 
         progress = 0
@@ -299,6 +343,7 @@ class ScenarioHandler:
         """
         Perform one optimisation loop and store all results.
         """
+        self.__find_osculation_offsets()
         self.__run_simulation_timestep(0, initial_setup=True)
 
         self.__synthesise_controller(0, self.scenario.control.tFIR)
@@ -308,6 +353,7 @@ class ScenarioHandler:
         """
         Run a simulation for the provided scenario without control.
         """
+        self.__find_osculation_offsets()
         self.__run_simulation_timestep(0, initial_setup=True)
 
         # Set large set of zero inputs for simulation
@@ -320,6 +366,7 @@ class ScenarioHandler:
         Run a simulation for the provided scenario with the controller model as a simulator.
         """
         # For initial value
+        self.__find_osculation_offsets()
         self.__run_simulation_timestep(0, initial_setup=True)
 
         self.controller.set_initial_conditions(self.sls_states[0:1].T)
@@ -330,6 +377,7 @@ class ScenarioHandler:
         """
         Simulate the controller with its own model, then use all inputs for simulation.
         """
+        self.__find_osculation_offsets()
         self.__run_simulation_timestep(0, initial_setup=True)
 
         self.controller.set_initial_conditions(self.sls_states[0:1].T)
