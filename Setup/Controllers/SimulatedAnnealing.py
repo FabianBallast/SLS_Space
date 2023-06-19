@@ -4,7 +4,10 @@ import matplotlib.pyplot as plt
 from Controllers.Controller import Controller
 from Dynamics import SystemDynamics as SysDyn
 from Visualisation import Plotting as Plot
-
+from scipy import sparse
+from Dynamics.DifferentialDragDynamics import DifferentialDragDynamics as dyn
+import time
+from Scenarios.MainScenarios import ScenarioEnum
 np.random.seed(129)
 
 
@@ -108,10 +111,12 @@ class SimulatedAnnealing(Controller):
         self.x0 = x0
 
     def simulate_system(self, t_horizon: int, noise=None, progress: bool = False,
-                        inputs_to_store: int = None, fast_computation: bool = False) -> (np.ndarray, np.ndarray):
+                        inputs_to_store: int = None, fast_computation: bool = False,
+                        time_since_start: int = 0) -> (np.ndarray, np.ndarray):
         """
         Simulate the system assuming a perfect model is known.
 
+        :param time_since_start: Unused
         :param t_horizon: Horizon for which to simulate.
         :param noise: The noise present in the simulation
         :param progress: Whether to provide progress updates
@@ -131,6 +136,7 @@ class SimulatedAnnealing(Controller):
         self.x_states[:, 0:1] = self.x0
         progress_counter = 0
 
+        # print(t_horizon)
         for t in range(t_horizon):
             if progress and t / t_horizon * 100 > progress_counter:
                 print(f"SLS simulation progress: {progress_counter}%. ")
@@ -140,7 +146,8 @@ class SimulatedAnnealing(Controller):
             self.set_initial_conditions(self.x_states[:, t:t + 1])
 
             # Synthesise controller
-            states, inputs = self.__run_simulated_annealing()
+            # print(int(((self.number_of_systems + 1 )/ 4)**2.7 * 3000))
+            states, inputs, _, _ = self.__run_simulated_annealing(k_max=int(((self.number_of_systems + 1) / 4)**2.7 * 6000))
 
             # Update state and input
             self.u_inputs[:, t] = inputs[0]
@@ -152,7 +159,8 @@ class SimulatedAnnealing(Controller):
         return self.x_states, \
             self.u_inputs * self.sys.B[1, 0] * self.dynamics.orbit_radius * self.dynamics.satellite_mass
 
-    def __run_simulated_annealing(self, k_max: int = 100 ** 2, t_0: int = 100) -> tuple[np.ndarray, np.ndarray]:
+    def __run_simulated_annealing(self, k_max: int = 1 * 100 ** 2,
+                                  t_0: int = 100) -> tuple[np.ndarray, np.ndarray, list, list[int]]:
         """
         Find the optimal inputs values for phasing.
 
@@ -167,10 +175,11 @@ class SimulatedAnnealing(Controller):
         input_best_raw = self.__create_initial_guesses(target_angles.tolist(), initial_state)
         input_best = np.zeros((self.prediction_horizon, self.sys.B.shape[1]))
         input_best[0:input_best_raw.shape[0], :] = input_best_raw[:self.prediction_horizon]
-        states_best = (sim_state_matrix @ initial_state + sim_input_matrix @ input_best.reshape((-1, 1))).reshape(-1,
-                                                                                                                  self.total_state_size)
+        states_best = self.update_states(sim_state_matrix, sim_input_matrix, initial_state, input_best)
         best_cost = compute_cost(states_best, target_angles)
 
+        best_cost_list = [best_cost]
+        iteration_list = [0]
         for k in range(k_max):
             input_try = get_new_inputs(input_best)
             future_states = self.update_states(sim_state_matrix, sim_input_matrix, initial_state, input_try)
@@ -181,7 +190,10 @@ class SimulatedAnnealing(Controller):
                 input_best = input_try
                 states_best = future_states
 
-        return states_best, input_best
+                best_cost_list.append(best_cost)
+                iteration_list.append(k + 1)
+
+        return states_best, input_best, best_cost_list, iteration_list
 
     def update_states(self, sim_state_matrix, sim_input_matrix, initial_state, input_try):
         return (sim_state_matrix @ initial_state + sim_input_matrix @ input_try.reshape((-1, 1))).reshape(
@@ -222,7 +234,8 @@ class SimulatedAnnealing(Controller):
             try:
                 time_indices_B = np.arange(time_indices_A[-1] + 1, time_indices_A[-1] + 1 + delta_t_B)
             except IndexError:
-                time_indices_B = np.arange(1, 1 + delta_t_B)
+                # print(delta_t_A, time_indices_A, delta_t_B, delta_t_max)
+                time_indices_B = np.arange(0, delta_t_B)
 
             if theta_ddot_A_pos[satellite_idx]:
                 input_guesses[time_indices_A, satellite_idx + 1] = 1
@@ -268,7 +281,7 @@ class SimulatedAnnealing(Controller):
         delta_t_A = (-b + np.sqrt(D)) / (2 * a)
         delta_t_B = (-theta_dot_0 + a * delta_t_A) / a
 
-        if delta_t_A > 0 and delta_t_B > 0:
+        if delta_t_A >= 0 and delta_t_B >= 0:
             return delta_t_A, delta_t_B, -a
 
         # Try with different D
@@ -287,7 +300,7 @@ class SimulatedAnnealing(Controller):
         delta_t_A = (-b + np.sqrt(D)) / (2 * a)
         delta_t_B = (-theta_dot_0 + a * delta_t_A) / a
 
-        if delta_t_A > 0 and delta_t_B > 0:
+        if delta_t_A >= 0 and delta_t_B >= 0:
             return delta_t_A, delta_t_B, -a
 
         raise Exception(f"No valid solution found for {delta_theta=} and {theta_dot_0=}!")
@@ -313,7 +326,7 @@ class SimulatedAnnealing(Controller):
                                                                                    state_size * t:state_size * (t + 1)]
             input_matrix[state_size * (t + 1):state_size * (t + 2), input_size * t: input_size * (t + 1)] = self.sys.B
 
-        return state_matrix, input_matrix
+        return sparse.csc_matrix(state_matrix), sparse.csc_matrix(input_matrix)
 
     def plot_inputs(self, satellite_numbers: np.ndarray = None, figure: plt.figure = None) -> plt.figure:
         """
@@ -332,3 +345,100 @@ class SimulatedAnnealing(Controller):
                                            linestyle='--')
 
         return figure
+
+    def plot_annealing_progress(self, t_horizon: int, max_iterations: list[int] = None,
+                                figure: plt.figure = None, legend_name: str = None) -> plt.figure:
+        """
+        Plot the process of the algorithm over the iterations.
+        """
+        if max_iterations is None:
+            max_iterations = np.logspace(np.log10(10), np.log10(100000), num=10, dtype=int)
+
+        x0 = self.x0
+
+        costs = []
+        for max_iteration in max_iterations:
+            print(f"{max_iteration=}")
+
+            x_states = np.zeros((self.total_state_size, t_horizon + 1))
+
+            x_states[:, 0:1] = x0
+            cost = 0
+            for t in range(t_horizon):
+
+                # Set past position as initial state
+                self.set_initial_conditions(x_states[:, t:t + 1])
+
+                # Synthesise controller
+                states, _, cost_list, _ = self.__run_simulated_annealing(k_max=int(max_iteration))
+                cost += cost_list[-1]
+
+                # Update state and input
+                x_states[:, t + 1] = states[1]
+
+            costs.append(cost)
+
+        if figure is None:
+            figure = plt.figure()
+            plt.grid(True)
+            plt.xlabel(r'$\mathrm{Number \;of \; iterations\;[-]}$', fontsize=14)
+            plt.ylabel(r'$\mathrm{Cost \;[-]}$', fontsize=14)
+
+        plt.loglog(max_iterations, costs, label=legend_name)
+        return figure
+
+
+def time_optimisation(number_of_satellites: int, prediction_horizon: int):
+
+    # General values
+    scenario = ScenarioEnum.simple_scenario_translation_SimAn_scaled.value
+    scenario.number_of_satellites = number_of_satellites
+    scenario.control.tFIR = prediction_horizon
+    dynamics = dyn(scenario)
+    simAn = SimulatedAnnealing(scenario.control.control_timestep, dynamics, scenario.control.tFIR)
+
+    simAn.create_system(number_of_systems=scenario.number_of_satellites)
+
+
+    # Create x0 and x_ref
+    simAn.create_x0(number_of_dropouts=int(scenario.initial_state.dropouts *
+                                                scenario.number_of_satellites) + 1)
+    simAn.create_reference()
+    t_0 = time.time()
+    runs = 1
+    nsim = 10
+    x = np.zeros((simAn.total_state_size, nsim + 1))
+    # x[:, 0] = simAn.x0
+
+    for run in range(runs):
+        simAn.simulate_system(t_horizon=nsim)
+
+    t_end = time.time()
+    avg_time = (t_end - t_0) / runs / nsim
+
+    return avg_time
+
+
+if __name__ == '__main__':
+    from Scenarios.MainScenarios import ScenarioEnum
+    from Dynamics.DifferentialDragDynamics import DifferentialDragDynamics
+
+    figure = None
+    number_satellite_list = [3, 5, 7, 10, 15]
+
+    for number_of_satellites in number_satellite_list:
+        scenario = ScenarioEnum.simple_scenario_translation_SimAn_scaled.value
+        scenario.number_of_satellites = number_of_satellites
+        controller = SimulatedAnnealing(scenario.control.control_timestep, DifferentialDragDynamics(scenario),
+                                        scenario.control.tFIR)
+        controller.create_system(number_of_systems=scenario.number_of_satellites)
+        controller.create_x0(number_of_dropouts=int(scenario.initial_state.dropouts *
+                                                    scenario.number_of_satellites) + 1)
+        controller.create_reference()
+
+        t_horizon_control = int(np.ceil(scenario.simulation.simulation_duration /
+                                        scenario.control.control_timestep)) + 1
+        figure = controller.plot_annealing_progress(t_horizon_control, figure=figure,
+                                                    legend_name=f"{number_of_satellites} sats")
+    plt.legend(fontsize=12)
+    plt.show()

@@ -1,6 +1,7 @@
 import numpy as np
 from matplotlib import pyplot as plt
 from matplotlib.animation import FuncAnimation
+import matplotlib.colors as mcolors
 from tudatpy import util
 from tudatpy.kernel.numerical_simulation import environment_setup, propagation_setup, create_dynamics_simulator
 from tudatpy.kernel.astro import element_conversion, frame_conversion
@@ -10,6 +11,7 @@ from Visualisation import Plotting as Plot
 from Dynamics import HCWDynamics, ROEDynamics, SystemDynamics, AttitudeDynamics, DifferentialDragDynamics
 from scipy.spatial.transform import Rotation
 from Scenarios.MainScenarios import Scenario
+
 
 
 class OrbitalMechSimulator:
@@ -264,7 +266,7 @@ class OrbitalMechSimulator:
         Create a desired state array in cartesian coordinates provided the orbital elements for all satellites,
         assuming the that all satellites are in the same orbit (but the true anomalies differ).
 
-        :param true_anomalies: True anomalies of satellties in degrees.
+        :param true_anomalies: True anomalies of satellites in degrees.
         :param orbit_height: Height of the orbit above the surface of the Earth in m.
         :param eccentricity: Eccentricity of the orbit.
         :param inclination: Inclination of the orbit.
@@ -287,7 +289,9 @@ class OrbitalMechSimulator:
         orbit_inclination = np.deg2rad(inclination)
         orbit_argument_of_periapsis = np.deg2rad(argument_of_periapsis)
         orbit_longitude = np.deg2rad(longitude)
-        orbit_anomalies = np.deg2rad(true_anomalies)
+
+        true_anomalies = [element_conversion.mean_to_true_anomaly(eccentricity, np.deg2rad(mean_anomaly)) for mean_anomaly in true_anomalies]
+        orbit_anomalies = true_anomalies
 
         initial_states = np.array([])
 
@@ -637,12 +641,31 @@ class OrbitalMechSimulator:
                          np.cos(ref_theta) * ref_states_rsw[:, 4:5]) / ref_rho
         ref_z_dot = ref_states_rsw[:, 5:6]
 
+        kepler_ref = self.dep_vars[:, self.dependent_variables_dict["keplerian state"][self.reference_satellite_name]]
+        mean_anomaly_ref = np.zeros_like(kepler_ref[:, 0:1]) % (2 * np.pi)
+        for t in range(kepler_ref.shape[0]):
+            mean_anomaly_ref[t] = element_conversion.true_to_mean_anomaly(kepler_ref[t, 1], kepler_ref[t, 5] - 0 * self.mean_motion * t * self.simulation_timestep)
+        mean_anomaly_ref[kepler_ref[:, 1] < 1e-6] = ref_theta[kepler_ref[:, 1] < 1e-6]
+        mean_anomaly_ref = np.unwrap(mean_anomaly_ref, axis=0)
+
+
         # Find relative positions in cylindrical frame
         for satellite in range(self.number_of_controlled_satellites):
             states_satellite = states_rsw[:, satellite * 6:(satellite + 1) * 6]
 
+            # Find rho_ref and theta_ref also for elliptic orbits
+            kepler_sat = self.dep_vars[:, self.dependent_variables_dict["keplerian state"][self.controlled_satellite_names[satellite]]]
+            # ref_rho = kepler_ref[:, 0:1] * (1 - kepler_ref[:, 1:2]**2) / (1 + kepler_ref[:, 1:2] * np.cos(kepler_sat[:, 5:6]))
+
+            mean_anomaly_sat = np.zeros_like(kepler_sat[:, 0:1])
+            for t in range(kepler_sat.shape[0]):
+                mean_anomaly_sat[t] = element_conversion.true_to_mean_anomaly(kepler_sat[t, 1], kepler_sat[t, 5] - 0 * self.mean_motion * t * self.simulation_timestep)
+            mean_anomaly_sat[kepler_sat[:, 1] < 1e-6] = np.unwrap(np.arctan2(states_satellite[:, 1:2], states_satellite[:, 0:1]), axis=0)[kepler_sat[:, 1] < 1e-6]
+
             # Actual conversion
             rho = np.sqrt(states_satellite[:, 0:1] ** 2 + states_satellite[:, 1:2] ** 2) - ref_rho
+            # theta = mean_anomaly_sat - mean_anomaly_ref
+            # theta = np.unwrap(np.arctan2(states_satellite[:, 1:2], states_satellite[:, 0:1]), axis=0) - mean_anomaly_ref
             theta = np.unwrap(np.arctan2(states_satellite[:, 1:2], states_satellite[:, 0:1]), axis=0) - ref_theta
             z = states_satellite[:, 2:3] - ref_z
             rho_dot = np.cos(theta) * states_satellite[:, 3:4] + np.sin(theta) * states_satellite[:, 4:5] - ref_rho_dot
@@ -974,7 +997,7 @@ class OrbitalMechSimulator:
         return animation
 
     def plot_keplerian_states(self, satellite_names: list[str] = None, plot_argument_of_latitude=False,
-                              figure: plt.figure = None) -> plt.figure:
+                              figure: plt.figure = None, legend_name: str = None) -> plt.figure:
         """
         Plot the keplerian states.
 
@@ -984,22 +1007,25 @@ class OrbitalMechSimulator:
         :return: Figure with the added states.
         """
         satellite_names, _ = self.find_satellite_names_and_indices(satellite_names)
+        legend_names = [legend_name] + [None] * len(satellite_names)
 
         for idx, satellite_name in enumerate(satellite_names):
             figure = Plot.plot_keplerian_states(self.dep_vars[:, self.dependent_variables_dict["keplerian state"]
                                                                  [satellite_name]],
                                                 self.simulation_timestep,
                                                 plot_argument_of_latitude=plot_argument_of_latitude,
-                                                satellite_name=satellite_name,
+                                                legend_name=legend_names[idx],
                                                 figure=figure)
         return figure
 
-    def plot_thrusts(self, satellite_names: list[str] = None, figure: plt.figure = None) -> plt.figure:
+    def plot_thrusts(self, satellite_names: list[str] = None, figure: plt.figure = None, legend_name: str = None,
+                     **kwargs) -> plt.figure:
         """
         Plot the thrust forces.
 
         :param satellite_names: Names of the satellites to plot. If none, all are plotted.
         :param figure: Figure to plot into. If none, a new one is created.
+        :param legend_name: Name to put in the legend.
         :return: Figure with the thrust forces.
         """
         # Compute thrust forces if not yet done
@@ -1008,11 +1034,15 @@ class OrbitalMechSimulator:
 
         satellite_names, satellite_indices = self.find_satellite_names_and_indices(satellite_names, state_length=1)
 
+        color_palette = list(mcolors.TABLEAU_COLORS.values())
+        legend_names = [legend_name] + [None] * len(satellite_names)
+
         for idx, satellite_name in enumerate(satellite_names):
             figure = Plot.plot_thrust_forces(self.thrust_forces[:, :, satellite_indices[idx]],
                                              self.simulation_timestep,
-                                             satellite_name=satellite_name,
-                                             figure=figure)
+                                             figure=figure,
+                                             color=color_palette[idx % 10],
+                                             legend_name=legend_names[idx], **kwargs)
 
         return figure
 
@@ -1039,13 +1069,16 @@ class OrbitalMechSimulator:
         return figure
 
     def plot_cylindrical_states(self, satellite_names: list[str] = None, figure: plt.figure = None,
-                                reference_angles: list[float] = None) -> plt.figure:
+                                reference_angles: list[float] = None, legend_name: str = None,
+                                states2plot: list = None, **kwargs) -> plt.figure:
         """
         Plot the relative cylindrical states.
 
         :param satellite_names: Names of the satellites to plot. If none, all are plotted.
         :param figure: Figure to plot into. If none, a new one is created.
         :param reference_angles: Reference angles to plot.
+        :param legend_name: Name for in the legend
+        :param states2plot: Indices of which states to plot.
         :return: Figure with the added states.
         """
         # Find cylindrical states if not yet done
@@ -1053,6 +1086,9 @@ class OrbitalMechSimulator:
             self.convert_to_cylindrical_coordinates()
 
         satellite_names, satellite_indices = self.find_satellite_names_and_indices(satellite_names)
+
+        color_palette = list(mcolors.TABLEAU_COLORS.values())
+        legend_names = [legend_name] + [None] * len(satellite_names)
 
         # Plot required states
         for idx, satellite_name in enumerate(satellite_names):
@@ -1064,12 +1100,14 @@ class OrbitalMechSimulator:
 
             figure = Plot.plot_cylindrical_states(rel_states,
                                                   self.simulation_timestep,
-                                                  satellite_name=satellite_name,
-                                                  figure=figure)
+                                                  figure=figure, color=color_palette[idx % 10],
+                                                  legend_name=legend_names[idx],
+                                                  states2plot=states2plot,
+                                                  **kwargs)
         return figure
 
     def plot_quasi_roe_states(self, satellite_names: list[str] = None, figure: plt.figure = None,
-                              reference_angles: list[float] = None) -> plt.figure:
+                              reference_angles: list[float] = None, legend_name: str = None) -> plt.figure:
         """
         Plot the quasi roe.
 
@@ -1083,6 +1121,7 @@ class OrbitalMechSimulator:
             self.convert_to_quasi_roe()
 
         satellite_names, satellite_indices = self.find_satellite_names_and_indices(satellite_names)
+        legend_names = [legend_name] + [None] * len(satellite_names)
 
         # Plot required input forces
         for idx, satellite_name in enumerate(satellite_names):
@@ -1094,13 +1133,13 @@ class OrbitalMechSimulator:
 
             figure = Plot.plot_quasi_roe(rel_states,
                                          self.simulation_timestep,
-                                         satellite_name=satellite_name,
+                                         legend_name=legend_names[idx],
                                          figure=figure)
 
         return figure
 
     def plot_roe_states(self, satellite_names: list[str] = None, figure: plt.figure = None,
-                        reference_angles: list[float] = None) -> plt.figure:
+                        reference_angles: list[float] = None, legend_name: str = None) -> plt.figure:
         """
         Plot the roe.
 
@@ -1114,6 +1153,7 @@ class OrbitalMechSimulator:
             self.convert_to_roe()
 
         satellite_names, satellite_indices = self.find_satellite_names_and_indices(satellite_names)
+        legend_names = [legend_name] + [None] * len(satellite_names)
 
         # Plot required input forces
         for idx, satellite_name in enumerate(satellite_names):
@@ -1125,7 +1165,7 @@ class OrbitalMechSimulator:
 
             figure = Plot.plot_roe(rel_states,
                                    self.simulation_timestep,
-                                   satellite_name=satellite_name,
+                                   legend_name=legend_names[idx],
                                    figure=figure)
 
         return figure
@@ -1221,3 +1261,26 @@ class OrbitalMechSimulator:
                                                   figure=figure)
 
         return figure
+
+    def print_metrics(self) -> str:
+        """
+        Print metrics to score approaches
+        """
+        if self.cylindrical_states is None:
+            self.convert_to_cylindrical_coordinates()
+
+        if self.thrust_forces is None:
+            self.get_thrust_forces_from_acceleration()
+
+        state_values = self.cylindrical_states.reshape((-1, 6))
+        mean_state_values = np.mean(np.abs(state_values[:, :3]), axis=0)
+        mean_norm_state = np.mean(np.linalg.norm(state_values[:, :3], axis=1))
+
+        input_values = self.thrust_forces.transpose(1, 2, 0).reshape((3, -1)).T
+        mean_input_values = np.mean(np.abs(input_values), axis=0)
+        mean_norm_input = np.mean(np.linalg.norm(input_values, axis=1))
+
+        state_results = f"{mean_state_values=}, {mean_norm_state=}\n"
+        input_results = f"{mean_input_values=}, {mean_norm_input}"
+
+        return state_results + input_results

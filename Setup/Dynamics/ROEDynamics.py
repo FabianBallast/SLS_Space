@@ -20,11 +20,18 @@ class ROE(TranslationalDynamics):
         self.is_LTI = False
         self.e_c = scenario.orbital.eccentricity
 
-        if self.is_scaled:
-            self.param = DynamicParameters(state_limit=[0.005, 1000, 0.01, 0.1, 0.01, 0.01],
+        if self.is_scaled and not self.J2_active:
+            self.param = DynamicParameters(state_limit=[0.0015, 1000, 0.003, 0.01, 0.001, 0.001],
                                            input_limit=[0.1, 0.1, 0.1],
-                                           q_sqrt=np.diag(np.array([50, 5, 150, 10, 1, 1])),
+                                           q_sqrt=np.diag(np.array([220, 50, 700, 50, 1, 1])),
                                            r_sqrt_scalar=1e-2)
+        elif self.is_scaled:
+            self.param = DynamicParameters(state_limit=[0.0015, 1000, 0.003, 0.01, 0.01, 0.01],
+                                           input_limit=[0.1, 0.1, 0.1],
+                                           q_sqrt=np.diag(np.array([220, 50, 800, 50, 100, 100])),
+                                           r_sqrt_scalar=1e-2,
+                                           slack_variable_length=9,
+                                           slack_variable_costs=[10000, 0, 0, 0, 0, 0])
         else:
             self.param = DynamicParameters(state_limit=[0.001, 1000, 0.001, 0.001, 1000, 1000],
                                            input_limit=[100, 100, 100],
@@ -195,6 +202,22 @@ class ROE(TranslationalDynamics):
         """
         return [False, True, False, True, True, True]
 
+    def get_slack_variable_length(self) -> int:
+        """
+        Get the time horizon for which to use slack variables.
+
+        :return: Time for which slack variables are used.
+        """
+        return self.param.slack_variable_length
+
+    def get_slack_costs(self) -> list[int]:
+        """
+        Find the states for which to use slack variables and their costs
+
+        :return: List with positive cost for states where slack variables should be applied.
+        """
+        return self.param.slack_variable_costs
+
 
 class QuasiROE(TranslationalDynamics):
     """
@@ -205,11 +228,20 @@ class QuasiROE(TranslationalDynamics):
         super().__init__(scenario)
         self.is_LTI = False
 
-        if self.is_scaled:
-            self.param = DynamicParameters(state_limit=[0.01, 1000, 0.008, 0.008, 0.02, 0.01],
+        if self.is_scaled and not self.J2_active:
+            self.param = DynamicParameters(state_limit=[0.0015, 1000, 0.002, 0.002, 0.02, 0.01],
                                            input_limit=[0.1, 0.1, 0.1],
-                                           q_sqrt=np.diag(np.array([200, 50, 100, 100, 15, 15])),
-                                           r_sqrt_scalar=1e-2)
+                                           q_sqrt=np.diag(np.array([220, 50, 800, 800, 15, 15])),
+                                           r_sqrt_scalar=1e-2,
+                                           slack_variable_length=0,
+                                           slack_variable_costs=[10000, 0, 0, 0, 0, 0])
+        elif self.is_scaled:
+            self.param = DynamicParameters(state_limit=[0.0015, 1000, 0.002, 0.002, 0.01, 0.001],
+                                           input_limit=[0.1, 0.1, 0.1],
+                                           q_sqrt=np.diag(np.array([220, 50, 800, 800, 100, 100])),
+                                           r_sqrt_scalar=1e-2,
+                                           slack_variable_length=9,
+                                           slack_variable_costs=[10000, 0, 0, 0, 0, 0])
         else:
             self.param = DynamicParameters(state_limit=[0.001, 1000, 0.001, 0.001, 1000, 1000],
                                            input_limit=[100, 100, 100],
@@ -359,3 +391,19 @@ class QuasiROE(TranslationalDynamics):
         :return: Return a list with True for every state that represents an angle.
         """
         return [False, True, False, False, True, True]
+
+    def get_slack_variable_length(self) -> int:
+        """
+        Get the time horizon for which to use slack variables.
+
+        :return: Time for which slack variables are used.
+        """
+        return self.param.slack_variable_length
+
+    def get_slack_costs(self) -> list[int]:
+        """
+        Find the states for which to use slack variables and their costs
+
+        :return: List with positive cost for states where slack variables should be applied.
+        """
+        return self.param.slack_variable_costs

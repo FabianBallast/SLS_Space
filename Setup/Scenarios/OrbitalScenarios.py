@@ -36,7 +36,7 @@ class OrbitalScenarios(Enum):
     equatorial_orbit = Orbit()
     tilted_orbit_45deg = Orbit(inclination=45, argument_of_periapsis=10, longitude=20)
     arbitrary_orbit = Orbit(inclination=30, longitude=10)
-    eccentric_orbit = Orbit(inclination=45, eccentricity=0.01, argument_of_periapsis=10, longitude=20)
+    eccentric_orbit = Orbit(inclination=45, eccentricity=0.005, argument_of_periapsis=10, longitude=20)
 
 
 if __name__ == '__main__':

@@ -264,7 +264,7 @@ class ScenarioHandler:
 
             r_avg = cyl_states[-1, 0::6] + 0.5 * self.controller.sampling_time * cyl_states[-1, 3::6]
             theta_dot_avg = cyl_states[-1, 4::6] + 0.5 * self.controller.sampling_time * theta_ddot.flatten()
-            inputs_r = (-3 * self.controller.dynamics.mean_motion ** 2 * r_avg -
+            inputs_r = (-3 * self.controller.dynamics.mean_motion ** 2 * r_avg - 0.00001 * r_avg -
                         2 * self.controller.dynamics.orbit_radius * self.controller.dynamics.mean_motion
                         * theta_dot_avg).reshape((self.scenario.number_of_satellites,
                                                   self.controller.dynamics.input_size, -1))

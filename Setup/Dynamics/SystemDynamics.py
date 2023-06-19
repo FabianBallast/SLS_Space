@@ -167,6 +167,24 @@ class GeneralDynamics(ABC):
         else:
             return np.zeros(6)
 
+    @abstractmethod
+    def get_slack_variable_length(self) -> int:
+        """
+        Get the time horizon for which to use slack variables.
+
+        :return: Time for which slack variables are used.
+        """
+        pass
+
+    @abstractmethod
+    def get_slack_costs(self) -> list[int]:
+        """
+        Find the states for which to use slack variables and their costs
+
+        :return: List with positive cost for states where slack variables should be applied.
+        """
+        pass
+
 
 class TranslationalDynamics(GeneralDynamics, ABC):
     """
@@ -223,6 +241,8 @@ class TranslationalDynamics(GeneralDynamics, ABC):
         :return: Return a list with True for every state that represents an angle.
         """
         pass
+
+
 
 
 class AttitudeDynamics(GeneralDynamics, ABC):

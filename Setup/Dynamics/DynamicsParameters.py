@@ -6,7 +6,8 @@ class DynamicParameters:
     Class to select different sets of dynamic parameters.
     """
 
-    def __init__(self, state_limit: list, input_limit: list, q_sqrt: np.ndarray, r_sqrt_scalar: float | int):
+    def __init__(self, state_limit: list, input_limit: list, q_sqrt: np.ndarray, r_sqrt_scalar: float | int,
+                 slack_variable_length: int = 0, slack_variable_costs: list[int] = None):
         self.state_limit = state_limit
         self.input_limit = input_limit
         self.Q_sqrt = q_sqrt
@@ -16,6 +17,12 @@ class DynamicParameters:
                                                 [1, 0, 0],
                                                 [0, 1, 0],
                                                 [0, 0, 1]])
+        self.slack_variable_length = slack_variable_length
+
+        if slack_variable_costs is not None:
+            self.slack_variable_costs = slack_variable_costs
+        else:
+            self.slack_variable_costs = [0] * len(state_limit)
 
     def __repr__(self):
         return self.__str__()

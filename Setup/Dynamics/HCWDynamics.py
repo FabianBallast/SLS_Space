@@ -16,11 +16,20 @@ class RelCylHCW(TranslationalDynamics):
     def __init__(self, scenario: Scenario):
         super().__init__(scenario)
 
-        if self.is_scaled:
+        if self.is_scaled and not self.J2_active:
+            self.param = DynamicParameters(state_limit=[0.1, 10, 0.1, 0.1, self.mean_motion / 10, 0.1],
+                                           input_limit=[0.1, 0.1, 0.1],
+                                           q_sqrt=np.diag(np.array([4, 50, 15, 200, 200, 200])),  # 4, 50
+                                           r_sqrt_scalar=1e-2,
+                                           slack_variable_length=0,
+                                           slack_variable_costs=[10000, 0, 0, 0, 0, 0])
+        elif self.is_scaled:
             self.param = DynamicParameters(state_limit=[0.1, 10, 0.1, 0.1, self.mean_motion / 10, 0.1],
                                            input_limit=[0.1, 0.1, 0.1],
                                            q_sqrt=np.diag(np.array([4, 50, 15, 200, 200, 200])),
-                                           r_sqrt_scalar=1e-2)
+                                           r_sqrt_scalar=1e-2,
+                                           slack_variable_length=9,
+                                           slack_variable_costs=[10000, 0, 0, 0, 0, 0])
         else:
             self.param = DynamicParameters(state_limit=[10000, 10000, 100, 10, self.mean_motion / 10, 1],
                                            input_limit=[100, 100, 100],
@@ -133,3 +142,19 @@ class RelCylHCW(TranslationalDynamics):
         :return: Return a list with True for every state that represents an angle.
         """
         return [False, True, False, False, False, False]
+
+    def get_slack_variable_length(self) -> int:
+        """
+        Get the time horizon for which to use slack variables.
+
+        :return: Time for which slack variables are used.
+        """
+        return self.param.slack_variable_length
+
+    def get_slack_costs(self) -> list[int]:
+        """
+        Find the states for which to use slack variables and their costs
+
+        :return: List with positive cost for states where slack variables should be applied.
+        """
+        return self.param.slack_variable_costs

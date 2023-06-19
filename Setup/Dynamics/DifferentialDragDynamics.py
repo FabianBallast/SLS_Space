@@ -82,3 +82,10 @@ class DifferentialDragDynamics(TranslationalDynamics):
         :return: Return a list with True for every state that represents an angle.
         """
         return [True, False]
+
+
+    def get_slack_variable_length(self) -> int:
+        pass
+
+    def get_slack_costs(self) -> list[int]:
+        pass

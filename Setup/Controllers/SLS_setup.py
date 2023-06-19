@@ -1,5 +1,4 @@
 from tudatpy.kernel.astro import element_conversion
-
 from Dynamics import SystemDynamics as SysDyn
 import numpy as np
 from slspy import SLS, SLS_Obj_H2, LTV_System, SLS_Cons_Input, SLS_Cons_State
@@ -151,7 +150,9 @@ class SLSSetup(Controller):
                 # Make it distributed
                 # self.synthesizer << SLS_Cons_dLocalized(d=4)
             elif noise is None:
-                self.synthesizer = OSQP_Synthesiser(self.number_of_systems, self.prediction_horizon, self.sys, 0*self.x_ref)
+                self.synthesizer = OSQP_Synthesiser(self.number_of_systems, self.prediction_horizon, self.sys,
+                                                    0*self.x_ref, self.dynamics.get_slack_variable_length(),
+                                                    self.dynamics.get_slack_costs())
                 self.synthesizer.create_optimisation_problem(self.dynamics.get_state_cost_matrix_sqrt(),
                                                              self.dynamics.get_input_cost_matrix_sqrt()[3:],
                                                              self.dynamics.get_state_constraint(),

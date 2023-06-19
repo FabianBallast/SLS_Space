@@ -1,10 +1,14 @@
 from matplotlib import pyplot as plt
+import matplotlib as mpl
 from matplotlib.cbook import silent_list
 import mpl_toolkits.mplot3d.art3d as p3
 import numpy as np
 
+mpl.rcParams["mathtext.fontset"] = 'cm'  # Better font for LaTex
+# mpl.rcParams["axes.labelsize"] = 'xx-large'  # Better font for LaTex
 
-def get_time_axis(states_over_time: np.ndarray, timestep: float, required_scale: float = 3600) -> np.ndarray:
+
+def get_time_axis(states_over_time: np.ndarray, timestep: float, required_scale: float = 60) -> np.ndarray:
     """
     Create the time axis used for plots.
 
@@ -25,7 +29,7 @@ def get_figure_and_axes(figure: plt.figure, shape_of_plots: tuple) -> (plt.figur
     :return: Tuple with figure and a tuple of axes.
     """
     if figure is None:
-        fig, _ = plt.subplots(shape_of_plots[0], shape_of_plots[1], figsize=(9, 12))
+        fig, _ = plt.subplots(shape_of_plots[0], shape_of_plots[1], figsize=(16, 9))
     else:
         fig = figure
 
@@ -122,7 +126,8 @@ def plot_3d_position(position: np.ndarray, state_label_name: str, figure: plt.fi
 
 
 def plot_onto_axes(states: np.ndarray, time: np.ndarray, axes_list: list[plt.axes], is_angle: list[bool],
-                   y_label_names: list[str], state_label_name: str, unwrap_angles: bool = True, **kwargs) -> None:
+                   y_label_names: list[str], legend_names: list[str | None], unwrap_angles: bool = True,
+                   states2plot: list[int] = None, **kwargs) -> None:
     """
     Plot states on the provided axes with a given label and legend label name.
     :param states: The states (y-component) to be plotted.
@@ -130,48 +135,58 @@ def plot_onto_axes(states: np.ndarray, time: np.ndarray, axes_list: list[plt.axe
     :param axes_list: List with all the axes to plot onto.
     :param is_angle: List whether a certain value is an angle (and thus should be unwrapped/converted to deg)
     :param y_label_names: List with names of the y-axes.
-    :param state_label_name: Name for the legend.
+    :param legend_names: Name for the legend.
     :param unwrap_angles: Whether to unwrap angles. Default is True.
+    :param states2plot: Indices of states to plot.
     :param kwargs: Kwargs for plotting purposes.
     :return: Nothing.
     """
     for idx, axes in enumerate(axes_list):
-        state = states[:, idx]
+        state_idx = states2plot[idx]
+        state = states[:, state_idx]
 
         # If it is an angle, unwrap and convert to deg
-        if is_angle[idx] and unwrap_angles:
+        if is_angle[state_idx] and unwrap_angles:
             state = np.rad2deg(np.unwrap(state, axis=0))
-        elif is_angle[idx]:
+        elif is_angle[state_idx]:
             state = np.rad2deg(state)
 
         # Plot data
-        axes.plot(time, state, label=state_label_name, **kwargs)
-        axes.set_xlabel('Time [hr]')
-        axes.set_ylabel(y_label_names[idx])
+        axes.plot(time, state, label=legend_names[state_idx], **kwargs)
+        axes.set_xlabel(r'$\mathrm{Time\;[min]}$', fontsize=14)
+        axes.set_ylabel(y_label_names[state_idx], fontsize=14)
         axes.set_xlim([min(time), max(time)])
-        axes.grid()
-        # axes.legend()
+        axes.grid(True)
+
+        # if legend_names[state_idx] is not None:
+        #     axes.legend(fontsize=12)
 
     plt.tight_layout()
 
 
 def plot_keplerian_states(kepler_elements: np.ndarray, timestep: float, plot_argument_of_latitude: bool = False,
-                          satellite_name: str = None, figure: plt.figure = None, **kwargs) -> plt.figure:
+                          legend_name: str = None, figure: plt.figure = None, states2plot: list = None,
+                          **kwargs) -> plt.figure:
     """
     Method to plot the evolution of the orbital (kepler) elements over time.
 
     :param kepler_elements: 2D-array containing the orbital elements over time. Shape is (t, 6).
     :param timestep: Amount of time between each measurement in s.
     :param plot_argument_of_latitude: Plot the argument of latitude or the true anomaly.
-    :param satellite_name: Name to place as a label for the legend.
+    :param legend_name: Name to place as a label for the legend.
     :param figure: Figure to plot the kepler elements into. If not provided, a new one is created.
+    :param states2plot: List with which states to plot.
     :param kwargs: Kwargs for plotting purposes.
     :return: Figure with the added keplerian states.
     """
     # Plot Kepler elements as a function of time
     time_hours = get_time_axis(kepler_elements, timestep)
 
-    fig, axes = get_figure_and_axes(figure, (3, 2))
+    if states2plot is None:
+        fig, axes = get_figure_and_axes(figure, (3, 2))
+        states2plot = [0, 1, 2, 3, 4, 5]
+    else:
+        fig, axes = get_figure_and_axes(figure, (1, len(states2plot)))
     fig.suptitle('Evolution of Kepler elements over the course of the propagation')
 
     is_angle_list = [False, False, True, True, True, True]
@@ -182,12 +197,15 @@ def plot_keplerian_states(kepler_elements: np.ndarray, timestep: float, plot_arg
         kepler_elements[:, 5] += kepler_elements[:, 3]
         y_label_list[5] = "Argument of latitude [deg]"
 
-    plot_onto_axes(kepler_elements, time_hours, list(axes), is_angle_list, y_label_list, satellite_name, **kwargs)
+    legend_names = [None] + [legend_name] + [None] * 4
+
+    plot_onto_axes(kepler_elements, time_hours, list(axes), is_angle_list, y_label_list, legend_names=legend_names,
+                   states2plot=states2plot, **kwargs)
 
     return fig
 
 
-def plot_thrust_forces(inputs: np.ndarray, timestep: float, satellite_name: str = None,
+def plot_thrust_forces(inputs: np.ndarray, timestep: float, legend_name: str = None,
                        figure: plt.figure = None, **kwargs) -> plt.figure:
     """
     Method to plot the control inputs over time.
@@ -202,12 +220,15 @@ def plot_thrust_forces(inputs: np.ndarray, timestep: float, satellite_name: str 
     time_hours = get_time_axis(inputs, timestep)
 
     fig, axes = get_figure_and_axes(figure, (4, 1))
-    fig.suptitle('Control inputs over the course of the propagation.')
+    fig.suptitle(r'$\mathrm{Control \;inputs \;over \;the \;course \;of \;the \;propagation}$', fontsize=16)
 
     is_angle_list = [False] * 4
-    y_label_list = ['u_rho [N]', 'u_theta [N]', 'u_z [N]', "norm(u) [N]"]
+    y_label_list = [r'$\mathrm{u_\rho\;[N]}$', r'$\mathrm{u_\theta\;[N]}$', r'$\mathrm{u_z\;[N]}$', r"$\mathrm{||u||_2\;[N]}$"]
     inputs_and_norm = np.concatenate((inputs, np.linalg.norm(inputs, axis=1).reshape(-1, 1)), axis=1)
-    plot_onto_axes(inputs_and_norm, time_hours, list(axes), is_angle_list, y_label_list, satellite_name, **kwargs)
+    legend_names = [legend_name] + 3 * [None]
+
+    plot_onto_axes(inputs_and_norm, time_hours, list(axes), is_angle_list, y_label_list, legend_names=legend_names,
+                   states2plot=[0, 1, 2, 3], **kwargs)
 
     return fig
 
@@ -261,78 +282,107 @@ def plot_control_torques(inputs: np.ndarray, timestep: float, satellite_name: st
     return fig
 
 
-def plot_cylindrical_states(cylindrical_states: np.ndarray, timestep: float, satellite_name: str = None,
-                            figure: plt.figure = None, **kwargs) -> plt.figure:
+def plot_cylindrical_states(cylindrical_states: np.ndarray, timestep: float, figure: plt.figure = None,
+                            legend_name: str = '', states2plot: list[int] = None, **kwargs) -> plt.figure:
     """
     Method to plot the relative cylindrical states over time.
 
     :param cylindrical_states: 2D-array with the cylindrical states over time with shape (t, 6).
     :param timestep: Amount of time between each state in s.
-    :param satellite_name: Name to place as a label for the legend.
     :param figure: Figure to plot the states into. If not provided, a new one is created.
+    :param legend_name: The name to pass to the legend
+    :param states2plot: Which states to plot.
     :param kwargs: Kwargs for plotting purposes.
     :return: Figure with the added cylindrical states.
     """
     time_hours = get_time_axis(cylindrical_states, timestep)
 
-    fig, axes = get_figure_and_axes(figure, (3, 2))
-    fig.suptitle('Evolution of relative cylindrical states compared to reference.')
+    if states2plot is None:
+        fig, axes = get_figure_and_axes(figure, (3, 2))
+        states2plot = [0, 1, 2, 3, 4, 5]
+    else:
+        fig, axes = get_figure_and_axes(figure, (1, len(states2plot)))
+
+        if len(states2plot) != len(axes):
+            axes = [axes[states2plot[0]]]
+
+    # fig.suptitle(r'$\mathrm{Evolution\; of\; relative\; cylindrical\; states\; compared\; to\; reference}$', fontsize=16)
 
     is_angle_list = [False, True, False, False, True, False]
-    y_label_list = ['rho [m]', 'theta [deg]', 'z [m]', "rho_dot [m/s]", 'theta_dot [deg/s]', 'z_dot [m/s]']
-    plot_onto_axes(cylindrical_states, time_hours, list(axes), is_angle_list, y_label_list, satellite_name, **kwargs)
+    y_label_list = [r'$\mathrm{Radius \; [m]}$', r'$\mathrm{Angle \;[deg]}$', r'$\mathrm{Height \;[m]}$',
+                    r"$\mathrm{\dot{\rho}\; [m/s]}$", r'$\mathrm{\dot{\theta}\;[deg/s]}$', r'$\mathrm{\dot{z}\;[m/s]}$']
+
+    legend_names = [None] + [legend_name] + [None] * 4
+    plot_onto_axes(cylindrical_states, time_hours, list(axes), is_angle_list,
+                   y_label_list, legend_names=legend_names, states2plot=states2plot, **kwargs)
 
     return fig
 
 
-def plot_quasi_roe(quasi_roe_states: np.ndarray, timestep: float, satellite_name: str = None,
-                   figure: plt.figure = None, **kwargs) -> plt.figure:
+def plot_quasi_roe(quasi_roe_states: np.ndarray, timestep: float, legend_name: str = '',
+                   figure: plt.figure = None, states2plot: list[int] = None, **kwargs) -> plt.figure:
     """
     Method to plot the quasi ROE states over time.
 
     :param quasi_roe_states: 2D-array with the quasi ROE states over time with shape (t, 6).
     :param timestep: Amount of time between each state in s.
-    :param satellite_name: Name to place as a label for the legend.
+    :param legend_name: Name to place as a label for the legend.
     :param figure: Figure to plot the states into. If not provided, a new one is created.
     :param kwargs: Kwargs for plotting purposes.
     :return: Figure with the added quasi ROE states.
     """
     time_hours = get_time_axis(quasi_roe_states, timestep)
 
-    fig, axes = get_figure_and_axes(figure, (3, 2))
-    fig.suptitle('Evolution of quasi ROE.')
+    if states2plot is None:
+        fig, axes = get_figure_and_axes(figure, (3, 2))
+        states2plot = [0, 1, 2, 3, 4, 5]
+    else:
+        fig, axes = get_figure_and_axes(figure, (1, len(states2plot)))
+
+    fig.suptitle(r'$\mathrm{Evolution\;of \;quasi \;ROE}$', fontsize=16)
 
     is_angle_list = [False, True, False, False, True, True]
-    y_label_list = ['delta a [-]', 'delta lambda [deg]',
-                    'delta e_x [-]', "delta e_y [-]",
-                    'delta i_x [deg]', 'delta i_y [deg]']
-    plot_onto_axes(quasi_roe_states, time_hours, list(axes), is_angle_list, y_label_list, satellite_name, **kwargs)
+    y_label_list = [r'$\mathrm{\delta a\;[-]}$', r'$\mathrm{\delta \lambda\;[deg]}$',
+                    r'$\mathrm{\delta e_x\;[-]}$', r"$\mathrm{\delta e_y\;[-]}$",
+                    r'$\mathrm{\delta i_x\;[deg]}$', r'$\mathrm{\delta i_y\;[deg]}$']
+
+    legend_names = [None] + [legend_name] + [None] * 4
+    plot_onto_axes(quasi_roe_states, time_hours, list(axes), is_angle_list,
+                   y_label_list, legend_names=legend_names, states2plot=states2plot, **kwargs)
 
     return fig
 
 
-def plot_roe(roe_states: np.ndarray, timestep: float, satellite_name: str = None,
-             figure: plt.figure = None, **kwargs) -> plt.figure:
+def plot_roe(roe_states: np.ndarray, timestep: float, legend_name: str = '',
+                   figure: plt.figure = None, states2plot: list[int] = None, **kwargs) -> plt.figure:
     """
     Method to plot the ROE states over time.
 
     :param roe_states: 2D-array with the quasi ROE states over time with shape (t, 6).
     :param timestep: Amount of time between each state in s.
-    :param satellite_name: Name to place as a label for the legend.
+    :param legend_name: Name to place as a label for the legend.
     :param figure: Figure to plot the states into. If not provided, a new one is created.
     :param kwargs: Kwargs for plotting purposes.
     :return: Figure with the added ROE states.
     """
     time_hours = get_time_axis(roe_states, timestep)
 
-    fig, axes = get_figure_and_axes(figure, (3, 2))
+    if states2plot is None:
+        fig, axes = get_figure_and_axes(figure, (3, 2))
+        states2plot = [0, 1, 2, 3, 4, 5]
+    else:
+        fig, axes = get_figure_and_axes(figure, (1, len(states2plot)))
+
     fig.suptitle('Evolution of ROE.')
 
     is_angle_list = [False, True, False, True, True, True]
     y_label_list = ['delta a [-]', 'delta lambda [deg]',
                     'delta e_x [-]', "delta e_y [deg]",
                     'delta i_x [deg]', 'delta i_y [deg]']
-    plot_onto_axes(roe_states, time_hours, list(axes), is_angle_list, y_label_list, satellite_name, **kwargs)
+    legend_names = [None] + [legend_name] + [None] * 4
+
+    plot_onto_axes(roe_states, time_hours, list(axes), is_angle_list, y_label_list, legend_names,
+                   states2plot=states2plot, **kwargs)
 
     return fig
 
@@ -355,7 +405,7 @@ def plot_quaternion(quaternion_states: np.ndarray, timestep: float, satellite_na
     fig.suptitle('Evolution of quaternions.')
 
     is_angle_list = [False, False, False, False]
-    y_label_list = ['q_1 [-]', 'q_2 [-]', 'q_3 [-]', 'q_4 [-]']
+    y_label_list = [r'$q_1\;[-]$', r'$q_2\;[-]$', r'$q_3\;[-]$', r'$q_4\;[-]$']
     plot_onto_axes(quaternion_states, time_hours, list(axes), is_angle_list, y_label_list,
                    satellite_name, **kwargs)
 

@@ -61,21 +61,42 @@ class Controller(ABC):
             number_of_original_systems = self.number_of_systems + number_of_dropouts
 
             if isinstance(self.dynamics, DifferentialDragDynamics):
-                start_angles = np.linspace(0, 2 * np.pi, number_of_original_systems + 1, endpoint=False) \
-                    .reshape((number_of_original_systems + 1, 1))[1:]
-            else:
-                start_angles = np.linspace(0, 2 * np.pi, number_of_original_systems, endpoint=False) \
-                    .reshape((number_of_original_systems, 1))
+                number_of_original_systems += 1
+            #     start_angles = np.linspace(0, 2 * np.pi, number_of_original_systems, endpoint=False) \
+            #         .reshape((number_of_original_systems, 1))  # [1:]
+            # else:
+            #     start_angles = np.linspace(0, 2 * np.pi, number_of_original_systems, endpoint=False) \
+            #         .reshape((number_of_original_systems, 1))
 
             random.seed(129)
+            start_angles = np.linspace(0, 2 * np.pi, number_of_original_systems, endpoint=False) \
+                .reshape((number_of_original_systems, 1))
             selected_indices = random.sample(range(number_of_original_systems),
-                                                number_of_original_systems - number_of_dropouts)
-            angles_sorted = start_angles[np.sort(selected_indices)]
-            # print(angles_sorted)
+                                             number_of_original_systems - number_of_dropouts)
 
+            if isinstance(self.dynamics, DifferentialDragDynamics):
+                if min(selected_indices) != 0:
+                    selected_indices[-1] = 0
+                angles_sorted = start_angles[np.sort(selected_indices)][1:]
+            else:
+                angles_sorted = start_angles[np.sort(selected_indices)]
+
+            # print(start_angles)
+            # try:
+            #     selected_indices = random.sample(range(number_of_original_systems),
+            #                                         number_of_original_systems - number_of_dropouts)
+            #     angles_sorted = start_angles[np.sort(selected_indices)]
+            # except IndexError:
+            #     selected_indices = random.sample(range(number_of_original_systems - 1),
+            #                                      number_of_original_systems - number_of_dropouts)
+            #     angles_sorted = start_angles[np.sort(selected_indices)]
+            # print(angles_sorted)
+            # print(selected_indices, number_of_dropouts)
             for i in range(self.number_of_systems):
                 self.x0[i * self.system_state_size:
                         (i + 1) * self.system_state_size] = self.dynamics.create_initial_condition(angles_sorted[i, 0])
+
+            # print(self.x0[self.angle_states])
         elif isinstance(self.dynamics, SysDyn.AttitudeDynamics):
             for i in range(self.number_of_systems):
                 self.x0[i * self.system_state_size:
@@ -93,11 +114,13 @@ class Controller(ABC):
             if isinstance(self.dynamics, DifferentialDragDynamics):
                 ref_rel_angles = np.linspace(0, 2 * np.pi, self.number_of_systems + 1, endpoint=False) \
                     .reshape((self.number_of_systems + 1, 1))[1:]
+                ref_rel_angles -= np.mean(ref_rel_angles - self.x0[self.angle_states]) * self.number_of_systems / (self.number_of_systems + 1)
             else:
                 ref_rel_angles = np.linspace(0, 2 * np.pi, self.number_of_systems, endpoint=False) \
                     .reshape((self.number_of_systems, 1))
                 ref_rel_angles -= np.mean(ref_rel_angles - self.x0[self.angle_states])
 
+            # print(ref_rel_angles)
             # Smaller reference for shorter sim:
             # alpha = 0
             # ref_rel_angles = alpha * self.x0[self.angle_states] + (1 - alpha) * ref_rel_angles
