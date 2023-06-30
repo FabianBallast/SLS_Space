@@ -58,15 +58,45 @@ def time_optimisation(number_of_satellites: int, prediction_horizon: int):
     umin = np.tile(umin, (N, 1))
     umax = np.tile(umax, (N, 1))
 
-    x = m.addMVar(shape=(N + 1, nx), lb=xmin, ub=xmax, name='x')
+    Phi_x = m.addMVar(shape=(N + 1, nx, nx), name='Phi_x')
+    Phi_u = m.addMVar(shape=(N, nu, nx), name='Phi_u')
+    x = m.addMVar(shape=(N+1, nx), lb=xmin, ub=xmax, name='x')
     u = m.addMVar(shape=(N, nu), lb=umin, ub=umax, name='u')
 
-    initial_state_constraint = m.addConstr(x[0, :] == x0 - xr)
+    constraint_list = []
+    for n in range(N):
+        for row in range(nx):
+            constraint_list.append(m.addConstr(Phi_x[n, row, :] @ (x0 - xr) == x[n, row]))
+
+        for row in range(nu):
+            constraint_list.append(m.addConstr(Phi_u[n, row, :] @ (x0 - xr) == u[n, row]))
+
+    for row in range(nx):
+        constraint_list.append(m.addConstr(Phi_x[N, row, :] @ (x0 - xr) == x[N, row]))
+
+    for row in range(nx):
+        m.addConstr(Phi_x[0, row, :] == np.eye(nx)[row, :])
     for k in range(N):
-        m.addConstr(x[k + 1, :] == Ad @ x[k, :] + Bd @ u[k, :])
+        for column in range(nx):
+            m.addConstr(Phi_x[k+1, :, column] == Ad @ Phi_x[k, :, column] + Bd @ Phi_u[k, :, column])
+
+    # m.addConstr()
+    # for k in range(N):
+    #     for row in range(nx):
+    #         m.addConstr(Phi_x[k, row, :] @ (x0 - xr) <= (xmax - xr)[row])
+    #         m.addConstr(Phi_x[k, row, :] @ (x0 - xr) >= (xmin - xr)[row])
+    #
+    #     for row in range(nu):
+    #         m.addConstr(Phi_u[k, row, :] @ (x0 - xr) <= umax[row])
+    #         m.addConstr(Phi_u[k, row, :] @ (x0 - xr) >= umin[row])
+    #
+    # for row in range(nx):
+    #     m.addConstr(Phi_x[N, row, :] @ (x0 - xr) <= (xmax - xr)[row])
+    #     m.addConstr(Phi_x[N, row, :] @ (x0 - xr) >= (xmin - xr)[row])
 
     obj1 = sum(x[k, :] @ Q @ x[k, :] for k in range(N + 1))
     obj2 = sum(u[k, :] @ R @ u[k, :] for k in range(N))
+
     m.setObjective(obj1 + obj2, GRB.MINIMIZE)
     m.setParam("OutputFlag", 0)
     m.setParam("OptimalityTol", 1e-4)
@@ -91,7 +121,7 @@ def time_optimisation(number_of_satellites: int, prediction_horizon: int):
     runs = 1
     nsim = 10
     states = np.zeros((nx, nsim + 1))
-    states[:, 0] = x0 - xr
+    states[:, 0] = x0
     input = np.zeros((nu, nsim))
 
     for run in range(runs):
@@ -102,14 +132,35 @@ def time_optimisation(number_of_satellites: int, prediction_horizon: int):
             all_vars = m.getVars()
             values = m.getAttr("X", all_vars)
             names = m.getAttr("VarName", all_vars)
-            for j in range(nx, 2 * nx):
-                states[j - nx, i+1] = values[names.index(f'x[{j}]')]
+            # print(values, names)
 
-            for j in range(0, nu):
-                input[j, i] = values[names.index(f'u[{j}]')]
+            phi_x = np.zeros(nx * nx)
+            phi_u = np.zeros(nx * nu)
+            for j in range(nx * nx, 2 * nx * nx):
+                phi_x[j - nx**2] = values[names.index(f'Phi_x[{j}]')]
 
-            m.remove(initial_state_constraint)
-            initial_state_constraint = m.addConstr(x[0, :] == states[:, i+1])
+            states[:, i+1] = phi_x.reshape((nx, nx)) @ (states[:, i] - xr) + xr
+
+            for j in range(0, nu * nx):
+                phi_u[j] = values[names.index(f'Phi_u[{j}]')]
+
+            input[:, i] = phi_u.reshape((nu, nx)) @ (states[:, i] - xr)
+
+            for constraint in constraint_list:
+                m.remove(constraint)
+
+            x0 = states[:, i+1]
+            constraint_list = []
+            for n in range(N):
+                for row in range(nx):
+                    constraint_list.append(m.addConstr(Phi_x[n, row, :] @ (x0 - xr) == x[n, row]))
+
+                for row in range(nu):
+                    constraint_list.append(m.addConstr(Phi_u[n, row, :] @ (x0 - xr) == u[n, row]))
+
+            for row in range(nx):
+                constraint_list.append(m.addConstr(Phi_x[N, row, :] @ (x0 - xr) == x[N, row]))
+
             m.update()
 
             if i == 0:
@@ -117,17 +168,17 @@ def time_optimisation(number_of_satellites: int, prediction_horizon: int):
 
     t_end = time.time()
 
-    avg_time = (t_end - t_0) / runs / (nsim - 1)
+    avg_time = (t_end - t_0) / runs / (nsim- 1)
     # print(f"Average elapsed time: {avg_time}")
 
-    # plt.figure()
-    # plt.plot(np.rad2deg(states[1::6].T))
-    #
-    # plt.figure()
-    # plt.plot(input[1::3].T)
-    # plt.show()
+    plt.figure()
+    plt.plot(np.rad2deg(states[1::6].T - xr[1::6]))
+
+    plt.figure()
+    plt.plot(input[1::3].T)
+    plt.show()
     return avg_time
 
 
 if __name__ == '__main__':
-    print(time_optimisation(3, 10))
+    print(time_optimisation(10, 10))

@@ -53,45 +53,51 @@ def time_optimisation(number_of_satellites: int, prediction_horizon: int):
     xr[1::6] = ref_rel_angles
 
     # MPC Formulation
-    xmin = np.tile(xmin - xr, (N + 1, 1))
-    xmax = np.tile(xmax - xr, (N + 1, 1))
-    umin = np.tile(umin, (N, 1))
-    umax = np.tile(umax, (N, 1))
+    # xmin = np.tile(xmin - xr, (N + 1, 1))
+    # xmax = np.tile(xmax - xr, (N + 1, 1))
+    # umin = np.tile(umin, (N, 1))
+    # umax = np.tile(umax, (N, 1))
 
-    x = m.addMVar(shape=(N + 1, nx), lb=xmin, ub=xmax, name='x')
-    u = m.addMVar(shape=(N, nu), lb=umin, ub=umax, name='u')
+    x = m.addMVar(shape=(N+1, nx * nx), name='x')
+    u = m.addMVar(shape=(N, nu * nx), name='u')
 
-    initial_state_constraint = m.addConstr(x[0, :] == x0 - xr)
-    for k in range(N):
-        m.addConstr(x[k + 1, :] == Ad @ x[k, :] + Bd @ u[k, :])
+    constraint_list = []
+    Fx = sparse.kron(sparse.eye(nx), x0-xr)
+    Fu = sparse.kron(sparse.eye(nu), x0-xr)
+    FQF = Fx.T @ Q @ Fx
+    FRF = Fu.T @ R @ Fu
 
-    obj1 = sum(x[k, :] @ Q @ x[k, :] for k in range(N + 1))
-    obj2 = sum(u[k, :] @ R @ u[k, :] for k in range(N))
+    A_f = sparse.kron(Ad, sparse.eye(nx))
+    B_f = sparse.kron(Bd, sparse.eye(nx))
+
+    for n in range(N):
+        constraint_list.append(m.addConstr(Fx @ x[n] <= xmax - xr))
+        constraint_list.append(m.addConstr(Fx @ x[n] >= xmin - xr))
+        constraint_list.append(m.addConstr(Fu @ u[n] <= umax))
+        constraint_list.append(m.addConstr(Fu @ u[n] >= umin))
+
+    constraint_list.append(m.addConstr(Fx @ x[n] <= xmax))
+    constraint_list.append(m.addConstr(Fx @ x[n] >= xmin))
+
+    m.addConstr(x[0] == np.eye(nx).flatten())
+
+    for n in range(N):
+        m.addConstr(x[n+1] == A_f @ x[n] + B_f @ u[n])
+
+    obj1 = sum(x[k, :] @ FQF @ x[k, :] for k in range(N + 1))
+    obj2 = sum(u[k, :] @ FRF @ u[k, :] for k in range(N))
+
     m.setObjective(obj1 + obj2, GRB.MINIMIZE)
     m.setParam("OutputFlag", 0)
     m.setParam("OptimalityTol", 1e-4)
 
-    # m.optimize()
-    #
-    # all_vars = m.getVars()
-    # values = m.getAttr("X", all_vars)
-    # names = m.getAttr("VarName", all_vars)
-    # new_state = np.zeros_like(x0)
-    # input = np.zeros((nu, ))
-    # for i in range(nx, 2 * nx):
-    #    new_state[i - nx] = values[names.index(f'x[{i}]')]
-    #
-    # for i in range(0, nu):
-    #     input[i] = values[names.index(f'u[{i}]')]
-
-    # print(new_state, input)
     # Simulate in closed loop
     # t_0 = time.time()
     t_0 = 0
     runs = 1
     nsim = 10
     states = np.zeros((nx, nsim + 1))
-    states[:, 0] = x0 - xr
+    states[:, 0] = x0
     input = np.zeros((nu, nsim))
 
     for run in range(runs):
@@ -102,14 +108,42 @@ def time_optimisation(number_of_satellites: int, prediction_horizon: int):
             all_vars = m.getVars()
             values = m.getAttr("X", all_vars)
             names = m.getAttr("VarName", all_vars)
-            for j in range(nx, 2 * nx):
-                states[j - nx, i+1] = values[names.index(f'x[{j}]')]
+            # print(values, names)
 
-            for j in range(0, nu):
-                input[j, i] = values[names.index(f'u[{j}]')]
+            phi_x = np.zeros(nx * nx)
+            phi_u = np.zeros(nx * nu)
+            for j in range(nx * nx, 2 * nx * nx):
+                phi_x[j - nx**2] = values[names.index(f'x[{j}]')]
 
-            m.remove(initial_state_constraint)
-            initial_state_constraint = m.addConstr(x[0, :] == states[:, i+1])
+            states[:, i+1] = phi_x.reshape((nx, nx)) @ (states[:, i] - xr) + xr
+
+            for j in range(0, nu * nx):
+                phi_u[j] = values[names.index(f'u[{j}]')]
+
+            input[:, i] = phi_u.reshape((nu, nx)) @ (states[:, i] - xr)
+            # print(input)
+            for constraint in constraint_list:
+                m.remove(constraint)
+
+            x0 = states[:, i+1]
+            constraint_list = []
+            Fx = sparse.kron(sparse.eye(nx), x0 - xr)
+            Fu = sparse.kron(sparse.eye(nu), x0 - xr)
+            FQF = Fx.T @ Q @ Fx
+            FRF = Fu.T @ R @ Fu
+
+            for n in range(N):
+                constraint_list.append(m.addConstr(Fx @ x[n] <= xmax - xr))
+                constraint_list.append(m.addConstr(Fx @ x[n] >= xmin - xr))
+                constraint_list.append(m.addConstr(Fu @ u[n] <= umax))
+                constraint_list.append(m.addConstr(Fu @ u[n] >= umin))
+
+            constraint_list.append(m.addConstr(Fx @ x[n] <= xmax))
+            constraint_list.append(m.addConstr(Fx @ x[n] >= xmin))
+            obj1 = sum(x[k, :] @ FQF @ x[k, :] for k in range(N + 1))
+            obj2 = sum(u[k, :] @ FRF @ u[k, :] for k in range(N))
+
+            m.setObjective(obj1 + obj2, GRB.MINIMIZE)
             m.update()
 
             if i == 0:
@@ -117,15 +151,15 @@ def time_optimisation(number_of_satellites: int, prediction_horizon: int):
 
     t_end = time.time()
 
-    avg_time = (t_end - t_0) / runs / (nsim - 1)
+    avg_time = (t_end - t_0) / runs / (nsim- 1)
     # print(f"Average elapsed time: {avg_time}")
 
-    # plt.figure()
-    # plt.plot(np.rad2deg(states[1::6].T))
-    #
-    # plt.figure()
-    # plt.plot(input[1::3].T)
-    # plt.show()
+    plt.figure()
+    plt.plot(np.rad2deg(states[1::6].T - xr[1::6]))
+
+    plt.figure()
+    plt.plot(input[1::3].T)
+    plt.show()
     return avg_time
 
 
