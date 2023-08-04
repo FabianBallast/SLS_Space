@@ -62,11 +62,6 @@ class Controller(ABC):
 
             if isinstance(self.dynamics, DifferentialDragDynamics):
                 number_of_original_systems += 1
-            #     start_angles = np.linspace(0, 2 * np.pi, number_of_original_systems, endpoint=False) \
-            #         .reshape((number_of_original_systems, 1))  # [1:]
-            # else:
-            #     start_angles = np.linspace(0, 2 * np.pi, number_of_original_systems, endpoint=False) \
-            #         .reshape((number_of_original_systems, 1))
 
             random.seed(129)
             start_angles = np.linspace(0, 2 * np.pi, number_of_original_systems, endpoint=False) \
@@ -81,17 +76,6 @@ class Controller(ABC):
             else:
                 angles_sorted = start_angles[np.sort(selected_indices)]
 
-            # print(start_angles)
-            # try:
-            #     selected_indices = random.sample(range(number_of_original_systems),
-            #                                         number_of_original_systems - number_of_dropouts)
-            #     angles_sorted = start_angles[np.sort(selected_indices)]
-            # except IndexError:
-            #     selected_indices = random.sample(range(number_of_original_systems - 1),
-            #                                      number_of_original_systems - number_of_dropouts)
-            #     angles_sorted = start_angles[np.sort(selected_indices)]
-            # print(angles_sorted)
-            # print(selected_indices, number_of_dropouts)
             for i in range(self.number_of_systems):
                 self.x0[i * self.system_state_size:
                         (i + 1) * self.system_state_size] = self.dynamics.create_initial_condition(angles_sorted[i, 0])
@@ -145,7 +129,8 @@ class Controller(ABC):
 
     @abstractmethod
     def simulate_system(self, t_horizon: int, noise=None, progress: bool = False,
-                        inputs_to_store: int = None, fast_computation: bool = False) -> (np.ndarray, np.ndarray):
+                        inputs_to_store: int = None, fast_computation: bool = False,
+                        add_collision_avoidance: bool = False) -> (np.ndarray, np.ndarray):
         """
         Simulate the system assuming a perfect model is known.
 
@@ -155,6 +140,7 @@ class Controller(ABC):
         :param inputs_to_store: How many inputs to store in u_inputs.
                                 Usually equal to t_horizon, but for simulation with RK4 can be set to 1.
         :param fast_computation: Whether to speed up the computations using a transformed problem.
+        :param add_collision_avoidance: Whether to add collision avoidance constraints.
         :return: Tuple with (x_states, u_inputs)
         """
         pass
@@ -193,9 +179,12 @@ class Controller(ABC):
             indices = np.arange(satellite_number * self.system_state_size,
                                 (satellite_number + 1) * self.system_state_size)
             rel_states = self.x_states[indices, :].T - self.x_ref[indices].T
+
+            if rel_states[0, self.angle_states[0]] > np.pi:
+                rel_states[0, self.angle_states[0]] -= 2 * np.pi
             plot_method = self.dynamics.get_plot_method()
             figure = plot_method(rel_states,
                                  self.sampling_time,
-                                 f"SLS_prediction_{satellite_number}", figure, linestyle='--')
+                                 legend_name=f"SLS_prediction_{satellite_number}", figure=figure, linestyle='--')
 
         return figure

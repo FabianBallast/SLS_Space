@@ -205,6 +205,41 @@ def plot_keplerian_states(kepler_elements: np.ndarray, timestep: float, plot_arg
     return fig
 
 
+def plot_kalman_states(kalman_elements: np.ndarray, timestep: float,
+                       legend_name: str = None, figure: plt.figure = None, states2plot: list = None,
+                       **kwargs) -> plt.figure:
+    """
+    Method to plot the evolution of the orbital (kepler) elements over time.
+
+    :param kalman_elements: 2D-array containing the orbital elements over time. Shape is (t, 6).
+    :param timestep: Amount of time between each measurement in s.
+    :param legend_name: Name to place as a label for the legend.
+    :param figure: Figure to plot the kepler elements into. If not provided, a new one is created.
+    :param states2plot: List with which states to plot.
+    :param kwargs: Kwargs for plotting purposes.
+    :return: Figure with the added keplerian states.
+    """
+    # Plot Kepler elements as a function of time
+    time_hours = get_time_axis(kalman_elements, timestep)
+
+    if states2plot is None:
+        fig, axes = get_figure_and_axes(figure, (3, 2))
+        states2plot = [0, 1, 2, 3, 4, 5]
+    else:
+        fig, axes = get_figure_and_axes(figure, (1, len(states2plot)))
+    fig.suptitle('Evolution of Kalman elements over the course of the propagation')
+
+    is_angle_list = [False, True, False, False, True, True]
+    y_label_list = ['Semi-major axis [m]', 'True latitude [deg]', 'e cos(omega) [-]',
+                   'e sin(omega) [-]', 'Inclination [deg]', "RAAN [deg]"]
+
+    legend_names = [None] + [legend_name] + [None] * 4
+
+    plot_onto_axes(kalman_elements, time_hours, list(axes), is_angle_list, y_label_list, legend_names=legend_names,
+                   states2plot=states2plot, **kwargs)
+
+    return fig
+
 def plot_thrust_forces(inputs: np.ndarray, timestep: float, legend_name: str = None,
                        figure: plt.figure = None, **kwargs) -> plt.figure:
     """
@@ -282,8 +317,8 @@ def plot_control_torques(inputs: np.ndarray, timestep: float, satellite_name: st
     return fig
 
 
-def plot_cylindrical_states(cylindrical_states: np.ndarray, timestep: float, figure: plt.figure = None,
-                            legend_name: str = '', states2plot: list[int] = None, **kwargs) -> plt.figure:
+def plot_cylindrical_states(cylindrical_states: np.ndarray, timestep: float, legend_name: str = '',
+                            figure: plt.figure = None, states2plot: list[int] = None, **kwargs) -> plt.figure:
     """
     Method to plot the relative cylindrical states over time.
 
@@ -382,6 +417,40 @@ def plot_roe(roe_states: np.ndarray, timestep: float, legend_name: str = '',
     legend_names = [None] + [legend_name] + [None] * 4
 
     plot_onto_axes(roe_states, time_hours, list(axes), is_angle_list, y_label_list, legend_names,
+                   states2plot=states2plot, **kwargs)
+
+    return fig
+
+
+def plot_blend(blend_states: np.ndarray, timestep: float, legend_name: str = '',
+               figure: plt.figure = None, states2plot: list[int] = None, **kwargs) -> plt.figure:
+    """
+    Method to plot the blend states over time.
+
+    :param blend_states: 2D-array with the quasi ROE states over time with shape (t, 6).
+    :param timestep: Amount of time between each state in s.
+    :param legend_name: Name to place as a label for the legend.
+    :param figure: Figure to plot the states into. If not provided, a new one is created.
+    :param kwargs: Kwargs for plotting purposes.
+    :return: Figure with the added blend states.
+    """
+    time_hours = get_time_axis(blend_states, timestep)
+
+    if states2plot is None:
+        fig, axes = get_figure_and_axes(figure, (3, 2))
+        states2plot = [0, 1, 2, 3, 4, 5]
+    else:
+        fig, axes = get_figure_and_axes(figure, (1, len(states2plot)))
+
+    fig.suptitle('Evolution of states.')
+
+    is_angle_list = [False, False, True, True, True, True]
+    y_label_list = [r'$\delta\mathrm{r\;[-]}$', r'$\delta\mathrm{\dot{r}\;[m/s]}$',
+                    r'$\delta\theta\mathrm{\;[deg]}$', r'$\delta\mathrm{\dot{\theta}\;[deg/s]}$',
+                    r'$\delta\mathrm{i\;[deg]}$', r'$\delta\Omega\mathrm{\;[deg]}$']
+    legend_names = [None] + [legend_name] + [None] * 4
+
+    plot_onto_axes(blend_states, time_hours, list(axes), is_angle_list, y_label_list, legend_names,
                    states2plot=states2plot, **kwargs)
 
     return fig

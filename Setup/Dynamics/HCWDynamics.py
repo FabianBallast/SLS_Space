@@ -19,17 +19,28 @@ class RelCylHCW(TranslationalDynamics):
         if self.is_scaled and not self.J2_active:
             self.param = DynamicParameters(state_limit=[0.1, 10, 0.1, 0.1, self.mean_motion / 10, 0.1],
                                            input_limit=[0.1, 0.1, 0.1],
-                                           q_sqrt=np.diag(np.array([4, 50, 15, 200, 200, 200])),  # 4, 50
+                                           q_sqrt=np.diag(np.array([4, 50, 15, 10, 10, 10])),  # 4, 50
                                            r_sqrt_scalar=1e-2,
                                            slack_variable_length=0,
-                                           slack_variable_costs=[10000, 0, 0, 0, 0, 0])
-        elif self.is_scaled:
+                                           slack_variable_costs=[10000, 0, 0, 0, 0, 0],
+                                           planetary_distance=np.deg2rad(5))
+        elif self.is_scaled and not isinstance(scenario.orbital.longitude, list):  # Single orbit
             self.param = DynamicParameters(state_limit=[0.1, 10, 0.1, 0.1, self.mean_motion / 10, 0.1],
                                            input_limit=[0.1, 0.1, 0.1],
-                                           q_sqrt=np.diag(np.array([4, 50, 15, 200, 200, 200])),
+                                           q_sqrt=np.diag(np.array([4, 50, 15, 10, 10, 10])),
                                            r_sqrt_scalar=1e-2,
                                            slack_variable_length=9,
-                                           slack_variable_costs=[10000, 0, 0, 0, 0, 0])
+                                           slack_variable_costs=[10000, 0, 0, 0, 0, 0],
+                                           planetary_distance=np.deg2rad(5))
+        elif self.is_scaled:
+            self.param = DynamicParameters(state_limit=[0.2, 10, 4, 0.01, self.mean_motion / 10, 0.1],
+                                           input_limit=[0.1, 0.1, 0.1],
+                                           q_sqrt=np.diag(np.array([4, 50, 15, 10, 10, 10])),
+                                           r_sqrt_scalar=1e-2,
+                                           slack_variable_length=9,
+                                           slack_variable_costs=[10000, 0, 0, 0, 0, 0],
+                                           planetary_distance=np.deg2rad(5),
+                                           inter_planetary_distance=1)
         else:
             self.param = DynamicParameters(state_limit=[10000, 10000, 100, 10, self.mean_motion / 10, 1],
                                            input_limit=[100, 100, 100],
@@ -158,3 +169,27 @@ class RelCylHCW(TranslationalDynamics):
         :return: List with positive cost for states where slack variables should be applied.
         """
         return self.param.slack_variable_costs
+
+    def get_orbital_parameter(self) -> list[bool]:
+        """
+        Find the parameter that determines if two orbits are close.
+
+        :return: List with bool with True for the orbital parameter.
+        """
+        return [False, False, True, False, False, False]
+
+    def get_planetary_distance(self) -> int | float:
+        """
+        Find the minimum planetary distance.
+
+        :return: The minimum planetary distance
+        """
+        return self.param.planetary_distance
+
+    def get_inter_planetary_distance(self) -> int | float:
+        """
+        Find the minimum inter_planetary distance.
+
+        :return: The minimum inter_planetary distance
+        """
+        return self.param.inter_planetary_distance

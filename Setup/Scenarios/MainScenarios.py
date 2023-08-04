@@ -16,7 +16,7 @@ class Scenario:
                  simulation_scenario: SimulationScenarios = SimulationScenarios.sim_1_minute,
                  initial_state_scenario: InitialStateScenarios = InitialStateScenarios.no_state_error,
                  control_scenario: ControlParameterScenarios = ControlParameterScenarios.control_attitude_default,
-                 number_of_satellites: int = 3, model: Model = Model.ATTITUDE):
+                 number_of_satellites: int = 3, model: Model = Model.ATTITUDE, collision_avoidance: bool = False):
         self.orbital = orbital_scenario.value
         self.physics = physics_scenario.value
         self.simulation = simulation_scenario.value
@@ -24,6 +24,7 @@ class Scenario:
         self.control = control_scenario.value
         self.number_of_satellites = number_of_satellites
         self.model = model
+        self.collision_avoidance = collision_avoidance
 
 
 class AttitudeScenario(Scenario):
@@ -49,9 +50,9 @@ class TranslationalScenario(Scenario):
                  simulation_scenario: SimulationScenarios = SimulationScenarios.sim_10_minute,
                  initial_state_scenario: InitialStateScenarios = InitialStateScenarios.no_state_error,
                  control_scenario: ControlParameterScenarios = ControlParameterScenarios.control_position_default,
-                 number_of_satellites: int = 5, model: Model = Model.HCW):
+                 number_of_satellites: int = 5, model: Model = Model.HCW, collision_avoidance: bool = False):
         super().__init__(orbital_scenario, physics_scenario, simulation_scenario, initial_state_scenario,
-                         control_scenario, number_of_satellites, model)
+                         control_scenario, number_of_satellites, model, collision_avoidance)
 
 
 class ScenarioEnum(Enum):
@@ -87,7 +88,7 @@ class ScenarioEnum(Enum):
 
     j2_scenario_pos_keep_HCW = TranslationalScenario(physics_scenario=PhysicsScenarios.advanced_grav_physics)
     j2_scenario_pos_keep_HCW_scaled = TranslationalScenario(physics_scenario=PhysicsScenarios.advanced_grav_physics_scaled,
-                                                            control_scenario=ControlParameterScenarios.control_position_fine)
+                                                            control_scenario=ControlParameterScenarios.control_position_default)
     j2_scenario_pos_keep_ROE = TranslationalScenario(physics_scenario=PhysicsScenarios.advanced_grav_physics, model=Model.ROE)
     j2_scenario_pos_keep_ROE_scaled = TranslationalScenario(physics_scenario=PhysicsScenarios.advanced_grav_physics_scaled, model=Model.ROE)
 
@@ -96,7 +97,7 @@ class ScenarioEnum(Enum):
     j2_scenario_moving_HCW_scaled = TranslationalScenario(physics_scenario=PhysicsScenarios.advanced_grav_physics_scaled,
                                                           initial_state_scenario=InitialStateScenarios.small_state_error,
                                                           control_scenario=ControlParameterScenarios.control_position_default,
-                                                          simulation_scenario=SimulationScenarios.sim_orbital_period,
+                                                          simulation_scenario=SimulationScenarios.sim_10_orbital_period,
                                                           number_of_satellites=10)
     j2_scenario_moving_ROE = TranslationalScenario(physics_scenario=PhysicsScenarios.advanced_grav_physics,
                                                    model=Model.ROE,
@@ -140,9 +141,64 @@ class ScenarioEnum(Enum):
         model=Model.ROE_V2,
         number_of_satellites=10,
         simulation_scenario=SimulationScenarios.sim_30_minute,
-        control_scenario=ControlParameterScenarios.control_position_fine,
+        control_scenario=ControlParameterScenarios.control_position_default,
         orbital_scenario=OrbitalScenarios.eccentric_orbit
     )
+
+    simple_scenario_translation_blend_scaled = TranslationalScenario(
+        physics_scenario=PhysicsScenarios.basic_physics_scaled,
+        initial_state_scenario=InitialStateScenarios.small_state_error,
+        model=Model.BLEND,
+        number_of_satellites=10,
+        simulation_scenario=SimulationScenarios.sim_45_minute,
+        control_scenario=ControlParameterScenarios.control_position_default,
+        orbital_scenario=OrbitalScenarios.tilted_orbit_45deg
+    )
+
+    j2_scenario_translation_blend_scaled = TranslationalScenario(
+        physics_scenario=PhysicsScenarios.advanced_grav_physics_scaled,
+        initial_state_scenario=InitialStateScenarios.small_state_error,
+        model=Model.BLEND,
+        number_of_satellites=10,
+        simulation_scenario=SimulationScenarios.sim_30_minute,
+        control_scenario=ControlParameterScenarios.control_position_default,
+        orbital_scenario=OrbitalScenarios.tilted_orbit_45deg
+    )
+
+    j2_scenario_moving_HCW_2_orbits = TranslationalScenario(physics_scenario=PhysicsScenarios.advanced_grav_physics_scaled,
+                                                            initial_state_scenario=InitialStateScenarios.small_state_error,
+                                                            control_scenario=ControlParameterScenarios.control_position_default,
+                                                            simulation_scenario=SimulationScenarios.sim_10_orbital_period,
+                                                            number_of_satellites=10,
+                                                            orbital_scenario=OrbitalScenarios.tilted_orbit_45deg_group_2_close)
+
+    j2_scenario_moving_blend_2_orbits = TranslationalScenario(
+        physics_scenario=PhysicsScenarios.advanced_grav_physics_scaled,
+        initial_state_scenario=InitialStateScenarios.small_state_error,
+        control_scenario=ControlParameterScenarios.control_position_default,
+        simulation_scenario=SimulationScenarios.sim_5_orbital_period,
+        number_of_satellites=10,
+        orbital_scenario=OrbitalScenarios.tilted_orbit_45deg_group_2_close,
+        model=Model.BLEND)
+
+    j2_scenario_moving_blend_6_orbits = TranslationalScenario(
+        physics_scenario=PhysicsScenarios.advanced_grav_physics_scaled,
+        initial_state_scenario=InitialStateScenarios.small_state_error,
+        control_scenario=ControlParameterScenarios.control_position_default,
+        simulation_scenario=SimulationScenarios.sim_10_minute,
+        number_of_satellites=36,
+        orbital_scenario=OrbitalScenarios.tilted_orbit_45deg_group_6,
+        model=Model.BLEND)
+
+    j2_scenario_moving_blend_6_orbits_ca = TranslationalScenario(
+        physics_scenario=PhysicsScenarios.advanced_grav_physics_scaled,
+        initial_state_scenario=InitialStateScenarios.small_state_error,
+        control_scenario=ControlParameterScenarios.control_position_default,
+        simulation_scenario=SimulationScenarios.sim_10_orbital_period,
+        number_of_satellites=36,
+        orbital_scenario=OrbitalScenarios.tilted_orbit_45deg_group_6,
+        model=Model.BLEND,
+        collision_avoidance=True)
 
 #
 # simple_scenario_attitude = {'orbital': OrbitalScenarios.arbitrary_orbit.value,

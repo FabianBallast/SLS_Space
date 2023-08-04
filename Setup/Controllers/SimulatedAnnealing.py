@@ -112,7 +112,7 @@ class SimulatedAnnealing(Controller):
 
     def simulate_system(self, t_horizon: int, noise=None, progress: bool = False,
                         inputs_to_store: int = None, fast_computation: bool = False,
-                        time_since_start: int = 0) -> (np.ndarray, np.ndarray):
+                        time_since_start: int = 0, add_collision_avoidance: bool = False) -> (np.ndarray, np.ndarray):
         """
         Simulate the system assuming a perfect model is known.
 
@@ -123,6 +123,7 @@ class SimulatedAnnealing(Controller):
         :param inputs_to_store: How many inputs to store in u_inputs.
                                 Usually equal to t_horizon, but for simulation with RK4 can be set to 1.
         :param fast_computation: Whether to speed up the computations using a transformed problem.
+        :param add_collision_avoidance: Whether to add collision avoidance constraints. Does nothing here.
         :return: Tuple with (x_states, u_inputs)
         """
         if inputs_to_store is None:

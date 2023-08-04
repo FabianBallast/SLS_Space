@@ -64,13 +64,14 @@ class SLSSetup(Controller):
         mean_anomaly_start = np.zeros_like(true_anomaly_start)
         true_anomalies = np.zeros_like(true_anomaly_start)
 
-        for idx, true_anomaly in enumerate(true_anomaly_start):
-            mean_anomaly_start[idx] = element_conversion.true_to_mean_anomaly(self.dynamics.eccentricity, true_anomaly)
+        # for idx, true_anomaly in enumerate(true_anomaly_start):
+        #     mean_anomaly_start[idx] = element_conversion.true_to_mean_anomaly(self.dynamics.eccentricity, true_anomaly)
 
         for t in range(self.prediction_horizon):
-            mean_anomalies = mean_anomaly_start + (t + 0.5) * self.dynamics.mean_motion * self.sampling_time
-            for idx, mean_anomaly in enumerate(mean_anomalies):
-                true_anomalies[idx] = element_conversion.mean_to_true_anomaly(self.dynamics.eccentricity, mean_anomaly)
+            # mean_anomalies = mean_anomaly_start + (t + 0.5) * self.dynamics.mean_motion * self.sampling_time
+            # for idx, mean_anomaly in enumerate(mean_anomalies):
+            #     true_anomalies[idx] = element_conversion.mean_to_true_anomaly(self.dynamics.eccentricity, mean_anomaly)
+            true_anomalies = true_anomaly_start + (t + 0.5) * self.dynamics.mean_motion * self.sampling_time
 
             arguments_of_periapsis = argument_of_periapsis + (t + 0.5) * argument_of_periapsis_dot * self.sampling_time
 
@@ -119,7 +120,8 @@ class SLSSetup(Controller):
                 self.synthesizer.update_model(self.sys)
 
     def simulate_system(self, t_horizon: int, noise=None, progress: bool = False, inputs_to_store: int = 1,
-                        fast_computation: bool = False, time_since_start: int = 0) -> (np.ndarray, np.ndarray):
+                        fast_computation: bool = False, time_since_start: int = 0,
+                        add_collision_avoidance: bool = False, absolute_longitude_refs: list[float | int] = None) -> (np.ndarray, np.ndarray):
         """
         Simulate the system assuming a perfect model is known.
 
@@ -130,6 +132,8 @@ class SLSSetup(Controller):
                                 Usually equal to t_horizon, but for simulation with RK4 can be set to 1.
         :param fast_computation: Whether to speed up the computations using a transformed problem.
         :param time_since_start: Time since start of all simulations in s. Used for latitude calculations.
+        :param add_collision_avoidance: Whether to add collision avoidance constraints.
+        :param absolute_longitude_refs: List with the absolute RAAN refs
         :return: Tuple with (x_states, u_inputs)
         """
         if self.synthesizer is None:
@@ -149,10 +153,27 @@ class SLSSetup(Controller):
                                                    maximum_state=state_constraint)
                 # Make it distributed
                 # self.synthesizer << SLS_Cons_dLocalized(d=4)
-            elif noise is None:
+            elif noise is None and not add_collision_avoidance:
                 self.synthesizer = OSQP_Synthesiser(self.number_of_systems, self.prediction_horizon, self.sys,
                                                     0*self.x_ref, self.dynamics.get_slack_variable_length(),
                                                     self.dynamics.get_slack_costs())
+                self.synthesizer.create_optimisation_problem(self.dynamics.get_state_cost_matrix_sqrt(),
+                                                             self.dynamics.get_input_cost_matrix_sqrt()[3:],
+                                                             self.dynamics.get_state_constraint(),
+                                                             self.dynamics.get_input_constraint())
+            elif noise is None:
+                self.synthesizer = OSQP_Synthesiser(self.number_of_systems, self.prediction_horizon, self.sys,
+                                                    0 * self.x_ref, self.dynamics.get_slack_variable_length(),
+                                                    self.dynamics.get_slack_costs(), inter_planetary_constraints=True,
+                                                    longitudes=absolute_longitude_refs,
+                                                    reference_angles=self.x_ref[self.angle_states],
+                                                    planar_state=list(self.dynamics.get_positional_angles()),
+                                                    inter_planar_state=self.dynamics.get_orbital_parameter(),
+                                                    inter_planetary_limit=self.dynamics.get_inter_planetary_distance(),
+                                                    planetary_limit=self.dynamics.get_planetary_distance(),
+                                                    radial_limit=self.dynamics.get_radial_distance(),
+                                                    mean_motion=self.dynamics.mean_motion,
+                                                    sampling_time=self.sampling_time)
                 self.synthesizer.create_optimisation_problem(self.dynamics.get_state_cost_matrix_sqrt(),
                                                              self.dynamics.get_input_cost_matrix_sqrt()[3:],
                                                              self.dynamics.get_state_constraint(),
@@ -181,12 +202,19 @@ class SLSSetup(Controller):
             self.set_initial_conditions(self.x_states[:, t:t + 1], time_since_start + t * self.sampling_time)
 
             if fast_computation:
-                self.sys.initialize(self.x0 - self.x_ref)
+                difference = self.x0 - self.x_ref
+
+                difference[self.angle_states[difference[self.angle_states, 0] > np.pi]] -= 2 * np.pi
+                difference[self.angle_states[difference[self.angle_states, 0] < -np.pi]] += 2 * np.pi
+
+                # print(np.max(np.abs(difference.reshape((-1, 6))), axis=0))
+                self.sys.initialize(difference)
+                # print((self.x0 - self.x_ref))
             else:
                 self.sys.initialize(self.x0)
 
             # Synthesise controller
-            self.controller = self.synthesizer.synthesizeControllerModel(self.x_ref)
+            self.controller = self.synthesizer.synthesizeControllerModel(self.x_ref, time_since_start + t * self.sampling_time)
 
             # print(f"Predicted next state: {(self.controller._Phi_x[2] + self.x_ref).T}")
             # Update state and input

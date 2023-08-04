@@ -27,7 +27,7 @@ class ControlParameterScenarios(Enum):
     """
     control_attitude_default = ControlParameters()
     control_attitude_far_ahead = ControlParameters(control_timestep=15, tFIR=20)
-    control_position_default = ControlParameters(control_timestep=30)
+    control_position_default = ControlParameters(control_timestep=20, tFIR=10)
     control_position_fine = ControlParameters(control_timestep=5, tFIR=20)
     control_position_far_ahead = ControlParameters(control_timestep=60, tFIR=20)
 
@@ -43,6 +43,7 @@ class Model(Enum):
     ROE = 3
     DIFFERENTIAL_DRAG = 4
     ROE_V2 = 5
+    BLEND = 6
 
 
 if __name__ == '__main__':

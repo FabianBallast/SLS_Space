@@ -8,10 +8,12 @@ from tudatpy.kernel.astro import element_conversion, frame_conversion
 from tudatpy.util import result2array
 from Space.EngineModel import ThrustModel, TorqueModel
 from Visualisation import Plotting as Plot
-from Dynamics import HCWDynamics, ROEDynamics, SystemDynamics, AttitudeDynamics, DifferentialDragDynamics
+from Dynamics import HCWDynamics, ROEDynamics, SystemDynamics, AttitudeDynamics, DifferentialDragDynamics, BlendDynamics
 from scipy.spatial.transform import Rotation
 from Scenarios.MainScenarios import Scenario
-
+import Utils.Conversions as Conversion
+from Filters.KalmanFilter import KalmanFilter
+from Scenarios.OrbitalScenarios import OrbitGroup
 
 
 class OrbitalMechSimulator:
@@ -19,7 +21,8 @@ class OrbitalMechSimulator:
     Class to simulate several satellites in the same orbit using a high-fidelity simulator. 
     """
 
-    def __init__(self):
+    def __init__(self, scenario: Scenario):
+        self.kalman_state = None
         self.bodies = None
         self.central_bodies = None
         self.controlled_satellite_names = None
@@ -55,16 +58,34 @@ class OrbitalMechSimulator:
         self.euler_angles = None
         self.angular_velocities = None
         self.rsw_quaternions = None
+        self.blend_states = None
 
         self.reference_satellite_added = False
-        self.reference_satellite_name = "Satellite_ref"
-
+        self.reference_satellite_names = []
         self.translation_states = None
         self.mass_states = None
         self.rotation_states = None
 
         self.mean_motion = None
         self.orbital_derivative = None
+        self.gravitational_constant = scenario.physics.gravitational_parameter_Earth
+
+        self.scenario = scenario
+        self.filter = KalmanFilter(scenario.simulation.simulation_timestep, scenario.physics.radius_Earth,
+                                   scenario.physics.gravitational_parameter_Earth,
+                                   scenario.physics.J2_value * self.scenario.physics.J2_perturbation,
+                                   scenario.control.control_timestep, scenario.physics.mass)
+        self.filtered_oe = None
+        self.filtered_oe_ref = None
+
+        self.thrust_inputs = None
+        self.initial_reference_state = None
+        self.oe_mean_0 = None
+
+        if isinstance(self.scenario.orbital, OrbitGroup):
+            self.number_of_orbits = len(self.scenario.orbital.longitude)
+        else:
+            self.number_of_orbits = 1
 
     def create_bodies(self, number_of_satellites: int, satellite_mass: float, satellite_inertia: np.ndarray[3, 3],
                       add_reference_satellite: bool = False, use_parameters_from_scenario: Scenario = None) -> None:
@@ -98,6 +119,8 @@ class OrbitalMechSimulator:
                 body_settings.get("Earth").gravity_field_settings.normalized_sine_coefficients,
                 body_settings.get("Earth").gravity_field_settings.associated_reference_frame)
 
+            self.gravitational_constant = use_parameters_from_scenario.physics.gravitational_parameter_Earth
+
             # body_settings.get('Earth').gravity_field_settings.gravitational_parameter =
             # body_settings.get('Earth').gravity_field_settings.reference_radius =
         # Create system of bodies (in this case only Earth)
@@ -115,13 +138,17 @@ class OrbitalMechSimulator:
             self.bodies.get(satellite_name).inertia_tensor = satellite_inertia
 
         if add_reference_satellite:
-            self.bodies.create_empty_body(self.reference_satellite_name)
-            self.bodies.get(self.reference_satellite_name).mass = satellite_mass
-            self.bodies.get(self.reference_satellite_name).inertia_tensor = satellite_inertia
-
-            self.number_of_total_satellites = self.number_of_controlled_satellites + 1
             self.reference_satellite_added = True
-            self.all_satellite_names = self.controlled_satellite_names + [self.reference_satellite_name]
+            self.number_of_total_satellites = self.number_of_controlled_satellites + self.number_of_orbits
+            self.all_satellite_names = np.copy(self.controlled_satellite_names).tolist()
+            for ref_sat in range(self.number_of_orbits):
+                satellite_name = f"Satellite_ref_{ref_sat}"
+                self.bodies.create_empty_body(satellite_name)
+                self.bodies.get(satellite_name).mass = satellite_mass
+                self.bodies.get(satellite_name).inertia_tensor = satellite_inertia
+
+                self.all_satellite_names.append(satellite_name)
+                self.reference_satellite_names.append(satellite_name)
         else:
             self.all_satellite_names = self.controlled_satellite_names
             self.number_of_total_satellites = self.number_of_controlled_satellites
@@ -139,6 +166,7 @@ class OrbitalMechSimulator:
         :param specific_impulse: Specific impulse for each engine.
         """
         self.input_thrust_model = [None] * self.number_of_controlled_satellites
+        self.thrust_inputs = thrust_inputs
 
         # Add thruster model for every satellite
         for idx, satellite_name in enumerate(self.controlled_satellite_names):
@@ -186,9 +214,10 @@ class OrbitalMechSimulator:
         :param thrust_inputs: Thrust inputs in shape (satellites, 3, time).
         :param torque_inputs: Torque inputs in shape (satellites, 3, time).
         """
+        self.thrust_inputs = thrust_inputs
         for i in range(self.number_of_controlled_satellites):
             self.input_thrust_model[i].update_thrust(thrust_inputs[i])
-            self.input_torque_model[i].update_torque(torque_inputs[i])
+            # self.input_torque_model[i].update_torque(torque_inputs[i])
 
     def create_acceleration_model(self, order_of_zonal_harmonics: int = 0) -> None:
         """
@@ -215,7 +244,8 @@ class OrbitalMechSimulator:
 
         # Reference satellite has no thrusters
         if self.reference_satellite_added:
-            acceleration_settings[self.reference_satellite_name] = {"Earth": [gravitational_function]}
+            for satellite_name in self.reference_satellite_names:
+                acceleration_settings[satellite_name] = {"Earth": [gravitational_function]}
 
         # Create acceleration models
         self.acceleration_model = propagation_setup.create_acceleration_models(
@@ -238,8 +268,9 @@ class OrbitalMechSimulator:
             torque_settings[satellite_name] = torque_settings_satellite
 
         if self.reference_satellite_added:
-            torque_settings[self.reference_satellite_name] = \
-                {"Earth": [propagation_setup.torque.second_degree_gravitational()]}
+            for satellite_name in self.reference_satellite_names:
+                torque_settings[satellite_name] = \
+                    {"Earth": [propagation_setup.torque.second_degree_gravitational()]}
 
         self.torque_model = propagation_setup.create_torque_models(self.bodies, torque_settings,
                                                                    self.controlled_satellite_names)
@@ -261,8 +292,8 @@ class OrbitalMechSimulator:
 
     def convert_orbital_elements_to_cartesian(self, true_anomalies: list[float], orbit_height: float,
                                               eccentricity: float = 0, inclination: float = 0,
-                                              argument_of_periapsis: float = 0, longitude: float = 0,
-                                              orbital_element_offsets: list[int|float] = None) -> np.ndarray:
+                                              argument_of_periapsis: float = 0, longitude: list[float] = 0,
+                                              orbital_element_offsets: list[int | float] = None) -> np.ndarray:
         """
         Create a desired state array in cartesian coordinates provided the orbital elements for all satellites,
         assuming the that all satellites are in the same orbit (but the true anomalies differ).
@@ -272,13 +303,16 @@ class OrbitalMechSimulator:
         :param eccentricity: Eccentricity of the orbit.
         :param inclination: Inclination of the orbit.
         :param argument_of_periapsis: Argument of periapsis of the orbit.
-        :param longitude: Longitude of the ascending node of the orbit.
+        :param longitude: List with the longitude of the ascending node of the orbit.
         :param orbital_element_offsets: List with offsets for the orbital elements.
         :return: Numpy array with the states of all satellites in cartesian coordinates.
         """
         if not len(true_anomalies) == self.number_of_controlled_satellites:
             raise Exception(f"Not enough true anomalies. Received {len(true_anomalies)} variables, "
                             f"but expected {self.number_of_controlled_satellites} variables. ")
+
+        if len(longitude) == 1:
+            longitude = longitude * self.number_of_controlled_satellites
 
         # Retrieve gravitational parameter
         earth_gravitational_parameter = self.bodies.get("Earth").gravitational_parameter
@@ -292,37 +326,63 @@ class OrbitalMechSimulator:
         orbit_argument_of_periapsis = np.deg2rad(argument_of_periapsis)
         orbit_longitude = np.deg2rad(longitude)
 
-        true_anomalies = [element_conversion.mean_to_true_anomaly(eccentricity, np.deg2rad(mean_anomaly)) for mean_anomaly in true_anomalies]
+        true_anomalies = [element_conversion.mean_to_true_anomaly(eccentricity, np.deg2rad(mean_anomaly)) for
+                          mean_anomaly in true_anomalies]
         orbit_anomalies = true_anomalies
 
         if orbital_element_offsets is None:
-            orbital_element_offsets = np.zeros((6, (len(true_anomalies) + 1)))
+            orbital_element_offsets = np.zeros((6, (len(true_anomalies) + self.number_of_orbits)))
 
         initial_states = np.array([])
+        self.kalman_state = np.zeros((4 * self.number_of_controlled_satellites,))
 
         for idx, anomaly in enumerate(orbit_anomalies):
+            self.kalman_state[idx * 4:(idx + 1) * 4] = np.array([orbit_semi_major_axis, orbit_eccentricity,
+                                                                 orbit_inclination, orbit_longitude[idx]])
             initial_states = np.append(initial_states,
                                        element_conversion.keplerian_to_cartesian_elementwise(
                                            gravitational_parameter=earth_gravitational_parameter,
                                            semi_major_axis=orbit_semi_major_axis + orbital_element_offsets[0, idx],
-                                           eccentricity=orbit_eccentricity,
+                                           eccentricity=orbit_eccentricity + orbital_element_offsets[1, idx],
                                            inclination=orbit_inclination + orbital_element_offsets[2, idx],
-                                           argument_of_periapsis=orbit_argument_of_periapsis,
-                                           longitude_of_ascending_node=orbit_longitude + orbital_element_offsets[4, idx],
-                                           true_anomaly=anomaly
+                                           argument_of_periapsis=orbit_argument_of_periapsis + orbital_element_offsets[
+                                               3, idx],
+                                           longitude_of_ascending_node=orbit_longitude[idx] + orbital_element_offsets[
+                                               4, idx],
+                                           true_anomaly=anomaly + orbital_element_offsets[5, idx]
                                        ))
 
+        self.filter.initialise_filter(self.kalman_state)
+
         if self.reference_satellite_added:
-            initial_states = np.append(initial_states,
-                                       element_conversion.keplerian_to_cartesian_elementwise(
-                                           gravitational_parameter=earth_gravitational_parameter,
-                                           semi_major_axis=orbit_semi_major_axis + + orbital_element_offsets[0, -1],
-                                           eccentricity=orbit_eccentricity,
-                                           inclination=orbit_inclination + orbital_element_offsets[2, -1],
-                                           argument_of_periapsis=orbit_argument_of_periapsis,
-                                           longitude_of_ascending_node=orbit_longitude + orbital_element_offsets[4, -1],
-                                           true_anomaly=0  # Reference always at 0
-                                       ))
+            satellites_per_plane = self.number_of_controlled_satellites // self.number_of_orbits
+            for ref_sat in range(self.number_of_orbits):
+                initial_states = np.append(initial_states,
+                                           element_conversion.keplerian_to_cartesian_elementwise(
+                                               gravitational_parameter=earth_gravitational_parameter,
+                                               semi_major_axis=orbit_semi_major_axis + orbital_element_offsets[
+                                                   0, self.number_of_controlled_satellites + ref_sat],
+                                               eccentricity=orbit_eccentricity + orbital_element_offsets[
+                                                   1, self.number_of_controlled_satellites + ref_sat],
+                                               inclination=orbit_inclination + orbital_element_offsets[
+                                                   2, self.number_of_controlled_satellites + ref_sat],
+                                               argument_of_periapsis=orbit_argument_of_periapsis +
+                                                                     orbital_element_offsets[
+                                                                         3, self.number_of_controlled_satellites + ref_sat],
+                                               longitude_of_ascending_node=orbit_longitude[
+                                                                               satellites_per_plane * ref_sat] +
+                                                                           orbital_element_offsets[
+                                                                               4, self.number_of_controlled_satellites + ref_sat],
+                                               true_anomaly=orbital_element_offsets[
+                                                   5, self.number_of_controlled_satellites + ref_sat]
+                                               # Reference always at 0
+                                           ))
+
+        self.initial_reference_state = np.tile(np.array([orbit_semi_major_axis, orbit_eccentricity, orbit_inclination,
+                                                         orbit_argument_of_periapsis, orbit_longitude[0], 0]),
+                                               (self.number_of_orbits, 1))
+
+        self.initial_reference_state[:, 4] = np.deg2rad(self.scenario.orbital.longitude)
 
         return initial_states
 
@@ -584,6 +644,7 @@ class OrbitalMechSimulator:
         # Create simulation object and propagate the dynamics
         with util.redirect_std():
             dynamics_simulator = create_dynamics_simulator(self.bodies, self.propagator_settings)
+        # dynamics_simulator = create_dynamics_simulator(self.bodies, self.propagator_settings)
 
         states = dynamics_simulator.state_history
         dep_vars = dynamics_simulator.dependent_variable_history
@@ -608,12 +669,58 @@ class OrbitalMechSimulator:
         self.euler_angles = None
         self.angular_velocities = None
         self.rsw_quaternions = None
+        self.blend_states = None
+        self.filtered_oe = None
+        self.filtered_oe_ref = None
 
         if len(dep_vars) == 0:
             return self.states
         else:
             self.dep_vars = result2array(dep_vars)
             return self.states, self.dep_vars
+
+    def filter_oe(self) -> tuple[np.ndarray, np.ndarray]:
+        """
+        Filter the orbital elements of the reference and the controlled satellites.
+
+        :return: Tuple with (oe_sat, oe_ref).
+        """
+        if self.filtered_oe_ref is None and self.filtered_oe is None:
+            # Filter
+            oe_sat = self.dep_vars[:,
+                     self.dependent_variables_dict['keplerian state'][self.controlled_satellite_names[0]][0]:
+                     self.dependent_variables_dict['keplerian state'][self.controlled_satellite_names[-1]][-1] + 1]
+
+            time = np.arange(0, oe_sat.shape[0], self.simulation_timestep).reshape((-1, 1))
+
+            oe_der = np.array([self.orbital_derivative[0], 0, self.orbital_derivative[2], self.orbital_derivative[4],
+                               self.orbital_derivative[3], self.orbital_derivative[5]])
+
+            if self.oe_mean_0 is None:
+                self.oe_mean_0 = self.initial_reference_state.reshape((-1, 1, 6))
+            self.filtered_oe_ref = self.oe_mean_0 + time * oe_der
+            self.filtered_oe_ref[:, :, 5:6] += time * self.mean_motion
+            self.filtered_oe_ref[:, :, [3, 5]] %= 2 * np.pi
+
+            if self.filtered_oe_ref.shape[1] > 2:
+                self.oe_mean_0 = self.filtered_oe_ref[:, -1:]
+
+            thrust_calculated = False
+            if self.thrust_inputs is None:
+                self.get_thrust_forces_from_acceleration()
+                self.thrust_inputs = self.thrust_forces.T
+                thrust_calculated = True
+
+            oe_sat[:, 4::6][:, oe_sat[0, 4::6] > np.pi] -= 2 * np.pi
+            oe_sat[:, 4::6] = np.unwrap(oe_sat[:, 4::6], axis=0)
+
+            self.filtered_oe = self.filter.filter_data(oe_sat,
+                                                  self.thrust_inputs.reshape(
+                                                      (3 * self.number_of_controlled_satellites, -1)).T,
+                                                  update_state=oe_sat.shape[0] > 5,
+                                                  inputs_with_same_sampling_time=thrust_calculated)
+
+        return self.filtered_oe, self.filtered_oe_ref
 
     def convert_to_cylindrical_coordinates(self) -> np.ndarray:
         """
@@ -622,69 +729,9 @@ class OrbitalMechSimulator:
 
         :return: Array with cylindrical coordinates in shape (t, 6 * number_of_controlled_satellites)
         """
-        # Find rotation matrices
-        rsw_to_inertial_rot_mats = self.dep_vars[:, self.dependent_variables_dict["rsw rotation matrix"]
-                                                    [self.reference_satellite_name]]
-        inertial_to_rsw_rots = np.transpose(rsw_to_inertial_rot_mats.reshape(-1, 3, 3), axes=[0, 2, 1])
+        oe_filtered, oe_ref = self.filter_oe()
+        self.cylindrical_states = Conversion.oe2cylindrical(oe_filtered, self.gravitational_constant, oe_ref)
 
-        number_of_states = self.translation_states.shape[0]
-        states_rsw = np.zeros_like(self.translation_states)
-
-        for i in range(number_of_states):
-            inertial_to_rsw = inertial_to_rsw_rots[i]
-            inertial_to_rsw_kron = np.kron(np.eye(2 * self.number_of_total_satellites), inertial_to_rsw)
-            states_rsw[i, :] = inertial_to_rsw_kron @ self.translation_states[i]
-
-        # Find reference position
-        self.cylindrical_states = np.zeros_like(self.translation_states[:, :-6])
-        ref_states_rsw = states_rsw[:, -6:]
-        ref_rho = np.sqrt(ref_states_rsw[:, 0:1] ** 2 + ref_states_rsw[:, 1:2] ** 2)
-        ref_theta = np.unwrap(np.arctan2(ref_states_rsw[:, 1:2], ref_states_rsw[:, 0:1]), axis=0)
-        ref_z = ref_states_rsw[:, 2:3]
-        ref_rho_dot = np.cos(ref_theta) * ref_states_rsw[:, 3:4] + np.sin(ref_theta) * ref_states_rsw[:, 4:5]
-        ref_theta_dot = (-np.sin(ref_theta) * ref_states_rsw[:, 3:4] +
-                         np.cos(ref_theta) * ref_states_rsw[:, 4:5]) / ref_rho
-        ref_z_dot = ref_states_rsw[:, 5:6]
-
-        # kepler_ref = self.dep_vars[:, self.dependent_variables_dict["keplerian state"][self.reference_satellite_name]]
-        # mean_anomaly_ref = np.zeros_like(kepler_ref[:, 0:1]) % (2 * np.pi)
-        # for t in range(kepler_ref.shape[0]):
-        #     mean_anomaly_ref[t] = element_conversion.true_to_mean_anomaly(kepler_ref[t, 1], kepler_ref[t, 5] - 0 * self.mean_motion * t * self.simulation_timestep)
-        # mean_anomaly_ref[kepler_ref[:, 1] < 1e-6] = ref_theta[kepler_ref[:, 1] < 1e-6]
-        # mean_anomaly_ref = np.unwrap(mean_anomaly_ref, axis=0)
-
-
-        # Find relative positions in cylindrical frame
-        for satellite in range(self.number_of_controlled_satellites):
-            states_satellite = states_rsw[:, satellite * 6:(satellite + 1) * 6]
-
-            # Find rho_ref and theta_ref also for elliptic orbits
-            # kepler_sat = self.dep_vars[:, self.dependent_variables_dict["keplerian state"][self.controlled_satellite_names[satellite]]]
-            # # ref_rho = kepler_ref[:, 0:1] * (1 - kepler_ref[:, 1:2]**2) / (1 + kepler_ref[:, 1:2] * np.cos(kepler_sat[:, 5:6]))
-            #
-            # mean_anomaly_sat = np.zeros_like(kepler_sat[:, 0:1])
-            # for t in range(kepler_sat.shape[0]):
-            #     mean_anomaly_sat[t] = element_conversion.true_to_mean_anomaly(kepler_sat[t, 1], kepler_sat[t, 5] - 0 * self.mean_motion * t * self.simulation_timestep)
-            # mean_anomaly_sat[kepler_sat[:, 1] < 1e-6] = np.unwrap(np.arctan2(states_satellite[:, 1:2], states_satellite[:, 0:1]), axis=0)[kepler_sat[:, 1] < 1e-6]
-
-            # Actual conversion
-            rho = np.sqrt(states_satellite[:, 0:1] ** 2 + states_satellite[:, 1:2] ** 2) - ref_rho
-            # theta = mean_anomaly_sat - mean_anomaly_ref
-            # theta = np.unwrap(np.arctan2(states_satellite[:, 1:2], states_satellite[:, 0:1]), axis=0) - mean_anomaly_ref
-            theta = np.unwrap(np.arctan2(states_satellite[:, 1:2], states_satellite[:, 0:1]), axis=0) - ref_theta
-            z = states_satellite[:, 2:3] - ref_z
-            rho_dot = np.cos(theta) * states_satellite[:, 3:4] + np.sin(theta) * states_satellite[:, 4:5] - ref_rho_dot
-            theta_dot = (-np.sin(theta) * states_satellite[:, 3:4] +
-                         np.cos(theta) * states_satellite[:, 4:5]) / (rho + ref_rho) - ref_theta_dot
-            z_dot = states_satellite[:, 5:6] - ref_z_dot
-
-            # Convert to range [0, 2 * pi]
-            if theta[0] < 0:
-                theta += 2 * np.pi
-
-            self.cylindrical_states[:, satellite * 6:(satellite + 1) * 6] = np.concatenate((rho, theta, z,
-                                                                                            rho_dot, theta_dot, z_dot),
-                                                                                           axis=1)
         return self.cylindrical_states
 
     def convert_to_quasi_roe(self) -> np.ndarray:
@@ -694,17 +741,17 @@ class OrbitalMechSimulator:
         :return: Array with quasi ROE in shape (t, 6 * number_of_controlled_satellites)
         """
         self.quasi_roe = np.zeros_like(self.translation_states[:, :-6])
-        kepler_ref = self.dep_vars[:, self.dependent_variables_dict["keplerian state"][self.reference_satellite_name]]
+        oe_filtered, oe_ref = self.filter_oe()
 
         for idx, satellite_name in enumerate(self.controlled_satellite_names):
-            kepler_sat = self.dep_vars[:, self.dependent_variables_dict["keplerian state"][satellite_name]]
-            delta_a = (kepler_sat[:, 0:1] - kepler_ref[:, 0:1]) / kepler_ref[:, 0:1]
-            delta_lambda = kepler_sat[:, 3:4] + kepler_sat[:, 5:6] + kepler_sat[:, 4:5] * np.cos(kepler_ref[:, 2:3]) - \
-                           kepler_ref[:, 3:4] - kepler_ref[:, 5:6] - kepler_ref[:, 4:5] * np.cos(kepler_ref[:, 2:3])
-            delta_ex = kepler_sat[:, 1:2] * np.cos(kepler_sat[:, 3:4]) - kepler_ref[:, 1:2] * np.cos(kepler_ref[:, 3:4])
-            delta_ey = kepler_sat[:, 1:2] * np.sin(kepler_sat[:, 3:4]) - kepler_ref[:, 1:2] * np.sin(kepler_ref[:, 3:4])
-            delta_ix = kepler_sat[:, 2:3] - kepler_ref[:, 2:3]
-            delta_iy = (kepler_sat[:, 4:5] - kepler_ref[:, 4:5]) * np.sin(kepler_ref[:, 2:3])
+            kepler_sat = oe_filtered[:, idx * 6: (idx + 1) * 6]
+            delta_a = (kepler_sat[:, 0:1] - oe_ref[:, 0:1]) / oe_ref[:, 0:1]
+            delta_lambda = kepler_sat[:, 3:4] + kepler_sat[:, 5:6] + kepler_sat[:, 4:5] * np.cos(oe_ref[:, 2:3]) - \
+                           oe_ref[:, 3:4] - oe_ref[:, 5:6] - oe_ref[:, 4:5] * np.cos(oe_ref[:, 2:3])
+            delta_ex = kepler_sat[:, 1:2] * np.cos(kepler_sat[:, 3:4]) - oe_ref[:, 1:2] * np.cos(oe_ref[:, 3:4])
+            delta_ey = kepler_sat[:, 1:2] * np.sin(kepler_sat[:, 3:4]) - oe_ref[:, 1:2] * np.sin(oe_ref[:, 3:4])
+            delta_ix = kepler_sat[:, 2:3] - oe_ref[:, 2:3]
+            delta_iy = (kepler_sat[:, 4:5] - oe_ref[:, 4:5]) * np.sin(oe_ref[:, 2:3])
             self.quasi_roe[:, idx * 6:(idx + 1) * 6] = np.concatenate((delta_a, delta_lambda, delta_ex,
                                                                        delta_ey, delta_ix, delta_iy), axis=1)
         return self.quasi_roe
@@ -722,9 +769,10 @@ class OrbitalMechSimulator:
         # kepler_ref = kepler_ref_0 + time * self.orbital_derivative
         kepler_ref = self.dep_vars[:, self.dependent_variables_dict["keplerian state"][self.reference_satellite_name]]
 
-        mean_anomaly_ref = np.zeros_like(kepler_ref[:, 0:1]) % (2*np.pi)
+        mean_anomaly_ref = np.zeros_like(kepler_ref[:, 0:1]) % (2 * np.pi)
         for t in range(kepler_ref.shape[0]):
-            mean_anomaly_ref[t] = element_conversion.true_to_mean_anomaly(kepler_ref[t, 1], kepler_ref[t, 5]) % (2*np.pi)
+            mean_anomaly_ref[t] = element_conversion.true_to_mean_anomaly(kepler_ref[t, 1], kepler_ref[t, 5]) % (
+                    2 * np.pi)
 
         for idx, satellite_name in enumerate(self.controlled_satellite_names):
             kepler_sat = self.dep_vars[:, self.dependent_variables_dict["keplerian state"][satellite_name]]
@@ -737,16 +785,67 @@ class OrbitalMechSimulator:
 
             mean_anomaly_sat = np.zeros_like(kepler_sat[:, 0:1])
             for t in range(kepler_sat.shape[0]):
-                mean_anomaly_sat[t] = element_conversion.true_to_mean_anomaly(kepler_sat[t, 1], kepler_sat[t, 5]) % (2*np.pi)
+                mean_anomaly_sat[t] = element_conversion.true_to_mean_anomaly(kepler_sat[t, 1], kepler_sat[t, 5]) % (
+                        2 * np.pi)
 
             delta_lambda = mean_anomaly_sat - mean_anomaly_ref + np.sqrt(1 - kepler_ref[:, 1:2] ** 2) * delta_ey
 
             if delta_ey[0] > 0.999 * 2 * np.pi:
                 delta_ey[0] = 0
 
+            if delta_lambda[0] < 0:
+                delta_lambda += 2 * np.pi
+
             self.roe[:, idx * 6:(idx + 1) * 6] = np.concatenate((delta_a, delta_lambda, delta_ex,
                                                                  delta_ey, delta_ix, delta_iy), axis=1)
         return self.roe
+
+    def convert_to_blend_states(self) -> np.ndarray:
+        """
+        Convert the states from keplerian coordinates to blend states.
+
+        :return: Array with blend states in shape (t, 6 * number_of_controlled_satellites)
+        """
+        # # Filter
+        # oe_sat = self.dep_vars[:,
+        #          self.dependent_variables_dict['keplerian state'][self.controlled_satellite_names[0]][0]:
+        #          self.dependent_variables_dict['keplerian state'][self.controlled_satellite_names[-1]][-1] + 1]
+        #
+        # oe_ref = self.dep_vars[:, self.dependent_variables_dict["keplerian state"][self.reference_satellite_name]]
+        #
+        # oe_filtered = self.filter.filter_data(oe_sat,
+        #                                       self.thrust_inputs.reshape(
+        #                                           (3 * self.number_of_controlled_satellites, -1)).T,
+        #                                       update_state=oe_sat.shape[0] > 5)
+        #
+        # if oe_sat.shape[0] > 5:
+        #     fig, ax = plt.subplots(3, 2, figsize=(16, 9))
+        #     ax = list(fig.get_axes())
+        #
+        #     ax[0].plot(oe_sat[:, 0::6])
+        #     ax[0].plot(oe_filtered[:, 0::6], '--')
+        #
+        #     ax[1].plot(oe_sat[:, 1::6])
+        #     ax[1].plot(oe_filtered[:, 1::6], '--')
+        #
+        #     ax[2].plot(oe_sat[:, 2::6])
+        #     ax[2].plot(oe_filtered[:, 2::6], '--')
+        #
+        #     ax[3].plot(oe_sat[:, 3::6])
+        #     ax[3].plot(oe_filtered[:, 3::6], '--')
+        #
+        #     ax[4].plot(oe_sat[:, 4::6])
+        #     ax[4].plot(oe_filtered[:, 4::6], '--')
+        #
+        #     ax[5].plot(oe_sat[:, 5::6])
+        #     ax[5].plot(oe_filtered[:, 5::6], '--')
+        #
+        #     plt.show()
+
+        oe_filtered, oe_ref = self.filter_oe()
+        self.blend_states = Conversion.oe2blend(oe_filtered, oe_ref)
+
+        return self.blend_states
 
     def convert_to_rsw_quaternions(self) -> np.ndarray:
         """
@@ -874,6 +973,8 @@ class OrbitalMechSimulator:
             return self.convert_to_cylindrical_coordinates()[:, 7::3] - zero_satellite
         elif isinstance(dynamical_model, AttitudeDynamics.LinAttModel):
             return self.convert_to_euler_state()
+        elif isinstance(dynamical_model, BlendDynamics.Blend):
+            return self.convert_to_blend_states()
         else:
             raise Exception("No conversion for this type of model has been implemented yet. ")
 
@@ -891,7 +992,9 @@ class OrbitalMechSimulator:
         elif isinstance(dynamical_model, ROEDynamics.QuasiROE):
             return self.plot_quasi_roe_states(figure=figure)
         elif isinstance(dynamical_model, ROEDynamics.ROE):
-            return self.plot_roe_states()
+            return self.plot_roe_states(figure=figure)
+        elif isinstance(dynamical_model, BlendDynamics.Blend):
+            return self.plot_blend_states(figure=figure)
         else:
             raise Exception("No conversion for this type of model has been implemented yet. ")
 
@@ -1023,6 +1126,33 @@ class OrbitalMechSimulator:
                                                 figure=figure)
         return figure
 
+    def plot_kalman_states(self, satellite_names: list[str] = None, figure: plt.figure = None,
+                           legend_name: str = None) -> plt.figure:
+        """
+        Plot the kalman states.
+
+        :param satellite_names: Names of the satellites to plot. If none, all are plotted.
+        :param plot_argument_of_latitude: If true, plot argument of latitude instead of true anomaly.
+        :param figure: Figure to plot into. If none, a new one is created.
+        :return: Figure with the added states.
+        """
+        satellite_names, _ = self.find_satellite_names_and_indices(satellite_names)
+        legend_names = [legend_name] + [None] * len(satellite_names)
+
+        for idx, satellite_name in enumerate(satellite_names):
+            orbital_elements = self.dep_vars[:, self.dependent_variables_dict["keplerian state"][satellite_name]]
+            # print(orbital_elements.shape)
+            kalman_states = np.concatenate(
+                (orbital_elements[:, 0:1], orbital_elements[:, 3:4] + orbital_elements[:, 5:6],
+                 orbital_elements[:, 1:2] * np.cos(orbital_elements[:, 3:4]),
+                 orbital_elements[:, 1:2] * np.sin(orbital_elements[:, 3:4]),
+                 orbital_elements[:, 2:3], orbital_elements[:, 4:5]), axis=1)
+            figure = Plot.plot_kalman_states(kalman_states,
+                                             self.simulation_timestep,
+                                             legend_name=legend_names[idx],
+                                             figure=figure)
+        return figure
+
     def plot_thrusts(self, satellite_names: list[str] = None, figure: plt.figure = None, legend_name: str = None,
                      **kwargs) -> plt.figure:
         """
@@ -1102,6 +1232,10 @@ class OrbitalMechSimulator:
             # Plot relative error if possible
             if reference_angles is not None:
                 rel_states[:, 1] -= reference_angles[self.all_satellite_names.index(satellite_name)]
+                if rel_states[0, 1] > np.pi:
+                    rel_states[:, 1] -= 2 * np.pi
+                elif rel_states[0, 1] < -np.pi:
+                    rel_states[:, 1] += 2 * np.pi
 
             figure = Plot.plot_cylindrical_states(rel_states,
                                                   self.simulation_timestep,
@@ -1168,10 +1302,50 @@ class OrbitalMechSimulator:
             if reference_angles is not None:
                 rel_states[:, 1] -= reference_angles[idx]
 
+                # if rel_states[0, 1] < -np.pi:
+                #     rel_states[:, 1] += 2 * np.pi
+
             figure = Plot.plot_roe(rel_states,
                                    self.simulation_timestep,
                                    legend_name=legend_names[idx],
                                    figure=figure)
+
+        return figure
+
+    def plot_blend_states(self, satellite_names: list[str] = None, figure: plt.figure = None,
+                          reference_angles: list[float] = None, legend_name: str = None) -> plt.figure:
+        """
+        Plot the blended states.
+
+        :param satellite_names: Names of the satellites to plot. If none, all are plotted.
+        :param figure: Figure to plot into. If none, a new one is created.
+        :param reference_angles: Reference angles to plot.
+        :return: Figure with the added states.
+        """
+        # Find blended states if not yet done
+        if self.blend_states is None:
+            self.convert_to_blend_states()
+
+        satellite_names, satellite_indices = self.find_satellite_names_and_indices(satellite_names, state_length=6)
+        legend_names = [legend_name] + [None] * len(satellite_names)
+
+        # Plot required input forces
+        for idx, satellite_name in enumerate(satellite_names):
+            rel_states = self.blend_states[:, satellite_indices[idx]: satellite_indices[idx] + 6]
+
+            # Plot relative error if possible
+            if reference_angles is not None:
+                rel_states[:, 2] -= reference_angles[idx]
+                if rel_states[0, 2] > np.pi:
+                    rel_states[:, 2] -= 2 * np.pi
+
+                if rel_states[0, 2] < -np.pi:
+                    rel_states[:, 2] += 2 * np.pi
+
+            figure = Plot.plot_blend(rel_states,
+                                     self.simulation_timestep,
+                                     legend_name=legend_names[idx],
+                                     figure=figure)
 
         return figure
 

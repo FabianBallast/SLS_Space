@@ -31,9 +31,9 @@ class SimulationScenarios(Enum):
     sim_1_minute = Simulation(simulation_timestep=0.1)
     sim_2_minute = Simulation(simulation_duration=120)
     sim_6_minute = Simulation(simulation_duration=360)
-    sim_10_minute = Simulation(simulation_timestep=0.1, simulation_duration=600)
+    sim_10_minute = Simulation(simulation_duration=600)
     sim_15_minute = Simulation(simulation_duration=900)
-    sim_30_minute = Simulation(simulation_duration=1800, simulation_timestep=0.1)
+    sim_30_minute = Simulation(simulation_duration=1800)
     sim_45_minute = Simulation(simulation_duration=2700)
     sim_1_hour = Simulation(simulation_duration=3600)
     sim_2_hour = Simulation(simulation_duration=2 * 3600)
@@ -41,7 +41,9 @@ class SimulationScenarios(Enum):
     sim_12_hour = Simulation(simulation_duration=12 * 3600)
     sim_24_hour = Simulation(simulation_duration=24 * 3600)
     sim_orbital_period = Simulation(simulation_duration=int(2 * np.pi / np.sqrt(100 / 55**3)))
-
+    sim_2_orbital_period = Simulation(simulation_duration=int(4 * np.pi / np.sqrt(100 / 55 ** 3)))
+    sim_5_orbital_period = Simulation(simulation_duration=int(10 * np.pi / np.sqrt(100 / 55 ** 3)))
+    sim_10_orbital_period = Simulation(simulation_duration=int(20 * np.pi / np.sqrt(100 / 55 ** 3)))
 
 if __name__ == '__main__':
     print(list(SimulationScenarios))

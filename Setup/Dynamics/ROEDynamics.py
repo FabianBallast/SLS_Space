@@ -236,7 +236,7 @@ class QuasiROE(TranslationalDynamics):
                                            slack_variable_length=0,
                                            slack_variable_costs=[10000, 0, 0, 0, 0, 0])
         elif self.is_scaled:
-            self.param = DynamicParameters(state_limit=[0.0015, 1000, 0.002, 0.002, 0.01, 0.001],
+            self.param = DynamicParameters(state_limit=[0.0015, 1000, 0.002, 0.002, 0.01, 0.00],
                                            input_limit=[0.1, 0.1, 0.1],
                                            q_sqrt=np.diag(np.array([220, 50, 800, 800, 100, 100])),
                                            r_sqrt_scalar=1e-2,

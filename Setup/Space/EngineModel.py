@@ -71,7 +71,7 @@ class ThrustModel(EngineModel):
             if self.t0 is None:
                 self.t0 = time
 
-            idx = int((time - self.t0) / self.control_timestep)
+            idx = int((time - self.t0) / self.control_timestep + 0.00001)
             if idx < self.number_of_inputs:
                 return self.control_magnitudes[idx]
             elif idx == self.number_of_inputs:
@@ -103,7 +103,7 @@ class ThrustModel(EngineModel):
             if self.t0 is None:
                 self.t0 = time
 
-            idx = int((time - self.t0) / self.control_timestep)
+            idx = int((time - self.t0) / self.control_timestep + 0.00001)
             if idx < self.number_of_inputs:
                 # Find force in RSW frame
                 thrust_direction_rsw_frame = self.control_direction[:, idx]

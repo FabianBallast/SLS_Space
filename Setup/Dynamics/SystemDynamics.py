@@ -29,7 +29,7 @@ class GeneralDynamics(ABC):
         self.earth_gravitational_parameter = scenario.physics.gravitational_parameter_Earth  # m^3 s^-2
         self.earth_radius = scenario.physics.radius_Earth  # m
         self.orbit_radius = (self.orbital_height + self.earth_radius)  # m
-        self.mean_motion = np.sqrt(self.earth_gravitational_parameter / self.orbit_radius ** 3)  # rad/s
+        self.mean_motion = np.sqrt(self.earth_gravitational_parameter / self.orbit_radius ** 3) * (1 + 1.9359e-8)  # rad/s
         self.is_LTI = True
         self.state_size = 6  # Default state size
         self.input_size = 3  # Default input size
@@ -163,9 +163,14 @@ class GeneralDynamics(ABC):
         :return: Derivatives in shape (6,).
         """
         if self.J2_active:
-            return self.J2_scaling_factor * np.array([0, 0, 0, -2 * np.cos(self.inclination), 5 * np.cos(self.inclination)**2 - 1, np.sqrt(1-self.eccentricity**2) * (3 * np.cos(self.inclination)**2 - 1)])
+            or_dif = self.J2_scaling_factor * np.array([0, 0, 0, -2 * np.cos(self.inclination), 5 * np.cos(self.inclination)**2 - 1, np.sqrt(1-self.eccentricity**2) * (3 * np.cos(self.inclination)**2 - 1)])
+            # Small corrections
+            # or_dif[2] = -2.95e-8
+            # or_dif[4:6] *= (1 + 0.0018996)
+            # or_dif[3] *= 1.0052669
+            return or_dif
         else:
-            return np.zeros(6)
+            return np.array([-3.3178e-10, 0, 0, 0, 0, 0])
 
     @abstractmethod
     def get_slack_variable_length(self) -> int:
@@ -242,7 +247,32 @@ class TranslationalDynamics(GeneralDynamics, ABC):
         """
         pass
 
+    @abstractmethod
+    def get_orbital_parameter(self) -> list[bool]:
+        """
+        Find the parameter that determines if two orbits are close.
 
+        :return: List with bool with True for the orbital parameter.
+        """
+        pass
+
+    @abstractmethod
+    def get_planetary_distance(self) -> int | float:
+        """
+        Find the minimum planetary distance.
+
+        :return: The minimum planetary distance
+        """
+        pass
+
+    @abstractmethod
+    def get_inter_planetary_distance(self) -> int | float:
+        """
+        Find the minimum inter_planetary distance.
+
+        :return: The minimum inter_planetary distance
+        """
+        pass
 
 
 class AttitudeDynamics(GeneralDynamics, ABC):
@@ -282,3 +312,4 @@ class AttitudeDynamics(GeneralDynamics, ABC):
         :return: An array with the reference.
         """
         pass
+

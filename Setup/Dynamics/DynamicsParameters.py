@@ -7,7 +7,9 @@ class DynamicParameters:
     """
 
     def __init__(self, state_limit: list, input_limit: list, q_sqrt: np.ndarray, r_sqrt_scalar: float | int,
-                 slack_variable_length: int = 0, slack_variable_costs: list[int] = None):
+                 slack_variable_length: int = 0, slack_variable_costs: list[int] = None,
+                 planetary_distance: float | int = -np.inf, inter_planetary_distance: float | int = -np.inf,
+                 radial_distance: float | int = -np.inf):
         self.state_limit = state_limit
         self.input_limit = input_limit
         self.Q_sqrt = q_sqrt
@@ -23,6 +25,10 @@ class DynamicParameters:
             self.slack_variable_costs = slack_variable_costs
         else:
             self.slack_variable_costs = [0] * len(state_limit)
+
+        self.planetary_distance = planetary_distance
+        self.inter_planetary_distance = inter_planetary_distance
+        self.radial_distance = radial_distance
 
     def __repr__(self):
         return self.__str__()
