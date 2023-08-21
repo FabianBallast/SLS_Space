@@ -2,7 +2,7 @@ import random
 import time
 import cuosqp
 import numpy as np
-from matplotlib import pyplot as plt
+# from matplotlib import pyplot as plt
 from scipy import sparse
 from Dynamics.HCWDynamics import RelCylHCW as dyn
 from Scenarios.MainScenarios import ScenarioEnum
@@ -104,11 +104,11 @@ def example_problem(x0):
 
     print(f"Average elapsed time: {(t_end - t_0) / runs / (nsim - 1)}")
 
-    plt.figure()
-    plt.plot(np.rad2deg(x[1::6].T - xr[1::6]))
-
-    plt.figure()
-    plt.plot(input[1::3].T)
+    # plt.figure()
+    # plt.plot(np.rad2deg(x[1::6].T - xr[1::6]))
+    #
+    # plt.figure()
+    # plt.plot(input[1::3].T)
     # plt.show()
 
 # General values
