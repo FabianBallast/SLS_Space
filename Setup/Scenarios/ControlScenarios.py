@@ -44,6 +44,7 @@ class Model(Enum):
     DIFFERENTIAL_DRAG = 4
     ROE_V2 = 5
     BLEND = 6
+    BLEND_SMALL = 7
 
 
 if __name__ == '__main__':

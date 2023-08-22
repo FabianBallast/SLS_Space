@@ -3,7 +3,7 @@ from Dynamics.AttitudeDynamics import LinAttModel
 from Dynamics.HCWDynamics import RelCylHCW
 from Dynamics.ROEDynamics import QuasiROE, ROE
 from Dynamics.DifferentialDragDynamics import DifferentialDragDynamics
-from Dynamics.BlendDynamics import Blend
+from Dynamics.BlendDynamics import Blend, BlendSmall
 from Dynamics.SystemDynamics import TranslationalDynamics
 from Scenarios.MainScenarios import Scenario
 from Space.OrbitalMechanics import OrbitalMechSimulator
@@ -71,6 +71,8 @@ class ScenarioHandler:
             control_model = ROE(self.scenario)
         elif self.scenario.model == Model.BLEND:
             control_model = Blend(self.scenario)
+        elif self.scenario.model == Model.BLEND_SMALL:
+            control_model = BlendSmall(self.scenario)
         else:
             raise Exception(f"Model type {self.scenario.model} not recognized!")
 
@@ -114,7 +116,7 @@ class ScenarioHandler:
         """
         Create an OrbitalMechSim and set most of the parameters, except initial positions.
         """
-        self.orbital_mech = OrbitalMechSimulator(self.scenario)
+        self.orbital_mech = OrbitalMechSimulator(self.scenario, self.controller.x_ref[self.controller.angle_states])
         self.orbital_mech.set_mean_motion_and_orbital_diff(self.controller.dynamics.mean_motion,
                                                            self.controller.dynamics.get_orbital_differentiation())
         self.orbital_mech.create_bodies(number_of_satellites=self.scenario.number_of_satellites,
@@ -340,14 +342,16 @@ class ScenarioHandler:
         :param simulation_length: How many inputs and states to use from the MPC results. Usually 1.
         """
         self.controller.set_initial_conditions(self.sls_states[time * self.control_simulation_ratio:
-                                                               time * self.control_simulation_ratio + 1].T)
+                                                               time * self.control_simulation_ratio + 1].T,
+                                               true_anomalies=self.orbital_mech.true_anomalies)
         control_states, control_inputs = self.controller.simulate_system(t_horizon=1, noise=None,
                                                                          inputs_to_store=simulation_length,
                                                                          fast_computation=True,
                                                                          time_since_start=time * self.scenario.control.control_timestep,
                                                                          add_collision_avoidance=self.scenario.collision_avoidance,
                                                                          absolute_longitude_refs=np.kron(self.orbital_mech.initial_reference_state[:, 4],
-                                                                                                         np.ones((1, self.number_of_planes))))
+                                                                                                         np.ones((1, self.number_of_planes))),
+                                                                         current_true_anomalies=self.orbital_mech.true_anomalies)
 
         if isinstance(self.controller.dynamics, LinAttModel):
             self.control_inputs_torque = control_inputs.reshape((self.scenario.number_of_satellites,
@@ -455,7 +459,7 @@ class ScenarioHandler:
 
         :return: OrbitalMechSimulator with all the obtained results.
         """
-        orbital_sim = OrbitalMechSimulator(self.scenario)
+        orbital_sim = OrbitalMechSimulator(self.scenario, self.orbital_mech.reference_angle_offsets)
         orbital_sim.number_of_controlled_satellites = self.scenario.number_of_satellites
         orbital_sim.number_of_total_satellites = self.scenario.number_of_satellites + 1
         orbital_sim.simulation_timestep = self.scenario.simulation.simulation_timestep
@@ -480,6 +484,8 @@ class ScenarioHandler:
             orbital_sim.roe = self.sls_states
         elif self.scenario.model == Model.BLEND:
             orbital_sim.blend_states = self.sls_states
+        elif self.scenario.model == Model.BLEND_SMALL:
+            orbital_sim.small_blend_states = self.sls_states
         # if self.done_full_sim:
         #     orbital_sim.cylindrical_states = self.orbital_mech.cylindrical_states
         #     orbital_sim.roe = self.orbital_mech.roe

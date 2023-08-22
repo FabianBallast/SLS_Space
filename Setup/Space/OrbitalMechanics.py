@@ -21,7 +21,7 @@ class OrbitalMechSimulator:
     Class to simulate several satellites in the same orbit using a high-fidelity simulator. 
     """
 
-    def __init__(self, scenario: Scenario):
+    def __init__(self, scenario: Scenario, reference_angle_offsets: np.ndarray = None):
         self.kalman_state = None
         self.bodies = None
         self.central_bodies = None
@@ -59,6 +59,7 @@ class OrbitalMechSimulator:
         self.angular_velocities = None
         self.rsw_quaternions = None
         self.blend_states = None
+        self.small_blend_states = None
 
         self.reference_satellite_added = False
         self.reference_satellite_names = []
@@ -86,6 +87,9 @@ class OrbitalMechSimulator:
             self.number_of_orbits = len(self.scenario.orbital.longitude)
         else:
             self.number_of_orbits = 1
+
+        self.true_anomalies = None
+        self.reference_angle_offsets = reference_angle_offsets
 
     def create_bodies(self, number_of_satellites: int, satellite_mass: float, satellite_inertia: np.ndarray[3, 3],
                       add_reference_satellite: bool = False, use_parameters_from_scenario: Scenario = None) -> None:
@@ -670,6 +674,7 @@ class OrbitalMechSimulator:
         self.angular_velocities = None
         self.rsw_quaternions = None
         self.blend_states = None
+        self.small_blend_states = None
         self.filtered_oe = None
         self.filtered_oe_ref = None
 
@@ -730,7 +735,8 @@ class OrbitalMechSimulator:
         :return: Array with cylindrical coordinates in shape (t, 6 * number_of_controlled_satellites)
         """
         oe_filtered, oe_ref = self.filter_oe()
-        self.cylindrical_states = Conversion.oe2cylindrical(oe_filtered, self.gravitational_constant, oe_ref)
+        self.cylindrical_states = Conversion.oe2cylindrical(oe_filtered, self.gravitational_constant, oe_ref,
+                                                            self.reference_angle_offsets)
 
         return self.cylindrical_states
 
@@ -843,9 +849,21 @@ class OrbitalMechSimulator:
         #     plt.show()
 
         oe_filtered, oe_ref = self.filter_oe()
-        self.blend_states = Conversion.oe2blend(oe_filtered, oe_ref)
+        self.blend_states = Conversion.oe2blend(oe_filtered, oe_ref, self.reference_angle_offsets)
 
         return self.blend_states
+
+    def convert_to_small_blend_states(self) -> np.ndarray:
+        """
+        Convert the states from keplerian coordinates to small blend states.
+
+        :return: Array with small blend states in shape (t, 4 * number_of_controlled_satellites)
+        """
+        oe_filtered, oe_ref = self.filter_oe()
+        self.small_blend_states = Conversion.oe2small_blend(oe_filtered, oe_ref, self.reference_angle_offsets)
+        self.true_anomalies = oe_filtered[-1, 5::6].tolist()
+
+        return self.small_blend_states
 
     def convert_to_rsw_quaternions(self) -> np.ndarray:
         """
@@ -973,6 +991,8 @@ class OrbitalMechSimulator:
             return self.convert_to_cylindrical_coordinates()[:, 7::3] - zero_satellite
         elif isinstance(dynamical_model, AttitudeDynamics.LinAttModel):
             return self.convert_to_euler_state()
+        elif isinstance(dynamical_model, BlendDynamics.BlendSmall):
+            return self.convert_to_small_blend_states()
         elif isinstance(dynamical_model, BlendDynamics.Blend):
             return self.convert_to_blend_states()
         else:
@@ -995,16 +1015,18 @@ class OrbitalMechSimulator:
             return self.plot_roe_states(figure=figure)
         elif isinstance(dynamical_model, BlendDynamics.Blend):
             return self.plot_blend_states(figure=figure)
+        elif isinstance(dynamical_model, BlendDynamics.BlendSmall):
+            return self.plot_small_blend_states(figure=figure)
         else:
             raise Exception("No conversion for this type of model has been implemented yet. ")
 
-    def get_thrust_forces_from_acceleration(self) -> None:
+    def get_thrust_forces_from_acceleration(self) -> np.ndarray:
         """
         Compute the thrust forces from the accelerations that were stored during the simulation.
         This provides an excellent overview of the applied forces, as opposed to the 'planned' forces
         you could get by storing the inputs provided to the simulator.
 
-        Result is stored in self.thrust_forces
+        Result is stored in self.thrust_forces and returned
         """
         # Accelerations are in inertial frame. Convert to RSW frame
         self.thrust_forces = np.zeros((len(self.translation_states[:, 0]), 3, self.number_of_controlled_satellites))
@@ -1022,6 +1044,8 @@ class OrbitalMechSimulator:
                 # Compute the thrust in the RSW frame
                 thrust_rsw_frame = np.dot(rsw_to_inertial_frame.T, force_inertial)
                 self.thrust_forces[t, :, idx] = thrust_rsw_frame
+
+        return self.thrust_forces
 
     def find_control_torques_from_dependent_variables(self) -> None:
         """
@@ -1335,17 +1359,54 @@ class OrbitalMechSimulator:
 
             # Plot relative error if possible
             if reference_angles is not None:
-                rel_states[:, 2] -= reference_angles[idx]
-                if rel_states[0, 2] > np.pi:
-                    rel_states[:, 2] -= 2 * np.pi
+                rel_states[:, 1] -= reference_angles[idx]
+                if rel_states[0, 1] > np.pi:
+                    rel_states[:, 1] -= 2 * np.pi
 
-                if rel_states[0, 2] < -np.pi:
-                    rel_states[:, 2] += 2 * np.pi
+                if rel_states[0, 1] < -np.pi:
+                    rel_states[:, 1] += 2 * np.pi
 
             figure = Plot.plot_blend(rel_states,
                                      self.simulation_timestep,
                                      legend_name=legend_names[idx],
                                      figure=figure)
+
+        return figure
+
+    def plot_small_blend_states(self, satellite_names: list[str] = None, figure: plt.figure = None,
+                                reference_angles: list[float] = None, legend_name: str = None) -> plt.figure:
+        """
+        Plot the small blended states.
+
+        :param satellite_names: Names of the satellites to plot. If none, all are plotted.
+        :param figure: Figure to plot into. If none, a new one is created.
+        :param reference_angles: Reference angles to plot.
+        :return: Figure with the added states.
+        """
+        # Find blended states if not yet done
+        if self.small_blend_states is None:
+            self.convert_to_small_blend_states()
+
+        satellite_names, satellite_indices = self.find_satellite_names_and_indices(satellite_names, state_length=6)
+        legend_names = [legend_name] + [None] * len(satellite_names)
+
+        # Plot required input forces
+        for idx, satellite_name in enumerate(satellite_names):
+            rel_states = self.small_blend_states[:, satellite_indices[idx]: satellite_indices[idx] + 6]
+
+            # Plot relative error if possible
+            if reference_angles is not None:
+                rel_states[:, 1] -= reference_angles[idx]
+                if rel_states[0, 1] > np.pi:
+                    rel_states[:, 1] -= 2 * np.pi
+
+                if rel_states[0, 1] < -np.pi:
+                    rel_states[:, 1] += 2 * np.pi
+
+            figure = Plot.plot_blend_small(rel_states,
+                                           self.simulation_timestep,
+                                           legend_name=legend_names[idx],
+                                           figure=figure)
 
         return figure
 

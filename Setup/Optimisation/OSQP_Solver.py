@@ -747,7 +747,7 @@ class OSQP_Synthesiser(SynthesisAlgorithm):
         if not self.initialised:
             # self._solver.initialise_problem(warm_start=True, verbose=False)
             self._solver.initialise_problem(warm_start=True, verbose=False, polish=True, check_termination=10,
-                                            eps_abs=1e-4, eps_rel=1e-4, max_iter=300000)
+                                            eps_abs=2e-4, eps_rel=2e-4, max_iter=500000)
             self.initialised = True
 
         self._solver.update_x0(time_since_start)

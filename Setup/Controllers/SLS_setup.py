@@ -1,5 +1,6 @@
 from tudatpy.kernel.astro import element_conversion
 from Dynamics import SystemDynamics as SysDyn
+from Dynamics.BlendDynamics import BlendSmall
 import numpy as np
 from slspy import SLS, SLS_Obj_H2, LTV_System, SLS_Cons_Input, SLS_Cons_State
 from Visualisation import Plotting as Plot
@@ -102,17 +103,22 @@ class SLSSetup(Controller):
         self.sys._C1 = full_Q_matrix
         self.sys._D12 = full_R_matrix
 
-    def set_initial_conditions(self, x0: np.ndarray, time_since_start: int = 0) -> None:
+    def set_initial_conditions(self, x0: np.ndarray, time_since_start: int = 0,
+                               true_anomalies: list[float | int] = None) -> None:
         """
         Set the initial condition for SLS. If the system is LTV, the matrices are updated according to the initial
         condition.
 
         :param x0: The initial condition to set.
         :param time_since_start: Time since start of the simulation in s.
+        :param true_anomalies: True anomalies of the system. Only have to be provided for SMALL_BLEND.
         """
         self.x0 = x0
         if not self.dynamics.is_LTI:  # Update every time for LTV system
             self.arguments_of_latitude, self.arguments_of_periapsis = self.dynamics.get_latitude_and_periapsis(x0, time_since_start)
+
+            if true_anomalies is not None:
+                self.arguments_of_periapsis = self.arguments_of_latitude - np.array(true_anomalies)
             # print(x0, self.arguments_of_latitude, self.arguments_of_periapsis)
             self.__fill_matrices(self.arguments_of_latitude, self.arguments_of_periapsis)
 
@@ -121,7 +127,8 @@ class SLSSetup(Controller):
 
     def simulate_system(self, t_horizon: int, noise=None, progress: bool = False, inputs_to_store: int = 1,
                         fast_computation: bool = False, time_since_start: int = 0,
-                        add_collision_avoidance: bool = False, absolute_longitude_refs: list[float | int] = None) -> (np.ndarray, np.ndarray):
+                        add_collision_avoidance: bool = False, absolute_longitude_refs: list[float | int] = None,
+                        current_true_anomalies: list[float | int]= None) -> (np.ndarray, np.ndarray):
         """
         Simulate the system assuming a perfect model is known.
 
@@ -134,6 +141,7 @@ class SLSSetup(Controller):
         :param time_since_start: Time since start of all simulations in s. Used for latitude calculations.
         :param add_collision_avoidance: Whether to add collision avoidance constraints.
         :param absolute_longitude_refs: List with the absolute RAAN refs
+        :param current_true_anomalies: List of current true anomalies. Only needed for Small blend
         :return: Tuple with (x_states, u_inputs)
         """
         if self.synthesizer is None:
@@ -199,19 +207,23 @@ class SLSSetup(Controller):
                 progress_counter = max(progress_counter + 10, int(t / t_horizon * 100))
 
             # Set past position as initial state
-            self.set_initial_conditions(self.x_states[:, t:t + 1], time_since_start + t * self.sampling_time)
-
-            if fast_computation:
-                difference = self.x0 - self.x_ref
-
-                difference[self.angle_states[difference[self.angle_states, 0] > np.pi]] -= 2 * np.pi
-                difference[self.angle_states[difference[self.angle_states, 0] < -np.pi]] += 2 * np.pi
-
-                # print(np.max(np.abs(difference.reshape((-1, 6))), axis=0))
-                self.sys.initialize(difference)
-                # print((self.x0 - self.x_ref))
+            if isinstance(self.dynamics, BlendSmall):
+                self.set_initial_conditions(self.x_states[:, t:t + 1], time_since_start + t * self.sampling_time, current_true_anomalies)
             else:
-                self.sys.initialize(self.x0)
+                self.set_initial_conditions(self.x_states[:, t:t + 1], time_since_start + t * self.sampling_time)
+
+            # if fast_computation:
+            #     difference = self.x0 - self.x_ref
+            #
+            #     difference[self.angle_states[difference[self.angle_states, 0] > np.pi]] -= 2 * np.pi
+            #     difference[self.angle_states[difference[self.angle_states, 0] < -np.pi]] += 2 * np.pi
+            #
+            #     # print(np.max(np.abs(difference.reshape((-1, 6))), axis=0))
+            #     self.sys.initialize(difference)
+            #     # print((self.x0 - self.x_ref))
+            # else:
+            self.sys.initialize(self.x0)
+            # print(np.max(np.abs(self.x0.reshape((6, -1))), axis=1))
 
             # Synthesise controller
             self.controller = self.synthesizer.synthesizeControllerModel(self.x_ref, time_since_start + t * self.sampling_time)
@@ -221,7 +233,7 @@ class SLSSetup(Controller):
             if fast_computation:
                 for i in range(inputs_to_store):
                     self.u_inputs[:, t + i:t + i + 1] = self.controller._Phi_u[i+1]
-                    self.x_states[:, t + i + 1:t + i + 2] = self.controller._Phi_x[i+2] + self.x_ref
+                    self.x_states[:, t + i + 1:t + i + 2] = self.controller._Phi_x[i+2]
 
                 # if inputs_to_store > 1:
                 #     self.u_inputs[:, t + 1:t + 2] = self.controller._Phi_u[]

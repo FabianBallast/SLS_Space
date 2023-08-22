@@ -178,7 +178,7 @@ class Controller(ABC):
         for satellite_number in satellite_numbers:
             indices = np.arange(satellite_number * self.system_state_size,
                                 (satellite_number + 1) * self.system_state_size)
-            rel_states = self.x_states[indices, :].T - self.x_ref[indices].T
+            rel_states = self.x_states[indices, :].T - 0 * self.x_ref[indices].T
 
             if rel_states[0, self.angle_states[0]] > np.pi:
                 rel_states[0, self.angle_states[0]] -= 2 * np.pi

@@ -59,13 +59,14 @@ def extract_rotation_matrices(oe: np.ndarray) -> np.ndarray:
     return rotation_matrices
 
 
-def oe2cylindrical(oe: np.ndarray, mu: float | int, reference_oe: np.ndarray) -> np.ndarray:
+def oe2cylindrical(oe: np.ndarray, mu: float | int, reference_oe: np.ndarray, reference_angle_offsets: np.ndarray=None) -> np.ndarray:
     """
     Transform a set of orbital elements to cylindrical coordinates.
 
     :param oe: Array with orbital elements in the shape (t, 6 * number of satellites).
     :param mu: Gravitational parameter of the Earth.
     :param reference_oe: Array with elements of the reference (number_of_references, t, 6).
+    :param reference_angle_offsets: Array with the offsets of the reference angles with respect to 0 in rad.
     :return: Array with cylindrical coordinates in the shape (t, 6 * number of satellites).
     """
     time_length = oe.shape[0]
@@ -88,7 +89,7 @@ def oe2cylindrical(oe: np.ndarray, mu: float | int, reference_oe: np.ndarray) ->
         for satellite in range(satellites_per_ref):
             states_satellite_rsw = states_rsw[:, satellite * 6:(satellite + 1) * 6]
             rho = np.sqrt(states_satellite_rsw[:, 0:1] ** 2 + states_satellite_rsw[:, 1:2] ** 2) - reference_oe[ref, 0, 0]
-            theta = np.unwrap(np.arctan2(states_satellite_rsw[:, 1:2], states_satellite_rsw[:, 0:1]), axis=0)
+            theta = np.unwrap(np.arctan2(states_satellite_rsw[:, 1:2], states_satellite_rsw[:, 0:1]), axis=0) - reference_angle_offsets[ref * satellites_per_ref + satellite]
             z = states_satellite_rsw[:, 2:3]
 
             # Estimate gradient
@@ -99,7 +100,9 @@ def oe2cylindrical(oe: np.ndarray, mu: float | int, reference_oe: np.ndarray) ->
             # z_dot = states_satellite_rsw[:, 5:6]
 
             # Convert to range [0, 2 * pi]
-            if theta[0] < 0:
+            if theta[0] > np.pi:
+                theta -= 2 * np.pi
+            elif theta[0] < -np.pi:
                 theta += 2 * np.pi
 
             cylindrical_states[:, (ref * satellites_per_ref + satellite) * 6:(ref * satellites_per_ref + satellite + 1) * 6] = np.concatenate(
@@ -109,13 +112,14 @@ def oe2cylindrical(oe: np.ndarray, mu: float | int, reference_oe: np.ndarray) ->
     return cylindrical_states
 
 
-def oe2blend(oe: np.ndarray, reference_oe: np.ndarray) -> np.ndarray:
+def oe2blend(oe: np.ndarray, reference_oe: np.ndarray, reference_angle_offsets: np.ndarray=None) -> np.ndarray:
     """
     Transform a set of orbital elements to blend coordinates.
 
     :param oe: Array with orbital elements in the shape (t, 6 * number of satellites).
     :param mu: Gravitational parameter of the Earth.
     :param reference_oe: Array with elements of the reference (number_of_references, t, 6).
+    :param reference_angle_offsets: Array with the offsets of the reference angles with respect to 0 in rad.
     :return: Array with blend coordinates in the shape (t, 6 * number of satellites).
     """
     # Basic variables
@@ -137,15 +141,26 @@ def oe2blend(oe: np.ndarray, reference_oe: np.ndarray) -> np.ndarray:
             oe_sat = oe[:, (ref * satellites_per_ref + idx) * 6: (ref * satellites_per_ref + idx + 1) * 6]
 
             rho = oe_sat[:, 0:1] * (1 - oe_sat[:, 1:2] ** 2) / (1 + oe_sat[:, 1:2] * np.cos(oe_sat[:, 5:6])) - rho_ref[ref]
-            theta = np.unwrap(oe_sat[:, 3:4] + oe_sat[:, 5:6] - theta_ref[ref], axis=0)
+            theta_ref_sat = theta_ref[ref] + reference_angle_offsets[ref * satellites_per_ref + idx]
+            theta = np.unwrap(oe_sat[:, 3:4] + oe_sat[:, 5:6] - theta_ref_sat, axis=0)
 
-            edge_order = 2 if time_length > 2 else 1
-            rho_dot = np.gradient(rho, axis=0, edge_order=edge_order)
-            theta_dot = np.gradient(theta, axis=0, edge_order=edge_order)
-
-            rho = rho / rho_ref[ref]
-            delta_i = oe_sat[:, 2:3] - inclination_ref[ref]
+            # delta_i = oe_sat[:, 2:3] - inclination_ref[ref]
             delta_Omega = oe_sat[:, 4:5] - Omega_ref[ref]
+
+            e_x = oe_sat[:, 1:2] * np.cos(oe_sat[:, 5:6])
+            e_y = oe_sat[:, 1:2] * np.sin(oe_sat[:, 5:6])
+
+            # i_x = np.cos(oe_sat[:, 3:4] + oe_sat[:, 5:6]) * np.sin(oe_sat[:, 2:3]) - np.cos(theta_ref_sat) * np.sin(inclination_ref[ref])
+            # i_y = np.sin(oe_sat[:, 3:4] + oe_sat[:, 5:6]) * np.sin(oe_sat[:, 2:3]) - np.sin(theta_ref_sat) * np.sin(inclination_ref[ref])
+
+            i_x = np.cos(oe_sat[:, 3:4] + oe_sat[:, 5:6]) * np.tan(oe_sat[:, 2:3] / 2) - \
+                  np.cos(oe_sat[:, 4:5] - Omega_ref[ref] + oe_sat[:, 3:4] + oe_sat[:, 5:6]) * \
+                  np.tan(inclination_ref[ref] / 2)
+
+            i_y = np.sin(oe_sat[:, 3:4] + oe_sat[:, 5:6]) * np.tan(oe_sat[:, 2:3] / 2) - \
+                  np.sin(oe_sat[:, 4:5] - Omega_ref[ref] + oe_sat[:, 3:4] + oe_sat[:, 5:6]) * \
+                  np.tan(inclination_ref[ref] / 2)
+
 
             # if oe_sat.shape[0] > 2:
             #     plt.figure()
@@ -160,7 +175,7 @@ def oe2blend(oe: np.ndarray, reference_oe: np.ndarray) -> np.ndarray:
             #     a_dot = np.gradient(a, axis=0, edge_order=edge_order)
             #     e_dot = np.gradient(e, axis=0, edge_order=edge_order)
             #     theta_dot_t = np.gradient(theta_t, axis=0, edge_order=edge_order)
-            #     rho_dot_test = a_dot * eta / kappa - 2 * e * e_dot * a / kappa - e_dot * np.cos(theta_t) * a * eta / kappa**2 + theta_dot_t * np.sin(theta_t) * eta * e / kappa**2
+            #     rho_dot_test = a_dot * eta / kappa - 2 * e * e_dot * a / kappa - e_dot * np.cos(theta_t) * a * eta / kappa**2 + theta_dot_t * np.sin(theta_t) * eta * e * a / kappa**2
             #     plt.plot(rho_dot)
             #     plt.plot(rho_dot_test, '--')
             #     plt.plot(a_dot * eta / kappa- e_dot * np.cos(theta_t) * a * eta / kappa**2, '.-')
@@ -178,11 +193,65 @@ def oe2blend(oe: np.ndarray, reference_oe: np.ndarray) -> np.ndarray:
             # delta_Omega = kepler_sat[:, 4:5] - kepler_ref[:, 4:5]
 
             # Convert to range [0, 2 * pi]
-            theta[0] %= 2 * np.pi
+            if theta[0] + delta_Omega[0] > np.pi:
+                theta -= 2 * np.pi
+            elif theta[0] + delta_Omega[0] < -np.pi:
+                theta += 2 * np.pi
             # if delta_lambda[0] > np.pi:
             #     delta_lambda -= 2 * np.pi
 
             blend_states[:, (ref * satellites_per_ref + idx) * 6: (ref * satellites_per_ref + idx + 1) * 6] = \
-                np.concatenate((rho, rho_dot, theta, theta_dot, delta_i, delta_Omega), axis=1)
+                np.concatenate((rho, theta + delta_Omega, e_x, e_y, i_x, i_y), axis=1)
+
+    return blend_states
+
+
+def oe2small_blend(oe: np.ndarray, reference_oe: np.ndarray, reference_angle_offsets: np.ndarray=None) -> np.ndarray:
+    """
+    Transform a set of orbital elements to small blend coordinates.
+
+    :param oe: Array with orbital elements in the shape (t, 6 * number of satellites).
+    :param mu: Gravitational parameter of the Earth.
+    :param reference_oe: Array with elements of the reference (number_of_references, t, 6).
+    :param reference_angle_offsets: Array with the offsets of the reference angles with respect to 0 in rad.
+    :return: Array with blend coordinates in the shape (t, 5 * number of satellites).
+    """
+    # Basic variables
+    time_length = oe.shape[0]
+    number_of_satellites = oe.shape[1] // 6
+    number_of_ref = reference_oe.shape[0]
+    satellites_per_ref = number_of_satellites // number_of_ref
+
+    # Reference variables
+    rho_ref = reference_oe[:, :, 0::6] * (1 - reference_oe[:, :, 1::6] ** 2) / (
+                1 + reference_oe[:, :, 1::6] * np.cos(reference_oe[:, :, 5::6]))
+    theta_ref = np.unwrap(reference_oe[:, :, 3::6] + reference_oe[:, :, 5::6], axis=0)
+    inclination_ref = reference_oe[:, :, 2::6]
+    Omega_ref = reference_oe[:, :, 4::6]
+
+    blend_states = np.zeros((time_length, 6 * number_of_satellites))
+
+    for ref in range(number_of_ref):
+        for idx in range(satellites_per_ref):
+            oe_sat = oe[:, (ref * satellites_per_ref + idx) * 6: (ref * satellites_per_ref + idx + 1) * 6]
+
+            rho = oe_sat[:, 0:1] * (1 - oe_sat[:, 1:2] ** 2) / (1 + oe_sat[:, 1:2] * np.cos(oe_sat[:, 5:6])) - \
+                  rho_ref[ref]
+            theta_ref_sat = theta_ref[ref] + reference_angle_offsets[ref * satellites_per_ref + idx]
+            theta = np.unwrap(oe_sat[:, 3:4] + oe_sat[:, 5:6] - theta_ref_sat, axis=0)
+            e = oe_sat[:, 1:2]
+            true_anomaly = oe_sat[:, 5:6]
+
+            rho = rho / rho_ref[ref]
+            delta_i = oe_sat[:, 2:3] - inclination_ref[ref]
+            delta_Omega = oe_sat[:, 4:5] - Omega_ref[ref]
+
+            if theta[0] > np.pi:
+                theta -= 2 * np.pi
+            elif theta[0] < -np.pi:
+                theta += 2 * np.pi
+
+            blend_states[:, (ref * satellites_per_ref + idx) * 6: (ref * satellites_per_ref + idx + 1) * 6] = \
+                np.concatenate((rho, theta, e * np.cos(true_anomaly), e * np.sin(true_anomaly), delta_i, delta_Omega), axis=1)
 
     return blend_states

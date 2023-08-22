@@ -16,7 +16,7 @@ class RelCylHCW(TranslationalDynamics):
     def __init__(self, scenario: Scenario):
         super().__init__(scenario)
 
-        if self.is_scaled and not self.J2_active:
+        if self.is_scaled and not self.J2_active and not isinstance(scenario.orbital.longitude, list):
             self.param = DynamicParameters(state_limit=[0.1, 10, 0.1, 0.1, self.mean_motion / 10, 0.1],
                                            input_limit=[0.1, 0.1, 0.1],
                                            q_sqrt=np.diag(np.array([4, 50, 15, 10, 10, 10])),  # 4, 50

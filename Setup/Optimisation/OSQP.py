@@ -52,6 +52,7 @@ def example_problem(x0):
     # - OSQP constraints
     A = sparse.vstack([Aeq, Aineq], format='csc')
 
+    print(f"State size: {A.shape[0]}")
     # Create an OSQP object
     prob = osqp.OSQP()
 
@@ -113,7 +114,7 @@ def example_problem(x0):
 
 # General values
 scenario = ScenarioEnum.simple_scenario_translation_HCW_scaled.value
-scenario.number_of_satellites = 200
+scenario.number_of_satellites = 2000
 dynamics = dyn(scenario)
 model_single = dynamics.create_model(scenario.control.control_timestep)
 
@@ -143,48 +144,48 @@ l, u = find_bounds()
 example_problem(x0)
 
 
-if __name__ == '__main__':
-    import OSQP_opt
-
-    # Simulate in closed loop
-    t_0 = 0  # time.time()
-    # t_last = t_0
-    runs = 1
-    nsim = 10
-    x = np.zeros((nx, nsim + 1))
-    x[:, 0] = x0
-    input = np.zeros((nu, nsim))
-
-    for run in range(runs):
-        for i in range(nsim):
-            # Solve
-            res = OSQP_opt.solve()
-
-            # Check solver status
-            if res[2] != 1:
-                raise ValueError('OSQP did not solve the problem!')
-
-            # Apply first control input to the plant
-            ctrl = res[0][-N * nu:-(N - 1) * nu]
-            x0 = Ad.dot(x0) + Bd.dot(ctrl)
-            x[:, i + 1] = x0
-            input[:, i] = ctrl
-
-            # Update initial state
-            l[:nx] = -x0
-            u[:nx] = -x0
-            OSQP_opt.update_lower_bound(l)
-            OSQP_opt.update_upper_bound(u)
-
-            if i == 0:
-                t_0 = time.time()
-
-            # time_now = time.time()
-            # print(f"Last elapsed time: {(time_now - t_last)}")
-            # t_last = time_now
-
-    t_end = time.time()
-
-    print(f"Average elapsed time: {(t_end - t_0) / runs / (nsim-1)}")
-
-    # print(OSQP_opt.solve())
+# if __name__ == '__main__':
+#     # import OSQP_opt
+#
+#     # Simulate in closed loop
+#     t_0 = 0  # time.time()
+#     # t_last = t_0
+#     runs = 1
+#     nsim = 10
+#     x = np.zeros((nx, nsim + 1))
+#     x[:, 0] = x0
+#     input = np.zeros((nu, nsim))
+#
+#     for run in range(runs):
+#         for i in range(nsim):
+#             # Solve
+#             res = osqp.solve()
+#
+#             # Check solver status
+#             if res[2] != 1:
+#                 raise ValueError('OSQP did not solve the problem!')
+#
+#             # Apply first control input to the plant
+#             ctrl = res[0][-N * nu:-(N - 1) * nu]
+#             x0 = Ad.dot(x0) + Bd.dot(ctrl)
+#             x[:, i + 1] = x0
+#             input[:, i] = ctrl
+#
+#             # Update initial state
+#             l[:nx] = -x0
+#             u[:nx] = -x0
+#             OSQP_opt.update_lower_bound(l)
+#             OSQP_opt.update_upper_bound(u)
+#
+#             if i == 0:
+#                 t_0 = time.time()
+#
+#             # time_now = time.time()
+#             # print(f"Last elapsed time: {(time_now - t_last)}")
+#             # t_last = time_now
+#
+#     t_end = time.time()
+#
+#     print(f"Average elapsed time: {(t_end - t_0) / runs / (nsim-1)}")
+#
+#     # print(OSQP_opt.solve())

@@ -17,10 +17,10 @@ def get_time_axis(states_over_time: np.ndarray, timestep: float, required_scale:
     :param required_scale: Timescale to which to convert. Default is hours (3600 s).
     :return: Array of shape (t, ) with the time in the required scale.
     """
-    return np.arange(0, len(states_over_time[:, 0])) * timestep / required_scale
+    return np.arange(0, states_over_time.shape[0]) * timestep / required_scale
 
 
-def get_figure_and_axes(figure: plt.figure, shape_of_plots: tuple) -> (plt.figure, tuple[plt.axes]):
+def get_figure_and_axes(figure: plt.figure, shape_of_plots: tuple) -> (plt.figure, tuple):
     """
     Get the figure with its axes given a shape.
 
@@ -444,10 +444,43 @@ def plot_blend(blend_states: np.ndarray, timestep: float, legend_name: str = '',
 
     fig.suptitle('Evolution of states.')
 
-    is_angle_list = [False, False, True, True, True, True]
-    y_label_list = [r'$\delta\mathrm{r\;[-]}$', r'$\delta\mathrm{\dot{r}\;[m/s]}$',
-                    r'$\delta\theta\mathrm{\;[deg]}$', r'$\delta\mathrm{\dot{\theta}\;[deg/s]}$',
-                    r'$\delta\mathrm{i\;[deg]}$', r'$\delta\Omega\mathrm{\;[deg]}$']
+    is_angle_list = [False, True, False, False, False, False]
+    y_label_list = [r'$\delta r\mathrm{\;[m]}$', r'$\delta\theta+\delta \Omega\mathrm{\;[deg]}$',
+                    r'$\delta e_x \mathrm{\;[-]}$', r'$\delta e_y\mathrm{\;[-]}$',
+                    r'$\delta i_x \mathrm{\;[-]}$', r'$\delta i_y \mathrm{\;[-]}$']
+    legend_names = [None] + [legend_name] + [None] * 4
+
+    plot_onto_axes(blend_states, time_hours, list(axes), is_angle_list, y_label_list, legend_names,
+                   states2plot=states2plot, **kwargs)
+
+    return fig
+
+
+def plot_blend_small(blend_states: np.ndarray, timestep: float, legend_name: str = '',
+               figure: plt.figure = None, states2plot: list[int] = None, **kwargs) -> plt.figure:
+    """
+    Method to plot the blend states over time.
+
+    :param blend_states: 2D-array with the quasi ROE states over time with shape (t, 4).
+    :param timestep: Amount of time between each state in s.
+    :param legend_name: Name to place as a label for the legend.
+    :param figure: Figure to plot the states into. If not provided, a new one is created.
+    :param kwargs: Kwargs for plotting purposes.
+    :return: Figure with the added blend states.
+    """
+    time_hours = get_time_axis(blend_states, timestep)
+
+    if states2plot is None:
+        fig, axes = get_figure_and_axes(figure, (3, 2))
+        states2plot = [0, 1, 2, 3, 4, 5]
+    else:
+        fig, axes = get_figure_and_axes(figure, (1, len(states2plot)))
+
+    fig.suptitle('Evolution of states.')
+
+    is_angle_list = [False, True, False, False, True, True]
+    y_label_list = [r'$\delta\mathrm{r\;[-]}$', r'$\delta\theta\mathrm{\;[deg]}$', r'$\delta e cos f\mathrm{\;[-]}$',
+                    r'$\delta e sin f\mathrm{\;[-]}$', r'$\delta\mathrm{i\;[deg]}$', r'$\delta\Omega\mathrm{\;[deg]}$']
     legend_names = [None] + [legend_name] + [None] * 4
 
     plot_onto_axes(blend_states, time_hours, list(axes), is_angle_list, y_label_list, legend_names,
