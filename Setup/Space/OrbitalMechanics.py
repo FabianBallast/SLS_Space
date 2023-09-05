@@ -8,6 +8,7 @@ from tudatpy.kernel.astro import element_conversion, frame_conversion
 from tudatpy.util import result2array
 from Space.EngineModel import ThrustModel, TorqueModel
 from Visualisation import Plotting as Plot
+from Visualisation import PlotResults as PlotRes
 from Dynamics import HCWDynamics, ROEDynamics, SystemDynamics, AttitudeDynamics, DifferentialDragDynamics, BlendDynamics
 from scipy.spatial.transform import Rotation
 from Scenarios.MainScenarios import Scenario
@@ -1501,6 +1502,67 @@ class OrbitalMechSimulator:
                                                   figure=figure)
 
         return figure
+
+    def plot_theta_Omega(self, figure: plt.figure = None) -> plt.figure:
+        """
+        Create a plot for all satellites with the theta on the x-axis and the Omega on y-axis.
+
+        :param figure: Figure to plot the results onto.
+
+        :return: Figure with the results.
+        """
+        oe_filtered, oe_ref = self.filter_oe()
+        theta = oe_filtered[:, 3::6] + oe_filtered[:, 5::6]
+        Omega = oe_filtered[:, 4::6]
+
+        if figure is None:
+            figure, _ = plt.subplots(1, 1, figsize=(16, 9))
+
+        ax = figure.get_axes()[0]
+        theta_ref = self.mean_motion * np.linspace(0, theta.shape[0] - 1, theta.shape[0]).reshape((-1, 1)) * self.simulation_timestep
+        theta_norm = np.rad2deg(np.unwrap(theta - theta_ref, axis=0))
+        Omega_norm = np.rad2deg(Omega)
+
+        ax.plot(theta_norm, Omega_norm)
+        ax.plot(theta_norm[0], Omega_norm[0], 'o', label='start')
+        ax.plot(theta_norm[-1], Omega_norm[-1], 's', label='end')
+        # ax.x_label('Theta [deg]')
+        # ax.y_label('Omega [deg]')
+        plt.legend()
+        return figure
+
+    def plot_main_states(self, figure: plt.figure = None) -> plt.figure:
+        """
+        Create a plot with the main results for the report.
+
+        :param figure: Figure to plot the results onto.
+
+        :return: Figure with the results.
+        """
+        return PlotRes.plot_main_states_report(states=np.zeros((100, 3)), timestep=self.simulation_timestep,
+                                               figure=figure)
+
+    def plot_side_states(self, figure: plt.figure = None) -> plt.figure:
+        """
+        Create a plot with the side results for the report.
+
+        :param figure: Figure to plot the results onto.
+
+        :return: Figure with the results.
+        """
+        return PlotRes.plot_side_states_report(states=np.zeros((100, 2)), timestep=self.simulation_timestep,
+                                               figure=figure)
+
+    def plot_inputs(self, figure: plt.figure = None) -> plt.figure:
+        """
+        Create a plot with the control inputs for the report.
+
+        :param figure: Figure to plot the results onto.
+
+        :return: Figure with the inputs.
+        """
+        return PlotRes.plot_inputs_report(inputs=np.zeros((100, 3)), timestep=self.simulation_timestep,
+                                          figure=figure)
 
     def print_metrics(self) -> str:
         """

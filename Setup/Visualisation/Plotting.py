@@ -99,7 +99,7 @@ def plot_3d_trajectory(states: np.ndarray, state_label_name: str, figure: plt.fi
     return figure
 
 
-def plot_3d_position(position: np.ndarray, state_label_name: str, figure: plt.figure = None) -> plt.figure:
+def plot_3d_position(position: np.ndarray, state_label_name: str, figure: plt.figure = None, **kwargs) -> plt.figure:
     """
     Plot the position of a satellite in 3D.
 
@@ -108,7 +108,7 @@ def plot_3d_position(position: np.ndarray, state_label_name: str, figure: plt.fi
     :param figure: Figure to plot the trajectories in. If not provided, a new one is created.
     :return: Figure with the added trajectory.
     """
-    max_distance, units, scaling_factor = get_scaling_parameters(position)
+    max_distance, units, scaling_factor = get_scaling_parameters(position[0])
 
     if figure is None:
         figure, ax = create_3d_plot(max_distance=max_distance, unit_label=units)
@@ -116,8 +116,8 @@ def plot_3d_position(position: np.ndarray, state_label_name: str, figure: plt.fi
         ax = figure.get_axes()[0]
 
     # Plot the positional state history
-    ax.scatter(position[0] / scaling_factor, position[1] / scaling_factor, position[2] / scaling_factor,
-               label=state_label_name, marker='o')
+    ax.scatter(position[:, 0] / scaling_factor, position[:, 1] / scaling_factor, position[:, 2] / scaling_factor,
+               label=state_label_name, marker='o', **kwargs)
 
     # Add the legend
     ax.legend()
@@ -605,4 +605,5 @@ def plot_differential_drag_states(diff_drag_states: np.ndarray, timestep: float,
     plot_onto_axes(diff_drag_states[:, 0:1], time_hours, list(axes), is_angle_list, y_label_list, satellite_name, **kwargs)
 
     return fig
+
 

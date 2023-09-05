@@ -109,8 +109,10 @@ class ScenarioHandler:
 
         # Also include reference for pos/rot states
         self.sls_states = np.zeros((self.t_horizon_simulation + 1, len(self.controller.x0)))
-        self.pos_states = np.zeros((self.t_horizon_simulation + 1, (self.scenario.number_of_satellites + self.number_of_planes * self.reference_satellites_added) * 6))
-        self.rot_states = np.zeros((self.t_horizon_simulation + 1, (self.scenario.number_of_satellites + self.number_of_planes * self.reference_satellites_added) * 7))
+        self.pos_states = np.zeros((self.t_horizon_simulation + 1, (
+                    self.scenario.number_of_satellites + self.number_of_planes * self.reference_satellites_added) * 6))
+        self.rot_states = np.zeros((self.t_horizon_simulation + 1, (
+                    self.scenario.number_of_satellites + self.number_of_planes * self.reference_satellites_added) * 7))
 
     def __create_simulation(self) -> None:
         """
@@ -169,7 +171,9 @@ class ScenarioHandler:
                                                                                           self.scenario.number_of_satellites,
                                                                                           self.controller.dynamics)
             true_anomalies = np.rad2deg(true_anomalies).tolist()
-            self.controller.x_ref[self.controller.angle_states] = generate_reference(self.scenario.number_of_satellites, true_anomalies, self.scenario.orbital.longitude)
+            self.controller.x_ref[self.controller.angle_states] = generate_reference(self.scenario.number_of_satellites,
+                                                                                     true_anomalies,
+                                                                                     self.scenario.orbital.longitude)
 
         self.pos_states[0:1] = \
             self.orbital_mech.convert_orbital_elements_to_cartesian(true_anomalies=true_anomalies,
@@ -215,7 +219,7 @@ class ScenarioHandler:
         semi_major_axes = kep_var[:, 0::6]
         self.orbital_element_offsets = np.zeros((6, semi_major_axes.shape[1]))
         self.orbital_element_offsets[0] = (self.scenario.physics.orbital_height + self.scenario.physics.radius_Earth) - \
-                                           (np.max(semi_major_axes, axis=0) + np.min(semi_major_axes, axis=0)) / 2
+                                          (np.max(semi_major_axes, axis=0) + np.min(semi_major_axes, axis=0)) / 2
 
         # Eccentricity
         # eccentricity = kep_var[:, 1::6]
@@ -240,7 +244,8 @@ class ScenarioHandler:
         RAAN_osc = RAAN - self.orbital_mech.orbital_derivative[3] * t
 
         if self.reference_satellites_added:
-            self.orbital_element_offsets[4] = np.deg2rad(np.hstack([self.satellite_longitudes, self.scenario.orbital.longitude])) - \
+            self.orbital_element_offsets[4] = np.deg2rad(
+                np.hstack([self.satellite_longitudes, self.scenario.orbital.longitude])) - \
                                               (np.max(RAAN_osc, axis=0) + np.min(RAAN_osc, axis=0)) / 2
         else:
             self.orbital_element_offsets[4] = np.deg2rad(self.satellite_longitudes) - \
@@ -300,7 +305,8 @@ class ScenarioHandler:
         control_states = self.orbital_mech.get_states_for_dynamical_model(self.controller.dynamics)
 
         # Prevent issue where reference is negative and initial state close to 2 * pi from below
-        problematic_states = (control_states[0, self.controller.angle_states] > np.pi) & (self.controller.x_ref[self.controller.angle_states].reshape((-1,)) < 0)
+        problematic_states = (control_states[0, self.controller.angle_states] > np.pi) & (
+                    self.controller.x_ref[self.controller.angle_states].reshape((-1,)) < 0)
         control_states[0, self.controller.angle_states[problematic_states]] -= 2 * np.pi
 
         # Store results
@@ -349,8 +355,10 @@ class ScenarioHandler:
                                                                          fast_computation=True,
                                                                          time_since_start=time * self.scenario.control.control_timestep,
                                                                          add_collision_avoidance=self.scenario.collision_avoidance,
-                                                                         absolute_longitude_refs=np.kron(self.orbital_mech.initial_reference_state[:, 4],
-                                                                                                         np.ones((1, self.number_of_planes))),
+                                                                         absolute_longitude_refs=np.kron(
+                                                                             self.orbital_mech.initial_reference_state[
+                                                                             :, 4],
+                                                                             np.ones((1, self.number_of_planes))),
                                                                          current_true_anomalies=self.orbital_mech.true_anomalies)
 
         if isinstance(self.controller.dynamics, LinAttModel):
@@ -385,16 +393,18 @@ class ScenarioHandler:
                                                                  self.controller.dynamics.input_size, -1))
             self.control_inputs_torque = 0 * self.control_inputs_thrust
 
-    def simulate_system_closed_loop(self) -> None:
+    def simulate_system_closed_loop(self, print_progress: bool = True) -> None:
         """
         Run a simulation for the provided scenario with closed-loop control.
+
+        :param print_progress: Whether to print the progress. Default is True.
         """
         self.__find_osculation_offsets()
         self.__run_simulation_timestep(0, initial_setup=True)
 
         progress = 0
         for t in range(self.t_horizon_control):
-            if t / self.t_horizon_control * 100 > progress:
+            if print_progress and t / self.t_horizon_control * 100 > progress:
                 print(f"Progress: {int(t / self.t_horizon_control * 100 / 5) * 5}%")
                 progress = int(t / self.t_horizon_control * 100 / 5) * 5 + 5
 

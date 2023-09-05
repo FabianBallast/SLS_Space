@@ -14,7 +14,7 @@ from tudatpy.kernel.astro import element_conversion
 # scenario = ScenarioEnum.position_keeping_scenario_translation_ROE_scaled
 
 # scenario = ScenarioEnum.simple_scenario_translation_HCW
-scenario = ScenarioEnum.simple_scenario_translation_HCW_scaled
+# scenario = ScenarioEnum.simple_scenario_translation_HCW_scaled
 
 # scenario = ScenarioEnum.simple_scenario_translation_ROE
 # scenario = ScenarioEnum.simple_scenario_translation_ROE_scaled
@@ -37,7 +37,7 @@ scenario = ScenarioEnum.simple_scenario_translation_HCW_scaled
 # Groups
 # scenario = ScenarioEnum.simple_scenario_HCW_6_orbits
 # scenario = ScenarioEnum.simple_scenario_HCW_2_orbits
-# scenario = ScenarioEnum.simple_scenario_moving_blend_2_orbits
+scenario = ScenarioEnum.simple_scenario_moving_blend_2_orbits
 # scenario = ScenarioEnum.simple_scenario_moving_blend_6_orbits
 # scenario = ScenarioEnum.j2_scenario_moving_HCW_2_orbits
 # scenario = ScenarioEnum.j2_scenario_moving_blend_2_orbits
@@ -68,13 +68,14 @@ orbital_sim = scenario_handler.export_results()
 
 # if scenario.value.model == Model.DIFFERENTIAL_DRAG:
 #     reference = np.concatenate((np.array([0]), reference.reshape((-1,))))
-state_fig = orbital_sim.plot_cylindrical_states(figure=None)
+# state_fig = orbital_sim.plot_cylindrical_states(figure=None)
 # orbital_sim.plot_3d_orbit()
 # orbital_sim.plot_quasi_roe_states(reference_angles=reference, figure=None)
 # orbital_sim.plot_roe_states(reference_angles=reference, figure=None)
 # orbital_sim.plot_keplerian_states(plot_argument_of_latitude=False)
 # orbital_sim.plot_kalman_states()
 orbital_sim.plot_blend_states(figure=None)
+orbital_sim.plot_theta_Omega()
 # orbital_sim.plot_small_blend_states(figure=None)
 # input_fig = orbital_sim.plot_thrusts(figure=None)
 

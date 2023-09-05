@@ -1,7 +1,7 @@
 import numpy as np
 from Optimisation.OSQP_Solver import time_optimisation as OSPQ_timer
-from Optimisation.Gurobi import time_optimisation as Gurobi_timer
-from Optimisation.QuadProg import time_optimisation as QuadProg_timer
+from Optimisation.Vector.Gurobi import time_optimisation as Gurobi_timer
+from Optimisation.Vector.QuadProg import time_optimisation as QuadProg_timer
 from Controllers.SimulatedAnnealing import time_optimisation as SimAn_timer
 from matplotlib import pyplot as plt
 

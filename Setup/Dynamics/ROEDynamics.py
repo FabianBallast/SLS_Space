@@ -407,3 +407,13 @@ class QuasiROE(TranslationalDynamics):
         :return: List with positive cost for states where slack variables should be applied.
         """
         return self.param.slack_variable_costs
+
+
+    def get_orbital_parameter(self) -> list[bool]:
+        pass
+
+    def get_planetary_distance(self) -> int | float:
+        pass
+
+    def get_inter_planetary_distance(self) -> int | float:
+        pass

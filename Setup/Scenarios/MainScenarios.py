@@ -205,7 +205,7 @@ class ScenarioEnum(Enum):
         physics_scenario=PhysicsScenarios.basic_physics_scaled,
         initial_state_scenario=InitialStateScenarios.small_state_error,
         control_scenario=ControlParameterScenarios.control_position_default,
-        simulation_scenario=SimulationScenarios.sim_45_minute,
+        simulation_scenario=SimulationScenarios.sim_1_5_hour,
         number_of_satellites=10,
         orbital_scenario=OrbitalScenarios.tilted_orbit_45deg_group_2_close,
         model=Model.BLEND)
