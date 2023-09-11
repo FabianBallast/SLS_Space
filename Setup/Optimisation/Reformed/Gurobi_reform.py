@@ -74,24 +74,24 @@ def time_optimisation(number_of_satellites: int, prediction_horizon: int = None,
         # Solve
         m.optimize()
         runtime += m.Runtime
-        all_vars = m.getVars()
-        values = m.getAttr("X", all_vars)
 
-        states[:, i + 1] = values[problem['N'] * (x_vars + u_vars): problem['N'] * (x_vars + u_vars) + problem['nx']]
-        inputs[:, i] = values[problem['N'] * (x_vars + u_vars + problem['nx']): problem['N'] * (
-                    x_vars + u_vars + problem['nx']) + problem['nu']]
+        states[:, i + 1] = x.X[:problem['nx']]
+        inputs[:, i] = u.X[:problem['nu']]
 
         m.remove(constraint_list)
 
         Fx, Fu = find_fx_and_fu(mask_A, mask_B, states[:, i + 1])
-        constraint_list = []
+        # constraint_list = [0, 1]
         Fx = sparse.kron(sparse.eye(problem['N']), Fx)
         Fu = sparse.kron(sparse.eye(problem['N']), Fu)
 
-        constraint_list.append(m.addConstr(Fx @ phi_x == x))
-        constraint_list.append(m.addConstr(Fu @ phi_u == u))
+        start = time.time()
+        constraint_list[0] = m.addConstr(Fx @ phi_x == x)
+        constraint_list[1] = m.addConstr(Fu @ phi_u == u)
 
         m.update()
+        print(time.time() - start)
+        print()
 
         if i == 0:
             t_0 = time.time()
@@ -111,4 +111,4 @@ def time_optimisation(number_of_satellites: int, prediction_horizon: int = None,
 
 
 if __name__ == '__main__':
-    time_optimisation(100, plot_results=True)
+    time_optimisation(10, plot_results=True)

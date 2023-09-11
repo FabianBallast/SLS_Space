@@ -252,7 +252,7 @@ def time_optimisation(number_of_satellites: int, prediction_horizon: int = None,
         states[:, i + 1] = res.x[:problem['nx']]
         inputs[:, i] = res.x[problem['N'] * problem['nx']: problem['N'] * problem['nx'] + problem['nu']]
 
-        Fx_values, Fu_values = update_fx_and_fu(Fx_full_base, Fu_full_base, problem['x0_abs'])
+        Fx_values, Fu_values = update_fx_and_fu(Fx_full_base, Fu_full_base, states[:, i + 1])
         A_values_change = np.hstack(
             [np.kron(np.ones(problem['N']), Fx_values), np.kron(np.ones(problem['N']), Fu_values)])
 

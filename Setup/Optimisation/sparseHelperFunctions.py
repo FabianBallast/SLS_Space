@@ -113,6 +113,68 @@ def update_fx_and_fu(Fx: sparse.csc_matrix, Fu: sparse.csc_matrix, x0: np.ndarra
     return new_data_fx, new_data_fu
 
 
+def find_indices(problem: dict, number_of_blocks: int, x_vars: int, u_vars: int) -> dict:
+    """
+    Find the indices when using with OSQP.
+
+    :param problem: The problem dict.
+    :param number_of_blocks: Number of blocks in the closed-loop transfer matrix.
+    :param x_vars: Number of non-zero elements in Phi_x
+    :param u_vars: Number of non-zero elements in Phi_u
+
+    :return: Dict with the indices of each subvector.
+    """
+    indices_dict = {'x': np.arange(problem['nx'] * problem['N'])}
+    indices_dict['u'] = np.arange(indices_dict['x'][-1] + 1,
+                                  indices_dict['x'][-1] + 1 + problem['nu'] * problem['N'])
+    indices_dict['phi_x'] = np.arange(indices_dict['u'][-1] + 1,
+                                      indices_dict['u'][-1] + 1 + x_vars * number_of_blocks)
+    indices_dict['phi_u'] = np.arange(indices_dict['phi_x'][-1] + 1,
+                                      indices_dict['phi_x'][-1] + 1 + u_vars * number_of_blocks)
+    indices_dict['sigma'] = np.arange(indices_dict['phi_u'][-1] + 1,
+                                      indices_dict['phi_u'][-1] + 1 + problem['N'])
+
+    indices_dict['phi_x_pos'] = np.arange(indices_dict['sigma'][-1] + 1,
+                                          indices_dict['sigma'][-1] + 1 + x_vars * number_of_blocks)
+    indices_dict['phi_x_neg'] = np.arange(indices_dict['phi_x_pos'][-1] + 1,
+                                          indices_dict['phi_x_pos'][-1] + 1 + x_vars * number_of_blocks)
+    indices_dict['phi_x_abs'] = np.arange(indices_dict['phi_x_neg'][-1] + 1,
+                                          indices_dict['phi_x_neg'][-1] + 1 + x_vars * number_of_blocks)
+
+    indices_dict['phi_u_pos'] = np.arange(indices_dict['phi_x_abs'][-1] + 1,
+                                          indices_dict['phi_x_abs'][-1] + 1 + u_vars * number_of_blocks)
+    indices_dict['phi_u_neg'] = np.arange(indices_dict['phi_u_pos'][-1] + 1,
+                                          indices_dict['phi_u_pos'][-1] + 1 + u_vars * number_of_blocks)
+    indices_dict['phi_u_abs'] = np.arange(indices_dict['phi_u_neg'][-1] + 1,
+                                          indices_dict['phi_u_neg'][-1] + 1 + u_vars * number_of_blocks)
+
+    indices_dict['x_pos'] = np.arange(indices_dict['phi_u_abs'][-1] + 1,
+                                      indices_dict['phi_u_abs'][-1] + 1 + problem['nx'] * problem['N'])
+    indices_dict['x_neg'] = np.arange(indices_dict['x_pos'][-1] + 1,
+                                      indices_dict['x_pos'][-1] + 1 + problem['nx'] * problem['N'])
+    indices_dict['x_abs'] = np.arange(indices_dict['x_neg'][-1] + 1,
+                                      indices_dict['x_neg'][-1] + 1 + problem['nx'] * problem['N'])
+
+    indices_dict['u_pos'] = np.arange(indices_dict['x_abs'][-1] + 1,
+                                      indices_dict['x_abs'][-1] + 1 + problem['nu'] * problem['N'])
+    indices_dict['u_neg'] = np.arange(indices_dict['u_pos'][-1] + 1,
+                                      indices_dict['u_pos'][-1] + 1 + problem['nu'] * problem['N'])
+    indices_dict['u_abs'] = np.arange(indices_dict['u_neg'][-1] + 1,
+                                      indices_dict['u_neg'][-1] + 1 + problem['nu'] * problem['N'])
+
+    indices_dict['x_max'] = np.arange(indices_dict['u_abs'][-1] + 1,
+                                      indices_dict['u_abs'][-1] + 1 + problem['N'])
+    indices_dict['phi_x_max'] = np.arange(indices_dict['x_max'][-1] + 1,
+                                          indices_dict['x_max'][-1] + 1 + number_of_blocks)
+
+    indices_dict['u_max'] = np.arange(indices_dict['phi_x_max'][-1] + 1,
+                                      indices_dict['phi_x_max'][-1] + 1 + problem['N'])
+    indices_dict['phi_u_max'] = np.arange(indices_dict['u_max'][-1] + 1,
+                                          indices_dict['u_max'][-1] + 1 + number_of_blocks)
+
+    return indices_dict
+
+
 if __name__ == '__main__':
     import control as ct
 

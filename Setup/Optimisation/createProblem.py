@@ -75,4 +75,8 @@ def create_sparse_problem(number_of_satellites: int,
     problem['x_ref'] = xr
     problem['N'] = scenario.control.tFIR
 
+    problem['e_A'] = 0.000001
+    problem['e_B'] = 0.000001
+    problem['sigma_w'] = 0.0001
+
     return problem
