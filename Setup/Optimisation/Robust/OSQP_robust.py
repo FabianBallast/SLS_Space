@@ -64,15 +64,16 @@ def time_optimisation(number_of_satellites: int, prediction_horizon: int = None,
     q = np.zeros(total_vars)
     q[indices_dict['x']] = np.kron(np.ones(problem['N']), -problem['Q'] @ problem['x_ref'])
 
-    scaling = 1e-3
+    scaling = 4e-2
+
     q[indices_dict['phi_x_abs']] = scaling
     q[indices_dict['phi_u_abs']] = scaling
     q[indices_dict['x_abs']] = scaling
     q[indices_dict['u_abs']] = scaling
-    q[indices_dict['phi_x_max']] = scaling
-    q[indices_dict['phi_u_max']] = scaling
-    q[indices_dict['x_max']] = scaling
-    q[indices_dict['u_max']] = scaling
+    # q[indices_dict['phi_x_max']] = scaling
+    # q[indices_dict['phi_u_max']] = scaling
+    # q[indices_dict['x_max']] = scaling
+    # q[indices_dict['u_max']] = scaling
 
     A_f, B_f = sparse_state_matrix_replacement(problem['A'], problem['B'], mask_A, mask_B)
     # Ax = sparse.kron(sparse.eye(problem['N']), -sparse.eye(problem['nx'])) + \
@@ -271,8 +272,8 @@ def time_optimisation(number_of_satellites: int, prediction_horizon: int = None,
     u = np.hstack([ueq, uineq])
 
     # print(l.shape, A.shape, leq.shape, lineq.shape, Aeq.shape, Aineq.shape, P.shape)
-    eps_abs = 1e-4
-    eps_rel = 1e-5
+    eps_abs = 1e-3
+    eps_rel = 1e-4
 
     # Full A
     # Fx_full = sparse.kron(sparse.eye(problem['N']), Fx_full_base)

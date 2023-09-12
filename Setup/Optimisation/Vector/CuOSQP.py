@@ -116,7 +116,7 @@ def time_optimisation(number_of_satellites: int, prediction_horizon: int = None,
     problem = create_sparse_problem(number_of_satellites, prediction_horizon, scenario)
 
     # Constraints
-    leq = np.hstack([-problem['x0_abs'], np.zeros(problem['N'] * problem['nx'])])
+    leq = np.hstack([-problem['A'] @ problem['x0_abs'], np.zeros((problem['N'] - 1) * problem['nx'])])
     ueq = leq
 
     lineq = np.hstack([np.kron(np.ones(problem['N']), -problem['x_max'] + problem['x_ref']),
@@ -127,34 +127,32 @@ def time_optimisation(number_of_satellites: int, prediction_horizon: int = None,
     lb = np.hstack([leq, lineq])
     ub = np.hstack([ueq, uineq])
 
-    Ax = sparse.kron(sparse.eye(problem['N'] + 1), -sparse.eye(problem['nx'])) + \
-         sparse.kron(sparse.eye(problem['N'] + 1, k=-1), problem['A'])
-    Bu = sparse.kron(sparse.vstack([sparse.csc_matrix((1, problem['N'])), sparse.eye(problem['N'])]), problem['B'])
+    Ax = sparse.kron(sparse.eye(problem['N']), -sparse.eye(problem['nx'])) + \
+         sparse.kron(sparse.eye(problem['N'], k=-1), problem['A'])
+    Bu = sparse.kron(sparse.eye(problem['N']), problem['B'])
     Aeq = sparse.hstack([Ax, Bu])
 
     # - input and state constraints
     # Skip first state
-    Aineq = sparse.hstack([sparse.csc_matrix(((problem['N']) * problem['nx'] + problem['N'] * problem['nu'],
-                                              problem['nx'])),
-                           sparse.eye((problem['N']) * problem['nx'] + problem['N'] * problem['nu'])])
+    Aineq = sparse.eye((problem['N']) * problem['nx'] + problem['N'] * problem['nu'])
 
     # - OSQP constraints
     A = sparse.vstack([Aeq, Aineq], format='csc')
 
     # Define problem
     # - quadratic objective
-    P = sparse.block_diag([sparse.kron(sparse.eye(problem['N']), problem['Q']), problem['QN'],
+    P = sparse.block_diag([sparse.kron(sparse.eye(problem['N']), problem['Q']), # problem['QN'],
                            sparse.kron(sparse.eye(problem['N']), problem['R'])], format='csc')
     # - linear objective
     q = np.hstack([np.kron(np.ones(problem['N']), -problem['Q']@problem['x_ref']),
-                   -problem['QN']@problem['x_ref'],
+                  # -problem['QN']@problem['x_ref'],
                    np.zeros(problem['N'] * problem['nu'])])
 
     # Create an OSQP object
     prob = osqp.OSQP()
 
     # Setup workspace
-    prob.setup(P, q, A, lb, ub, warm_start=True, verbose=False, linsys_solver='qdldl', eps_abs=1e-3, eps_rel=1e-3)
+    prob.setup(P, q, A, lb, ub, warm_start=True, verbose=True) #, linsys_solver='qdldl', eps_abs=1e-3, eps_rel=1e-3)
 
     t_0 = 0
     nsim = 11
@@ -172,11 +170,11 @@ def time_optimisation(number_of_satellites: int, prediction_horizon: int = None,
 
         # Apply first control input to the plant
         input[:, i] = res.x[-problem['N'] * problem['nu']:-(problem['N'] - 1) * problem['nu']]
-        x[:, i + 1] = res.x[problem['nx']:2 * problem['nx']]
+        x[:, i + 1] = res.x[0 * problem['nx']:1 * problem['nx']]
 
         # Update initial state
-        lb[:problem['nx']] = -x[:, i + 1]
-        ub[:problem['nx']] = -x[:, i + 1]
+        lb[:problem['nx']] = -problem['A'] @ x[:, i + 1]
+        ub[:problem['nx']] = -problem['A'] @ x[:, i + 1]
         prob.update(l=lb, u=ub)
 
         if i == 0:
@@ -196,5 +194,5 @@ def time_optimisation(number_of_satellites: int, prediction_horizon: int = None,
 
 
 if __name__ == '__main__':
-    time_optimisation(10, plot_results=True)
+    time_optimisation(1000, plot_results=True)
     # time_optimisation_2(100, plot_results=False)
