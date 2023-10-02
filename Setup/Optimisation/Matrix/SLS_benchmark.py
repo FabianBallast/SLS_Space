@@ -72,7 +72,7 @@ def time_optimisation(number_of_satellites: int, prediction_horizon: int = None,
 
 
 if __name__ == '__main__':
-    time_optimisation(10, plot_results=True)
+    time_optimisation(15, plot_results=True)
 # import numpy as np
 # from slspy import SLS, SLS_Obj_H2, SLS_Cons_Input, SLS_Cons_State
 # from Controllers.SLS_setup import SLSSetup

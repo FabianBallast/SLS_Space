@@ -721,10 +721,10 @@ class OrbitalMechSimulator:
             oe_sat[:, 4::6] = np.unwrap(oe_sat[:, 4::6], axis=0)
 
             self.filtered_oe = self.filter.filter_data(oe_sat,
-                                                  self.thrust_inputs.reshape(
-                                                      (3 * self.number_of_controlled_satellites, -1)).T,
-                                                  update_state=oe_sat.shape[0] > 5,
-                                                  inputs_with_same_sampling_time=thrust_calculated)
+                                                       self.thrust_inputs.reshape(
+                                                           (3 * self.number_of_controlled_satellites, -1)).T,
+                                                       update_state=oe_sat.shape[0] > 5,
+                                                       inputs_with_same_sampling_time=thrust_calculated)
 
         return self.filtered_oe, self.filtered_oe_ref
 
@@ -747,20 +747,9 @@ class OrbitalMechSimulator:
 
         :return: Array with quasi ROE in shape (t, 6 * number_of_controlled_satellites)
         """
-        self.quasi_roe = np.zeros_like(self.translation_states[:, :-6])
         oe_filtered, oe_ref = self.filter_oe()
+        self.quasi_roe = Conversion.oe2quasi_roe(oe_filtered, oe_ref, self.reference_angle_offsets)
 
-        for idx, satellite_name in enumerate(self.controlled_satellite_names):
-            kepler_sat = oe_filtered[:, idx * 6: (idx + 1) * 6]
-            delta_a = (kepler_sat[:, 0:1] - oe_ref[:, 0:1]) / oe_ref[:, 0:1]
-            delta_lambda = kepler_sat[:, 3:4] + kepler_sat[:, 5:6] + kepler_sat[:, 4:5] * np.cos(oe_ref[:, 2:3]) - \
-                           oe_ref[:, 3:4] - oe_ref[:, 5:6] - oe_ref[:, 4:5] * np.cos(oe_ref[:, 2:3])
-            delta_ex = kepler_sat[:, 1:2] * np.cos(kepler_sat[:, 3:4]) - oe_ref[:, 1:2] * np.cos(oe_ref[:, 3:4])
-            delta_ey = kepler_sat[:, 1:2] * np.sin(kepler_sat[:, 3:4]) - oe_ref[:, 1:2] * np.sin(oe_ref[:, 3:4])
-            delta_ix = kepler_sat[:, 2:3] - oe_ref[:, 2:3]
-            delta_iy = (kepler_sat[:, 4:5] - oe_ref[:, 4:5]) * np.sin(oe_ref[:, 2:3])
-            self.quasi_roe[:, idx * 6:(idx + 1) * 6] = np.concatenate((delta_a, delta_lambda, delta_ex,
-                                                                       delta_ey, delta_ix, delta_iy), axis=1)
         return self.quasi_roe
 
     def convert_to_roe(self) -> np.ndarray:
@@ -1519,7 +1508,8 @@ class OrbitalMechSimulator:
             figure, _ = plt.subplots(1, 1, figsize=(16, 9))
 
         ax = figure.get_axes()[0]
-        theta_ref = self.mean_motion * np.linspace(0, theta.shape[0] - 1, theta.shape[0]).reshape((-1, 1)) * self.simulation_timestep
+        theta_ref = self.mean_motion * np.linspace(0, theta.shape[0] - 1, theta.shape[0]).reshape(
+            (-1, 1)) * self.simulation_timestep
         theta_norm = np.rad2deg(np.unwrap(theta - theta_ref, axis=0))
         Omega_norm = np.rad2deg(Omega)
 
@@ -1531,38 +1521,86 @@ class OrbitalMechSimulator:
         plt.legend()
         return figure
 
-    def plot_main_states(self, figure: plt.figure = None) -> plt.figure:
+    def plot_main_states(self, satellite_names: list[str] = None, figure: plt.figure = None) -> plt.figure:
         """
         Create a plot with the main results for the report.
 
+        :param satellite_names: Names of the satellites to plot. If none, all are plotted.
         :param figure: Figure to plot the results onto.
 
         :return: Figure with the results.
         """
-        return PlotRes.plot_main_states_report(states=np.zeros((100, 3)), timestep=self.simulation_timestep,
-                                               figure=figure)
+        oe_filtered, oe_ref = self.filter_oe()
+        main_states = Conversion.oe2main(oe_filtered, oe_ref, self.reference_angle_offsets)
+        radius = main_states[:, 0::3]
+        theta = main_states[:, 1::3]
+        Omega = main_states[:, 2::3]
 
-    def plot_side_states(self, figure: plt.figure = None) -> plt.figure:
+        satellite_names, satellite_indices = self.find_satellite_names_and_indices(satellite_names, state_length=1)
+
+        for idx, satellite_name in enumerate(satellite_names):
+            satellite_idx = satellite_indices[idx]
+            states = np.concatenate((radius[:, satellite_idx:satellite_idx + 1],
+                                     theta[:, satellite_idx:satellite_idx + 1],
+                                     Omega[:, satellite_idx:satellite_idx + 1]), axis=1)
+            figure = PlotRes.plot_main_states_report(states=states, timestep=self.simulation_timestep, figure=figure,
+                                                     legend_name=satellite_name)
+
+        return figure
+
+    def plot_side_states(self, satellite_names: list[str] = None, figure: plt.figure = None) -> plt.figure:
         """
         Create a plot with the side results for the report.
 
+        :param satellite_names: Names of the satellites to plot. If none, all are plotted.
         :param figure: Figure to plot the results onto.
 
         :return: Figure with the results.
         """
-        return PlotRes.plot_side_states_report(states=np.zeros((100, 2)), timestep=self.simulation_timestep,
-                                               figure=figure)
+        oe_filtered, oe_ref = self.filter_oe()
+        satellite_names, satellite_indices = self.find_satellite_names_and_indices(satellite_names, state_length=1)
 
-    def plot_inputs(self, figure: plt.figure = None) -> plt.figure:
+        e = oe_filtered[:, 1::6]
+        i = oe_filtered[:, 2::6]
+
+        for idx, satellite_name in enumerate(satellite_names):
+            satellite_idx = satellite_indices[idx]
+            states = np.concatenate((e[:, satellite_idx:satellite_idx + 1],
+                                     i[:, satellite_idx:satellite_idx + 1]), axis=1)
+            figure = PlotRes.plot_side_states_report(states=states, timestep=self.simulation_timestep, figure=figure,
+                                                     legend_name=satellite_name)
+
+        return figure
+
+    def plot_inputs(self, satellite_names: list[str] = None, figure: plt.figure = None, legend_name: str = None,
+                    **kwargs) -> plt.figure:
         """
         Create a plot with the control inputs for the report.
 
-        :param figure: Figure to plot the results onto.
+        :param satellite_names: Names of the satellites to plot. If none, all are plotted.
+        :param figure: Figure to plot into. If none, a new one is created.
+        :param legend_name: Name to put in the legend.
+        :return: Figure with the thrust forces.
 
         :return: Figure with the inputs.
         """
-        return PlotRes.plot_inputs_report(inputs=np.zeros((100, 3)), timestep=self.simulation_timestep,
-                                          figure=figure)
+        # Compute thrust forces if not yet done
+        if self.thrust_forces is None:
+            self.get_thrust_forces_from_acceleration()
+
+        satellite_names, satellite_indices = self.find_satellite_names_and_indices(satellite_names, state_length=1)
+
+        color_palette = list(mcolors.TABLEAU_COLORS.values())
+        legend_names = [legend_name] + [None] * len(satellite_names)
+
+        for idx, satellite_name in enumerate(satellite_names):
+            figure = PlotRes.plot_inputs_report(self.thrust_forces[:, :, satellite_indices[idx]],
+                                                self.simulation_timestep,
+                                                figure=figure,
+                                                color=color_palette[idx % 10],
+                                                legend_name=legend_names[idx], **kwargs)
+
+        return figure
 
     def print_metrics(self) -> str:
         """

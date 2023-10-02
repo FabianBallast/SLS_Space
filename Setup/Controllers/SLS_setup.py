@@ -61,6 +61,7 @@ class SLSSetup(Controller):
         self.sys._A = np.zeros((self.prediction_horizon, self.total_state_size, self.total_state_size))
         self.sys._B2 = np.zeros((self.prediction_horizon, self.total_state_size, self.total_input_size))
         argument_of_periapsis_dot = self.dynamics.get_orbital_differentiation()[4]
+        anomaly_dot = self.dynamics.get_orbital_differentiation()[5]
         true_anomaly_start = arguments_of_latitude - argument_of_periapsis
         mean_anomaly_start = np.zeros_like(true_anomaly_start)
         true_anomalies = np.zeros_like(true_anomaly_start)
@@ -72,7 +73,7 @@ class SLSSetup(Controller):
             # mean_anomalies = mean_anomaly_start + (t + 0.5) * self.dynamics.mean_motion * self.sampling_time
             # for idx, mean_anomaly in enumerate(mean_anomalies):
             #     true_anomalies[idx] = element_conversion.mean_to_true_anomaly(self.dynamics.eccentricity, mean_anomaly)
-            true_anomalies = true_anomaly_start + (t + 0.5) * self.dynamics.mean_motion * self.sampling_time
+            true_anomalies = true_anomaly_start + (t + 0.5) * (self.dynamics.mean_motion + anomaly_dot) * self.sampling_time
 
             arguments_of_periapsis = argument_of_periapsis + (t + 0.5) * argument_of_periapsis_dot * self.sampling_time
 
@@ -116,10 +117,12 @@ class SLSSetup(Controller):
         self.x0 = x0
         if not self.dynamics.is_LTI:  # Update every time for LTV system
             self.arguments_of_latitude, self.arguments_of_periapsis = self.dynamics.get_latitude_and_periapsis(x0, time_since_start)
+            self.arguments_of_latitude += self.x_ref[self.angle_states].flatten()
 
             if true_anomalies is not None:
                 self.arguments_of_periapsis = self.arguments_of_latitude - np.array(true_anomalies)
             # print(x0, self.arguments_of_latitude, self.arguments_of_periapsis)
+            # print(np.rad2deg(self.arguments_of_latitude))
             self.__fill_matrices(self.arguments_of_latitude, self.arguments_of_periapsis)
 
             if self.synthesizer is not None:
@@ -128,7 +131,7 @@ class SLSSetup(Controller):
     def simulate_system(self, t_horizon: int, noise=None, progress: bool = False, inputs_to_store: int = 1,
                         fast_computation: bool = False, time_since_start: int = 0,
                         add_collision_avoidance: bool = False, absolute_longitude_refs: list[float | int] = None,
-                        current_true_anomalies: list[float | int]= None) -> (np.ndarray, np.ndarray):
+                        current_true_anomalies: list[float | int] = None) -> (np.ndarray, np.ndarray):
         """
         Simulate the system assuming a perfect model is known.
 

@@ -255,3 +255,100 @@ def oe2small_blend(oe: np.ndarray, reference_oe: np.ndarray, reference_angle_off
                 np.concatenate((rho, theta, e * np.cos(true_anomaly), e * np.sin(true_anomaly), delta_i, delta_Omega), axis=1)
 
     return blend_states
+
+
+def oe2main(oe: np.ndarray, reference_oe: np.ndarray, reference_angle_offsets: np.ndarray=None) -> np.ndarray:
+    """
+    Transform a set of orbital elements to blend coordinates.
+
+    :param oe: Array with orbital elements in the shape (t, 6 * number of satellites).
+    :param mu: Gravitational parameter of the Earth.
+    :param reference_oe: Array with elements of the reference (number_of_references, t, 6).
+    :param reference_angle_offsets: Array with the offsets of the reference angles with respect to 0 in rad.
+    :return: Array with blend coordinates in the shape (t, 3 * number of satellites).
+    """
+    # Basic variables
+    time_length = oe.shape[0]
+    number_of_satellites = oe.shape[1] // 6
+    number_of_ref = reference_oe.shape[0]
+    satellites_per_ref = number_of_satellites // number_of_ref
+
+    # Reference variables
+    rho_ref = reference_oe[:, :, 0::6] * (1 - reference_oe[:, :, 1::6] ** 2) / (1 + reference_oe[:, :, 1::6] * np.cos(reference_oe[:, :, 5::6]))
+    theta_ref = np.unwrap(reference_oe[:, :, 3::6] + reference_oe[:, :, 5::6], axis=0)
+    Omega_ref = reference_oe[:, :, 4::6]
+
+    main_states = np.zeros((oe.shape[0], oe.shape[1] // 2))
+
+    for ref in range(number_of_ref):
+        for idx in range(satellites_per_ref):
+            oe_sat = oe[:, (ref * satellites_per_ref + idx) * 6: (ref * satellites_per_ref + idx + 1) * 6]
+
+            rho = oe_sat[:, 0:1] * (1 - oe_sat[:, 1:2] ** 2) / (1 + oe_sat[:, 1:2] * np.cos(oe_sat[:, 5:6])) - rho_ref[ref]
+            theta_ref_sat = theta_ref[ref] + reference_angle_offsets[ref * satellites_per_ref + idx]
+            theta = np.unwrap(oe_sat[:, 3:4] + oe_sat[:, 5:6] - theta_ref_sat, axis=0)
+
+            delta_Omega = oe_sat[:, 4:5] - Omega_ref[ref]
+
+            # Convert to range [0, 2 * pi]
+            if theta[0] + delta_Omega[0] > np.pi:
+                theta -= 2 * np.pi
+            elif theta[0] + delta_Omega[0] < -np.pi:
+                theta += 2 * np.pi
+
+            main_states[:, (ref * satellites_per_ref + idx) * 3: (ref * satellites_per_ref + idx + 1) * 3] = \
+                np.concatenate((rho, theta, delta_Omega), axis=1)
+
+    return main_states
+
+
+def oe2quasi_roe(oe: np.ndarray, reference_oe: np.ndarray, reference_angle_offsets: np.ndarray=None) -> np.ndarray:
+    """
+    Transform a set of orbital elements to quasi roe coordinates.
+
+    :param oe: Array with orbital elements in the shape (t, 6 * number of satellites).
+    :param mu: Gravitational parameter of the Earth.
+    :param reference_oe: Array with elements of the reference (number_of_references, t, 6).
+    :param reference_angle_offsets: Array with the offsets of the reference angles with respect to 0 in rad.
+    :return: Array with blend coordinates in the shape (t, 6 * number of satellites).
+    """
+    # Basic variables
+    time_length = oe.shape[0]
+    number_of_satellites = oe.shape[1] // 6
+    number_of_ref = reference_oe.shape[0]
+    satellites_per_ref = number_of_satellites // number_of_ref
+
+    # Reference variables
+    a_ref = reference_oe[:, :, 0::6]
+    e_ref = reference_oe[:, :, 1::6]
+    i_ref = reference_oe[:, :, 2::6]
+    omega_ref = reference_oe[:, :, 3::6]
+    theta_ref = np.unwrap(reference_oe[:, :, 3::6] + reference_oe[:, :, 5::6], axis=0)
+    Omega_ref = reference_oe[:, :, 4::6]
+
+    main_states = np.zeros_like(oe)
+
+    for ref in range(number_of_ref):
+        for idx in range(satellites_per_ref):
+            oe_sat = oe[:, (ref * satellites_per_ref + idx) * 6: (ref * satellites_per_ref + idx + 1) * 6]
+
+            a = (oe_sat[:, 0:1] - a_ref[ref]) / a_ref[ref]
+            theta_ref_sat = theta_ref[ref] + reference_angle_offsets[ref * satellites_per_ref + idx]
+            theta = np.unwrap(oe_sat[:, 3:4] + oe_sat[:, 5:6] - theta_ref_sat + (oe_sat[:, 4:5] - Omega_ref[ref]) * np.cos(i_ref[ref]), axis=0)
+
+            ex = oe_sat[:, 1:2] * np.cos(oe_sat[:, 3:4]) - e_ref[ref] * np.cos(omega_ref[ref])
+            ey = oe_sat[:, 1:2] * np.sin(oe_sat[:, 3:4]) - e_ref[ref] * np.sin(omega_ref[ref])
+
+            ix = oe_sat[:, 2:3] - i_ref[ref]
+            iy = (oe_sat[:, 4:5] - Omega_ref[ref]) * np.sin(i_ref[ref])
+
+            # Convert to range [0, 2 * pi]
+            if theta[0] > np.pi:
+                theta -= 2 * np.pi
+            elif theta[0] < -np.pi:
+                theta += 2 * np.pi
+
+            main_states[:, (ref * satellites_per_ref + idx) * 6: (ref * satellites_per_ref + idx + 1) * 6] = \
+                np.concatenate((a, theta, ex, ey, ix, iy), axis=1)
+
+    return main_states

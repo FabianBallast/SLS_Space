@@ -64,7 +64,7 @@ def time_optimisation(number_of_satellites: int, prediction_horizon: int = None,
     q = np.zeros(total_vars)
     q[indices_dict['x']] = np.kron(np.ones(problem['N']), -problem['Q'] @ problem['x_ref'])
 
-    scaling = 4e-2
+    scaling = 1e-3
 
     q[indices_dict['phi_x_abs']] = scaling
     q[indices_dict['phi_u_abs']] = scaling

@@ -237,6 +237,15 @@ class ScenarioEnum(Enum):
         orbital_scenario=OrbitalScenarios.tilted_orbit_45deg_group_6,
         model=Model.HCW)
 
+    j2_scenario_HCW_6_orbits = TranslationalScenario(
+        physics_scenario=PhysicsScenarios.advanced_grav_physics_scaled,
+        initial_state_scenario=InitialStateScenarios.small_state_error,
+        control_scenario=ControlParameterScenarios.control_position_default,
+        simulation_scenario=SimulationScenarios.sim_45_minute,
+        number_of_satellites=36,
+        orbital_scenario=OrbitalScenarios.tilted_orbit_45deg_group_6,
+        model=Model.HCW)
+
     j2_scenario_moving_blend_6_orbits = TranslationalScenario(
         physics_scenario=PhysicsScenarios.advanced_grav_physics_scaled,
         initial_state_scenario=InitialStateScenarios.small_state_error,

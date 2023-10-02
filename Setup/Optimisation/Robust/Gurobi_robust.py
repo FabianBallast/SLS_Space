@@ -334,8 +334,8 @@ def time_optimisation_2(number_of_satellites: int, prediction_horizon: int = Non
     constraint_list.append(m.addConstr(Fu @ phi_u[:problem['N'] * u_vars] == u))
 
     scaling = 1e-3
-    # obj_robust = scaling * gp.quicksum(phi_x_abs) + scaling * gp.quicksum(phi_u_abs)
-    # obj_robust += scaling * gp.quicksum(x_abs) + scaling * gp.quicksum(x_abs)
+    obj_robust = scaling * gp.quicksum(phi_x_abs) + scaling * gp.quicksum(phi_u_abs)
+    obj_robust += scaling * gp.quicksum(x_abs) + scaling * gp.quicksum(x_abs)
     # obj_robust += scaling * gp.quicksum(x_max) + scaling * gp.quicksum(u_max)
     # obj_robust += scaling * gp.quicksum(phi_x_max) + scaling * gp.quicksum(phi_u_max)
     m.setObjective(x @ Q @ x + u @ R @ u, GRB.MINIMIZE)

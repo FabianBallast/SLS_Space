@@ -43,7 +43,7 @@ def time_optimisation(number_of_satellites: int, prediction_horizon: int = None,
     # Simulate in closed loop
     for i in range(nsim):
         x_init.value = states[:, i]
-        prob.solve(solver=GUROBI, warm_start=True, OptimalityTol=1e-3, OutputFlag=1)
+        prob.solve(solver=GUROBI, warm_start=True, OptimalityTol=1e-3, OutputFlag=0)
 
         states[:, i + 1] = problem['A'].dot(states[:, i]) + problem['B'].dot(u[:, 0].value)
 

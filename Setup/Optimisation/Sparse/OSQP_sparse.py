@@ -226,7 +226,7 @@ def time_optimisation(number_of_satellites: int, prediction_horizon: int = None,
 
     # Setup workspace
     A_temp = sparse.vstack([Aeq_dynamics, Aeq_constraint_full, Aineq], format='csc')
-    m.setup(P, q, A_temp, l, u, warm_start=True, verbose=False, eps_abs=eps_abs, eps_rel=eps_rel, max_iter=500000)
+    m.setup(P, q, A_temp, l, u, warm_start=True, verbose=False, eps_abs=eps_abs, eps_rel=eps_rel, max_iter=5000000) #, scaled_termination=True)
     m.update(Ax=A_values_change, Ax_idx=A_indices_change)
 
     # Simulate in closed loop
@@ -252,6 +252,8 @@ def time_optimisation(number_of_satellites: int, prediction_horizon: int = None,
         states[:, i + 1] = res.x[:problem['nx']]
         inputs[:, i] = res.x[problem['N'] * problem['nx']: problem['N'] * problem['nx'] + problem['nu']]
 
+        # print(states[:10, i+1])
+        # print(inputs[:10, i])
         Fx_values, Fu_values = update_fx_and_fu(Fx_full_base, Fu_full_base, states[:, i + 1])
         A_values_change = np.hstack(
             [np.kron(np.ones(problem['N']), Fx_values), np.kron(np.ones(problem['N']), Fu_values)])
@@ -279,4 +281,4 @@ def time_optimisation(number_of_satellites: int, prediction_horizon: int = None,
 
 
 if __name__ == '__main__':
-    time_optimisation(100, plot_results=True)
+    time_optimisation(10, plot_results=True)

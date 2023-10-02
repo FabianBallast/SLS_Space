@@ -25,7 +25,10 @@ def time_optimisation(number_of_satellites: int, prediction_horizon: int = None,
     # Create a new model
     m = gp.Model("MPC")
 
-    mask_A, mask_B = get_masks(problem['A'], problem['B'])
+    # mask_A, mask_B = get_masks(problem['A'], problem['B'])
+    nx, nu = problem['B'].shape
+    mask_A = np.ones((nx, nx), dtype=bool)
+    mask_B = np.ones((nu, nx), dtype=bool)
     x_vars = np.sum(mask_A)
     u_vars = np.sum(mask_B)
 
@@ -78,6 +81,10 @@ def time_optimisation(number_of_satellites: int, prediction_horizon: int = None,
         states[:, i + 1] = x.X[:problem['nx']]
         inputs[:, i] = u.X[:problem['nu']]
 
+        # print(states[:9, i+1])
+        # print(inputs[:9, i])
+        # print()
+
         m.remove(constraint_list)
 
         Fx, Fu = find_fx_and_fu(mask_A, mask_B, states[:, i + 1])
@@ -85,13 +92,13 @@ def time_optimisation(number_of_satellites: int, prediction_horizon: int = None,
         Fx = sparse.kron(sparse.eye(problem['N']), Fx)
         Fu = sparse.kron(sparse.eye(problem['N']), Fu)
 
-        start = time.time()
+        # start = time.time()
         constraint_list[0] = m.addConstr(Fx @ phi_x == x)
         constraint_list[1] = m.addConstr(Fu @ phi_u == u)
 
         m.update()
-        print(time.time() - start)
-        print()
+        # print(time.time() - start)
+        # print()
 
         if i == 0:
             t_0 = time.time()

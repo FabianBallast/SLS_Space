@@ -159,6 +159,7 @@ class GeneralDynamics(ABC):
     def get_orbital_differentiation(self) -> np.ndarray:
         """
         Return the derivative of orbital elements.
+        Order: [a, e, i, Omega, omega, M)
 
         :return: Derivatives in shape (6,).
         """
@@ -170,7 +171,7 @@ class GeneralDynamics(ABC):
             # or_dif[3] *= 1.0052669
             return or_dif
         else:
-            return np.array([-3.3178e-10, 0, 0, 0, 0, 0])
+            return np.array([0 * -3.3178e-10, 0, 0, 0, 0, 0])
 
     @abstractmethod
     def get_slack_variable_length(self) -> int:

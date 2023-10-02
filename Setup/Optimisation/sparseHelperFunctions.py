@@ -49,7 +49,8 @@ def sparse_state_matrix_replacement(A_matrix: sparse.coo_matrix, B_matrix: spars
         row_selection = np.any(mask_B_dense[:, column_selection], axis=1)
         blk_diag_list_B.append(B_dense[:, column_selection][row_selection])
 
-    return sparse.coo_matrix(linalg.block_diag(*blk_diag_list_A)), sparse.coo_matrix(linalg.block_diag(*blk_diag_list_B))
+    return sparse.coo_matrix(linalg.block_diag(*blk_diag_list_A)), sparse.coo_matrix(
+        linalg.block_diag(*blk_diag_list_B))
 
 
 def find_fx_and_fu(mask_A: np.ndarray, mask_B: np.ndarray, x0: np.ndarray) -> (sparse.coo_matrix, sparse.coo_matrix):
@@ -81,13 +82,15 @@ def find_fx_and_fu(mask_A: np.ndarray, mask_B: np.ndarray, x0: np.ndarray) -> (s
     return sparse.coo_matrix(F_x), sparse.coo_matrix(F_u)
 
 
-def update_fx_and_fu(Fx: sparse.csc_matrix, Fu: sparse.csc_matrix, x0: np.ndarray) -> (np.ndarray, np.ndarray):
+def update_fx_and_fu(Fx: sparse.csc_matrix, Fu: sparse.csc_matrix, x0: np.ndarray,
+                     sparse: bool = True) -> (np.ndarray, np.ndarray):
     """
     Find the data values for the full sparse Fx and Fu matrices.
 
     :param Fx: Fx matrix.
     :param Fu: Fu matrix.
     :param x0: Current state.
+    :param sparse: Whether the data is sparse
     :return: Tuple with data values for Fx and Fu.
     """
 
@@ -103,12 +106,17 @@ def update_fx_and_fu(Fx: sparse.csc_matrix, Fu: sparse.csc_matrix, x0: np.ndarra
     data_selection_fu[4::5] = False
 
     new_data_fx = np.zeros_like(Fx.data)
-    new_data_fx[data_selection_fx] = np.kron(x0[mask_row], np.ones(4))
-    new_data_fx[~data_selection_fx] = np.kron(x0[~mask_row], np.ones(2))
-
     new_data_fu = np.zeros_like(Fu.data)
-    new_data_fu[data_selection_fu] = np.kron(x0[mask_row], np.ones(2))
-    new_data_fu[~data_selection_fu] = x0[~mask_row]
+
+    if sparse:
+        new_data_fx[data_selection_fx] = np.kron(x0[mask_row], np.ones(4))
+        new_data_fx[~data_selection_fx] = np.kron(x0[~mask_row], np.ones(2))
+
+        new_data_fu[data_selection_fu] = np.kron(x0[mask_row], np.ones(2))
+        new_data_fu[~data_selection_fu] = x0[~mask_row]
+    else:
+        new_data_fx = np.kron(x0, np.ones(x0.shape[0]))
+        new_data_fu = np.kron(x0, np.ones(len(Fu.data) // x0.shape[0]))
 
     return new_data_fx, new_data_fu
 

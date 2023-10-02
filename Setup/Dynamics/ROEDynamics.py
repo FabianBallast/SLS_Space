@@ -21,20 +21,20 @@ class ROE(TranslationalDynamics):
         self.e_c = scenario.orbital.eccentricity
 
         if self.is_scaled and not self.J2_active:
-            self.param = DynamicParameters(state_limit=[0.0015, 1000, 0.003, 0.01, 0.001, 0.001],
+            self.param = DynamicParameters(state_limit=[0.01, 10, 0.1, 0.1, 0.1, 0.1], # [0.0015, 10, 0.01, 0.01, 0.001, 0.001],
                                            input_limit=[0.1, 0.1, 0.1],
                                            q_sqrt=np.diag(np.array([220, 50, 700, 50, 1, 1])),
                                            r_sqrt_scalar=1e-2)
         elif self.is_scaled:
-            self.param = DynamicParameters(state_limit=[0.0015, 1000, 0.003, 0.01, 0.01, 0.01],
+            self.param = DynamicParameters(state_limit=[0.0015, 10, 0.003, 0.01, 0.01, 0.01],
                                            input_limit=[0.1, 0.1, 0.1],
                                            q_sqrt=np.diag(np.array([220, 50, 800, 50, 100, 100])),
                                            r_sqrt_scalar=1e-2,
                                            slack_variable_length=9,
                                            slack_variable_costs=[10000, 0, 0, 0, 0, 0])
         else:
-            self.param = DynamicParameters(state_limit=[0.001, 1000, 0.001, 0.001, 1000, 1000],
-                                           input_limit=[100, 100, 100],
+            self.param = DynamicParameters(state_limit=[0.001, 10, 0.001, 0.001, 1000, 1000],
+                                           input_limit=[0.1, 0.1, 0.1],
                                            q_sqrt=np.diag(np.array([1000, 10, 1000, 1000, 0, 0])),
                                            r_sqrt_scalar=1e-2)
 
@@ -229,7 +229,7 @@ class QuasiROE(TranslationalDynamics):
         self.is_LTI = False
 
         if self.is_scaled and not self.J2_active:
-            self.param = DynamicParameters(state_limit=[0.0015, 1000, 0.002, 0.002, 0.02, 0.01],
+            self.param = DynamicParameters(state_limit=[0.0015, 100, 0.01, 0.01, 0.02, 0.01],
                                            input_limit=[0.1, 0.1, 0.1],
                                            q_sqrt=np.diag(np.array([220, 50, 800, 800, 15, 15])),
                                            r_sqrt_scalar=1e-2,
@@ -378,9 +378,10 @@ class QuasiROE(TranslationalDynamics):
         :return: Tuple with arguments of latitude and periapsis in rad.
         """
         argument_of_periapsis_dot = self.get_orbital_differentiation()[4]
-        RAAN = state[5::6] / np.tan(self.inclination)
-        relative_latitude = (state[1::6] - RAAN).flatten()
-        absolute_latitude = (relative_latitude + (self.mean_motion + argument_of_periapsis_dot) * time_since_start) % (
+        anomaly_dot = self.get_orbital_differentiation()[5]
+        RAAN = state[5::6] / np.sin(self.inclination)
+        relative_latitude = (state[1::6] - RAAN * np.cos(self.inclination)).flatten()
+        absolute_latitude = (relative_latitude + (self.mean_motion + argument_of_periapsis_dot + anomaly_dot) * time_since_start) % (
                     2 * np.pi)
         return absolute_latitude, np.zeros_like(relative_latitude)
 

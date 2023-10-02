@@ -52,7 +52,7 @@ def plot_main_states_report(states: np.ndarray, timestep: float, legend_name: st
     """
     Method to plot the main states over time.
 
-    :param states: 2D-array with the quasi ROE states over time with shape (t, 6).
+    :param states: 2D-array with the quasi ROE states over time with shape (t, 3).
     :param timestep: Amount of time between each state in s.
     :param legend_name: Name to place as a label for the legend.
     :param figure: Figure to plot the states into. If not provided, a new one is created.
