@@ -5,12 +5,12 @@ from Results.ModelComparison.Scripts.plotFromData import plot_data
 import pickle
 
 scenarios_to_run = [ScenarioEnum.j2_scenario_moving_HCW_scaled,
-                    # ScenarioEnum.simple_scenario_translation_ROE_scaled,
+                    ScenarioEnum.j2_scenario_moving_ROE_scaled,
                     ScenarioEnum.j2_scenario_translation_blend_scaled]
 
 main_naming_identifier = 'single_plane_j2'
 scenario_name_list = ['HCW',
-                      # 'ROE',
+                      'ROE',
                       'BLEND']
 satellites_to_plot = None
 

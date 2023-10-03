@@ -7,7 +7,7 @@ from Visualisation import Plotting as Plot
 import matplotlib.pyplot as plt
 from Controllers.Controller import Controller
 from Optimisation.OSQP_Solver import OSQP_Synthesiser
-
+from Optimisation.Gurobi_Solver import Gurobi_Synthesiser
 
 class SLSSetup(Controller):
     """
@@ -165,9 +165,12 @@ class SLSSetup(Controller):
                 # Make it distributed
                 # self.synthesizer << SLS_Cons_dLocalized(d=4)
             elif noise is None and not add_collision_avoidance:
-                self.synthesizer = OSQP_Synthesiser(self.number_of_systems, self.prediction_horizon, self.sys,
-                                                    0*self.x_ref, self.dynamics.get_slack_variable_length(),
-                                                    self.dynamics.get_slack_costs())
+                # self.synthesizer = OSQP_Synthesiser(self.number_of_systems, self.prediction_horizon, self.sys,
+                #                                     0*self.x_ref, self.dynamics.get_slack_variable_length(),
+                #                                     self.dynamics.get_slack_costs())
+                self.synthesizer = Gurobi_Synthesiser(self.number_of_systems, self.prediction_horizon, self.sys,
+                                                     0 * self.x_ref, self.dynamics.get_state_constraint(),
+                                                     self.dynamics.get_input_constraint())
                 self.synthesizer.create_optimisation_problem(self.dynamics.get_state_cost_matrix_sqrt(),
                                                              self.dynamics.get_input_cost_matrix_sqrt()[3:],
                                                              self.dynamics.get_state_constraint(),
@@ -229,7 +232,8 @@ class SLSSetup(Controller):
             # print(np.max(np.abs(self.x0.reshape((6, -1))), axis=1))
 
             # Synthesise controller
-            self.controller = self.synthesizer.synthesizeControllerModel(self.x_ref, time_since_start + t * self.sampling_time)
+            solver_time, self.controller = self.synthesizer.synthesizeControllerModel(self.x_ref, time_since_start + t * self.sampling_time)
+            self.total_solver_time += solver_time
 
             # print(f"Predicted next state: {(self.controller._Phi_x[2] + self.x_ref).T}")
             # Update state and input

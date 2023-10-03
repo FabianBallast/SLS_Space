@@ -28,7 +28,7 @@ class ControlParameterScenarios(Enum):
     control_attitude_default = ControlParameters()
     control_attitude_far_ahead = ControlParameters(control_timestep=15, tFIR=20)
     control_position_default = ControlParameters(control_timestep=20, tFIR=10)
-    control_position_fine = ControlParameters(control_timestep=5, tFIR=20)
+    control_position_fine = ControlParameters(control_timestep=10, tFIR=20)
     control_position_far_ahead = ControlParameters(control_timestep=60, tFIR=20)
 
     control_differential_drag = ControlParameters(control_timestep=20, tFIR=40)

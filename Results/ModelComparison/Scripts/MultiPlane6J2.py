@@ -5,12 +5,12 @@ from Results.ModelComparison.Scripts.plotFromData import plot_data
 import pickle
 
 scenarios_to_run = [ScenarioEnum.j2_scenario_HCW_6_orbits,
-                    # ScenarioEnum.simple_scenario_translation_ROE_scaled,
+                    ScenarioEnum.j2_scenario_ROE_6_orbits,
                     ScenarioEnum.j2_scenario_moving_blend_6_orbits]
 
 main_naming_identifier = 'hex_plane_j2'
 scenario_name_list = ['HCW',
-                      # 'ROE',
+                      'ROE',
                       'BLEND']
 satellites_to_plot = None
 

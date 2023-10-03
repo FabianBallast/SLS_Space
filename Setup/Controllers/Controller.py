@@ -34,6 +34,7 @@ class Controller(ABC):
         self.angle_states = None
         self.dynamics = system_dynamics
         self.all_angle_states = None
+        self.total_solver_time = 0
 
     @abstractmethod
     def create_system(self, number_of_systems: int) -> None:

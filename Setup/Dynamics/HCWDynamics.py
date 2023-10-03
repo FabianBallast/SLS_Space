@@ -19,7 +19,7 @@ class RelCylHCW(TranslationalDynamics):
         if self.is_scaled and not self.J2_active and not isinstance(scenario.orbital.longitude, list):
             self.param = DynamicParameters(state_limit=[0.1, 10, 0.1, 0.1, self.mean_motion / 10, 0.1],
                                            input_limit=[0.1, 0.1, 0.1],
-                                           q_sqrt=np.diag(np.array([4, 50, 15, 10, 10, 10])),  # 4, 50
+                                           q_sqrt=np.diag(np.array([5, 50, 10, 50, 100, 10])),  # 4, 50
                                            r_sqrt_scalar=1e-2,
                                            slack_variable_length=0,
                                            slack_variable_costs=[10000, 0, 0, 0, 0, 0],
@@ -27,17 +27,17 @@ class RelCylHCW(TranslationalDynamics):
         elif self.is_scaled and not isinstance(scenario.orbital.longitude, list):  # Single orbit
             self.param = DynamicParameters(state_limit=[0.1, 10, 0.1, 0.1, self.mean_motion / 10, 0.1],
                                            input_limit=[0.1, 0.1, 0.1],
-                                           q_sqrt=np.diag(np.array([4, 50, 15, 10, 10, 10])),
+                                           q_sqrt=np.diag(np.array([5, 50, 10, 50, 100, 10])),
                                            r_sqrt_scalar=1e-2,
-                                           slack_variable_length=9,
+                                           slack_variable_length=0,
                                            slack_variable_costs=[10000, 0, 0, 0, 0, 0],
                                            planetary_distance=np.deg2rad(5))
         elif self.is_scaled:
-            self.param = DynamicParameters(state_limit=[0.2, 10, 4, 0.01, self.mean_motion / 10, 0.1],
+            self.param = DynamicParameters(state_limit=[0.1, 10, 4, 0.1, self.mean_motion / 10, 0.1],
                                            input_limit=[0.1, 0.1, 0.1],
-                                           q_sqrt=np.diag(np.array([4, 50, 15, 10, 10, 10])),
+                                           q_sqrt=np.diag(np.array([5, 50, 0.01, 50, 10, 0.1])),
                                            r_sqrt_scalar=1e-2,
-                                           slack_variable_length=9,
+                                           slack_variable_length=0,
                                            slack_variable_costs=[10000, 0, 0, 0, 0, 0],
                                            planetary_distance=np.deg2rad(5),
                                            inter_planetary_distance=1)

@@ -2,27 +2,35 @@ import numpy as np
 from Scenarios.MainScenarios import Scenario
 
 
-def RK4_integration(x0: np.ndarray, inputs: np.ndarray, scenario: Scenario):
+def RK4_integration(x0: np.ndarray, inputs: np.ndarray, scenario: Scenario, simulation_length: int):
     """
     Simulate the dynamics of the system using RK4
 
     :param x0: The starting state in shape (6 * number_of_satellites, )
     :param inputs: The control inputs in shape (t, 3 * number_of_satellites) in N.
     :param scenario: The scenario that is running.
+    :param simulation_length: Length of the simulation.
     :return: States over time in shape (t, 6 * number_of_satellites).
     """
     timestep = scenario.simulation.simulation_timestep
-    simulation_length = scenario.simulation.simulation_duration
 
     number_of_iterations = int((simulation_length + 0.001) / timestep)
     x = np.zeros((number_of_iterations + 1, x0.shape[0]))
     x[0] = x0
 
     for t in range(number_of_iterations):
-        k1 = find_xdot(x[t], inputs[t], scenario)
-        k2 = find_xdot(x[t] + 0.5 * timestep * k1, inputs[t], scenario)
-        k3 = find_xdot(x[t] + 0.5 * timestep * k2, inputs[t], scenario)
-        k4 = find_xdot(x[t] + timestep * k3, inputs[t], scenario)
+
+        t_sim = int((t + 0.0001) / scenario.control.control_timestep)
+
+        try:
+            input_val = inputs[t_sim]
+        except IndexError:
+            input_val = inputs[-1]
+
+        k1 = find_xdot(x[t], input_val, scenario)
+        k2 = find_xdot(x[t] + 0.5 * timestep * k1, input_val, scenario)
+        k3 = find_xdot(x[t] + 0.5 * timestep * k2, input_val, scenario)
+        k4 = find_xdot(x[t] + timestep * k3, input_val, scenario)
 
         x[t + 1] = x[t] + timestep / 6 * (k1 + 2 * k2 + 2 * k3 + k4)
 

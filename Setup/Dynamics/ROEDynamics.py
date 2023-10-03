@@ -21,7 +21,8 @@ class ROE(TranslationalDynamics):
         self.e_c = scenario.orbital.eccentricity
 
         if self.is_scaled and not self.J2_active:
-            self.param = DynamicParameters(state_limit=[0.01, 10, 0.1, 0.1, 0.1, 0.1], # [0.0015, 10, 0.01, 0.01, 0.001, 0.001],
+            self.param = DynamicParameters(state_limit=[0.01, 10, 0.1, 0.1, 0.1, 0.1],
+                                           # [0.0015, 10, 0.01, 0.01, 0.001, 0.001],
                                            input_limit=[0.1, 0.1, 0.1],
                                            q_sqrt=np.diag(np.array([220, 50, 700, 50, 1, 1])),
                                            r_sqrt_scalar=1e-2)
@@ -71,7 +72,7 @@ class ROE(TranslationalDynamics):
             R = np.cos(self.inclination)
             S = np.sin(2 * self.inclination)
             U = np.sin(self.inclination)
-            G = 1 / eta**2
+            G = 1 / eta ** 2
             M_dot = np.array([-7 / 2 * eta * P, 0, 3 * self.eccentricity * eta * G * P, 0, -3 * eta * S, 0])
             omega_dot = np.array([-7 / 2 * Q, 0, 4 * self.eccentricity * G * Q, 0, -5 * S, 0])
             Omega_dot = np.array([7 * self.inclination, 0, -8 * self.eccentricity * G * R, 0, 2 * U, 0])
@@ -229,23 +230,23 @@ class QuasiROE(TranslationalDynamics):
         self.is_LTI = False
 
         if self.is_scaled and not self.J2_active:
-            self.param = DynamicParameters(state_limit=[0.0015, 100, 0.01, 0.01, 0.02, 0.01],
+            self.param = DynamicParameters(state_limit=[0.1 / self.orbit_radius, 100, 0.002, 0.002, 0.05, 1],
                                            input_limit=[0.1, 0.1, 0.1],
-                                           q_sqrt=np.diag(np.array([220, 50, 800, 800, 15, 15])),
+                                           q_sqrt=np.diag(np.array([5 * self.orbit_radius, 50, 200, 200, 15, 15])),
                                            r_sqrt_scalar=1e-2,
                                            slack_variable_length=0,
                                            slack_variable_costs=[10000, 0, 0, 0, 0, 0])
         elif self.is_scaled:
-            self.param = DynamicParameters(state_limit=[0.0015, 1000, 0.002, 0.002, 0.01, 0.00],
+            self.param = DynamicParameters(state_limit=[0.1 / self.orbit_radius, 100, 0.002, 0.002, 0.05, 1],
                                            input_limit=[0.1, 0.1, 0.1],
-                                           q_sqrt=np.diag(np.array([220, 50, 800, 800, 100, 100])),
+                                           q_sqrt=np.diag(np.array([5 * self.orbit_radius, 50, 200, 200, 15, 15])),
                                            r_sqrt_scalar=1e-2,
-                                           slack_variable_length=9,
+                                           slack_variable_length=0,
                                            slack_variable_costs=[10000, 0, 0, 0, 0, 0])
         else:
-            self.param = DynamicParameters(state_limit=[0.001, 1000, 0.001, 0.001, 1000, 1000],
-                                           input_limit=[100, 100, 100],
-                                           q_sqrt=np.diag(np.array([1000, 10, 1000, 1000, 0, 0])),
+            self.param = DynamicParameters(state_limit=[0.1 / self.orbit_radius, 100, 0.002, 0.002, 0.05, 1],
+                                           input_limit=[0.1, 0.1, 0.1],
+                                           q_sqrt=np.diag(np.array([5 * self.orbit_radius, 50, 200, 200, 15, 15])),
                                            r_sqrt_scalar=1e-2)
 
     def create_model(self, sampling_time: float, argument_of_latitude: int = 0, **kwargs) -> ct.LinearIOSystem:
@@ -271,18 +272,15 @@ class QuasiROE(TranslationalDynamics):
 
         if self.J2_active:
             eta = np.sqrt(1 - self.eccentricity ** 2)
-            E = 1 + eta
-            F = 4 + 3 * eta
-            P = 3 * np.cos(self.inclination) ** 2 - 1
-            S = np.sin(2 * self.inclination)
-            T = np.sin(self.inclination)**2
+            A_10 = -21 * (eta * (3 * np.cos(self.inclination)**2 - 1) + 5 * np.cos(self.inclination)**2 - 1)
 
-            A_J2 = self.J2_scaling_factor * np.array([np.zeros(6),
-                                                      np.array([-7/2*E*P, 0, 0, 0, -F*S, 0]),
-                                                      np.zeros(6),
-                                                      np.zeros(6),
-                                                      np.zeros(6),
-                                                      np.array([7/2*S, 0, 0, 0, 2*T, 0])])
+            gamma = 1 / 8 * self.J2_scaling_factor * self.orbit_radius ** 2 * self.mean_motion / self.orbit_radius ** 2 / eta**4
+            A_J2 = gamma * np.array([np.zeros(6),
+                                     [A_10, 0, 0, 0, -6 * np.sin(2 * self.inclination) * (3 * eta + 5), 0],
+                                     [0, 0, 0, -6 * (5 * np.cos(self.inclination)**2 - 1), 0, 0],
+                                     [0, 0,6 * (5 * np.cos(self.inclination)**2 - 1), 0, 0, 0],
+                                     np.zeros(6),
+                                     [21 * np.sin(2 * self.inclination), 0, 0, 0, 12 * np.sin(self.inclination)**2, 0]])
 
             A_matrix += A_J2
 
@@ -381,8 +379,9 @@ class QuasiROE(TranslationalDynamics):
         anomaly_dot = self.get_orbital_differentiation()[5]
         RAAN = state[5::6] / np.sin(self.inclination)
         relative_latitude = (state[1::6] - RAAN * np.cos(self.inclination)).flatten()
-        absolute_latitude = (relative_latitude + (self.mean_motion + argument_of_periapsis_dot + anomaly_dot) * time_since_start) % (
-                    2 * np.pi)
+        absolute_latitude = (relative_latitude + (
+                    self.mean_motion + argument_of_periapsis_dot + anomaly_dot) * time_since_start) % (
+                                    2 * np.pi)
         return absolute_latitude, np.zeros_like(relative_latitude)
 
     def get_angles_list(self) -> list[bool]:
@@ -408,7 +407,6 @@ class QuasiROE(TranslationalDynamics):
         :return: List with positive cost for states where slack variables should be applied.
         """
         return self.param.slack_variable_costs
-
 
     def get_orbital_parameter(self) -> list[bool]:
         pass

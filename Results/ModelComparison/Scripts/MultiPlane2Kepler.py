@@ -5,12 +5,12 @@ from Results.ModelComparison.Scripts.plotFromData import plot_data
 import pickle
 
 scenarios_to_run = [ScenarioEnum.simple_scenario_HCW_2_orbits,
-                    # ScenarioEnum.simple_scenario_translation_ROE_scaled,
+                    ScenarioEnum.simple_scenario_ROE_2_orbits,
                     ScenarioEnum.simple_scenario_moving_blend_2_orbits]
 
 main_naming_identifier = 'double_plane_kepler'
 scenario_name_list = ['HCW',
-                      # 'ROE',
+                      'ROE',
                       'BLEND']
 satellites_to_plot = None
 

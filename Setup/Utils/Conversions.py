@@ -302,6 +302,41 @@ def oe2main(oe: np.ndarray, reference_oe: np.ndarray, reference_angle_offsets: n
     return main_states
 
 
+def oe2side(oe: np.ndarray, reference_oe: np.ndarray) -> np.ndarray:
+    """
+    Transform a set of orbital elements to blend coordinates.
+
+    :param oe: Array with orbital elements in the shape (t, 6 * number of satellites).
+    :param mu: Gravitational parameter of the Earth.
+    :param reference_oe: Array with elements of the reference (number_of_references, t, 6).
+    :param reference_angle_offsets: Array with the offsets of the reference angles with respect to 0 in rad.
+    :return: Array with blend coordinates in the shape (t, 3 * number of satellites).
+    """
+    # Basic variables
+    time_length = oe.shape[0]
+    number_of_satellites = oe.shape[1] // 6
+    number_of_ref = reference_oe.shape[0]
+    satellites_per_ref = number_of_satellites // number_of_ref
+
+    # Reference variables
+    e_ref = reference_oe[:, :, 1::6]
+    i_ref = reference_oe[:, :, 2::6]
+
+    side_states = np.zeros((oe.shape[0], oe.shape[1] // 3))
+
+    for ref in range(number_of_ref):
+        for idx in range(satellites_per_ref):
+            oe_sat = oe[:, (ref * satellites_per_ref + idx) * 6: (ref * satellites_per_ref + idx + 1) * 6]
+
+            delta_e = oe_sat[:, 1:2] - e_ref[ref]
+            delta_i = oe_sat[:, 2:3] - i_ref[ref]
+
+            side_states[:, (ref * satellites_per_ref + idx) * 2: (ref * satellites_per_ref + idx + 1) * 2] = \
+                np.concatenate((delta_e, delta_i), axis=1)
+
+    return side_states
+
+
 def oe2quasi_roe(oe: np.ndarray, reference_oe: np.ndarray, reference_angle_offsets: np.ndarray=None) -> np.ndarray:
     """
     Transform a set of orbital elements to quasi roe coordinates.

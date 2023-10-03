@@ -15,6 +15,7 @@ from Scenarios.MainScenarios import Scenario
 import Utils.Conversions as Conversion
 from Filters.KalmanFilter import KalmanFilter
 from Scenarios.OrbitalScenarios import OrbitGroup
+from Simulator import Dynamics_simulator as mean_simulator
 
 
 class OrbitalMechSimulator:
@@ -91,6 +92,9 @@ class OrbitalMechSimulator:
 
         self.true_anomalies = None
         self.reference_angle_offsets = reference_angle_offsets
+        self.number_of_simulation_steps = None
+        self.initial_state_oe = None
+        self.solver_time = 0
 
     def create_bodies(self, number_of_satellites: int, satellite_mass: float, satellite_inertia: np.ndarray[3, 3],
                       add_reference_satellite: bool = False, use_parameters_from_scenario: Scenario = None) -> None:
@@ -340,10 +344,14 @@ class OrbitalMechSimulator:
 
         initial_states = np.array([])
         self.kalman_state = np.zeros((4 * self.number_of_controlled_satellites,))
+        self.initial_state_oe = np.zeros((6 * self.number_of_controlled_satellites,))
 
         for idx, anomaly in enumerate(orbit_anomalies):
             self.kalman_state[idx * 4:(idx + 1) * 4] = np.array([orbit_semi_major_axis, orbit_eccentricity,
                                                                  orbit_inclination, orbit_longitude[idx]])
+            self.initial_state_oe[idx * 6:(idx + 1) * 6] = np.array([orbit_semi_major_axis, orbit_eccentricity,
+                                                                     orbit_inclination, orbit_argument_of_periapsis,
+                                                                     orbit_longitude[idx], anomaly])
             initial_states = np.append(initial_states,
                                        element_conversion.keplerian_to_cartesian_elementwise(
                                            gravitational_parameter=earth_gravitational_parameter,
@@ -388,7 +396,7 @@ class OrbitalMechSimulator:
                                                (self.number_of_orbits, 1))
 
         self.initial_reference_state[:, 4] = np.deg2rad(self.scenario.orbital.longitude)
-
+        # print(self.initial_state_oe)
         return initial_states
 
     def convert_orbital_elements_to_quaternion(self, true_anomalies: list[float], initial_angular_velocity: np.ndarray,
@@ -450,6 +458,14 @@ class OrbitalMechSimulator:
                                  In the order of [q_0, omega_0, q_1, omega_1, etc.]
         """
         self.initial_orientation = initial_rotation
+
+    def update_mean_orbital_elements(self, mean_orbital_elements) -> None:
+        """
+        Update the mean orbital elements vector.
+
+        :param mean_orbital_elements: Initial state in mean orbital elements.
+        """
+        self.initial_state_oe = mean_orbital_elements
 
     def set_dependent_variables_translation(self, add_keplerian_state: bool = True, add_thrust_accel: bool = False,
                                             add_rsw_rotation_matrix: bool = False) -> None:
@@ -579,6 +595,8 @@ class OrbitalMechSimulator:
         # Small offset to prevent the simulation from doing another step at 4.99999 when going to 5
         termination_settings = propagation_setup.propagator.time_termination(end_epoch - 0.0001)
 
+        self.number_of_simulation_steps = int((end_epoch + 0.00001 - start_epoch) / self.simulation_timestep)
+
         propagator_settings_list = []
         dependent_variables_list = []
         if self.acceleration_model is not None:
@@ -647,8 +665,15 @@ class OrbitalMechSimulator:
                  and the dependent variables, or only the states.
         """
         # Create simulation object and propagate the dynamics
-        with util.redirect_std():
-            dynamics_simulator = create_dynamics_simulator(self.bodies, self.propagator_settings)
+        if self.scenario.use_mean_simulator:
+            # print(self.initial_state_oe)
+            dynamics_simulator = mean_simulator.create_dynamics_simulator(self.initial_state_oe, self.thrust_inputs,
+                                                                          self.scenario, self.number_of_simulation_steps)
+            self.thrust_forces = self.thrust_inputs.T
+            # self.initial_state_oe = dynamics_simulator.dependent_variable_history[self.number_of_simulation_steps]
+        else:
+            with util.redirect_std():
+                dynamics_simulator = create_dynamics_simulator(self.bodies, self.propagator_settings)
         # dynamics_simulator = create_dynamics_simulator(self.bodies, self.propagator_settings)
 
         states = dynamics_simulator.state_history
@@ -711,20 +736,23 @@ class OrbitalMechSimulator:
             if self.filtered_oe_ref.shape[1] > 2:
                 self.oe_mean_0 = self.filtered_oe_ref[:, -1:]
 
-            thrust_calculated = False
-            if self.thrust_inputs is None:
-                self.get_thrust_forces_from_acceleration()
-                self.thrust_inputs = self.thrust_forces.T
-                thrust_calculated = True
+            if not self.scenario.use_mean_simulator:
+                thrust_calculated = False
+                if self.thrust_inputs is None:
+                    self.get_thrust_forces_from_acceleration()
+                    self.thrust_inputs = self.thrust_forces.T
+                    thrust_calculated = True
 
-            oe_sat[:, 4::6][:, oe_sat[0, 4::6] > np.pi] -= 2 * np.pi
-            oe_sat[:, 4::6] = np.unwrap(oe_sat[:, 4::6], axis=0)
+                oe_sat[:, 4::6][:, oe_sat[0, 4::6] > np.pi] -= 2 * np.pi
+                oe_sat[:, 4::6] = np.unwrap(oe_sat[:, 4::6], axis=0)
 
-            self.filtered_oe = self.filter.filter_data(oe_sat,
-                                                       self.thrust_inputs.reshape(
-                                                           (3 * self.number_of_controlled_satellites, -1)).T,
-                                                       update_state=oe_sat.shape[0] > 5,
-                                                       inputs_with_same_sampling_time=thrust_calculated)
+                self.filtered_oe = self.filter.filter_data(oe_sat,
+                                                           self.thrust_inputs.reshape(
+                                                               (3 * self.number_of_controlled_satellites, -1)).T,
+                                                           update_state=oe_sat.shape[0] > 5,
+                                                           inputs_with_same_sampling_time=thrust_calculated)
+            else:
+                self.filtered_oe = oe_sat
 
         return self.filtered_oe, self.filtered_oe_ref
 
@@ -1538,6 +1566,9 @@ class OrbitalMechSimulator:
 
         satellite_names, satellite_indices = self.find_satellite_names_and_indices(satellite_names, state_length=1)
 
+        if np.max(Omega) - np.min(Omega) < 1e-6:
+            Omega *= 0
+
         for idx, satellite_name in enumerate(satellite_names):
             satellite_idx = satellite_indices[idx]
             states = np.concatenate((radius[:, satellite_idx:satellite_idx + 1],
@@ -1560,8 +1591,12 @@ class OrbitalMechSimulator:
         oe_filtered, oe_ref = self.filter_oe()
         satellite_names, satellite_indices = self.find_satellite_names_and_indices(satellite_names, state_length=1)
 
-        e = oe_filtered[:, 1::6]
-        i = oe_filtered[:, 2::6]
+        side_states = Conversion.oe2side(oe_filtered, oe_ref)
+        e = side_states[:, 0::2]
+        i = side_states[:, 1::2]
+
+        if np.max(i) - np.min(i) < 1e-6:
+            i *= 0
 
         for idx, satellite_name in enumerate(satellite_names):
             satellite_idx = satellite_indices[idx]
@@ -1588,13 +1623,16 @@ class OrbitalMechSimulator:
         if self.thrust_forces is None:
             self.get_thrust_forces_from_acceleration()
 
-        satellite_names, satellite_indices = self.find_satellite_names_and_indices(satellite_names, state_length=1)
+        satellite_names, satellite_indices = self.find_satellite_names_and_indices(satellite_names, state_length=3)
 
         color_palette = list(mcolors.TABLEAU_COLORS.values())
         legend_names = [legend_name] + [None] * len(satellite_names)
 
         for idx, satellite_name in enumerate(satellite_names):
-            figure = PlotRes.plot_inputs_report(self.thrust_forces[:, :, satellite_indices[idx]],
+            inputs = np.concatenate((self.thrust_forces[1:, satellite_indices[idx]:satellite_indices[idx]+1],
+                                     self.thrust_forces[1:, satellite_indices[idx] + 1:satellite_indices[idx]+2],
+                                     self.thrust_forces[1:, satellite_indices[idx] + 2:satellite_indices[idx]+3]), axis=1)
+            figure = PlotRes.plot_inputs_report(inputs,
                                                 self.simulation_timestep,
                                                 figure=figure,
                                                 color=color_palette[idx % 10],
@@ -1606,21 +1644,33 @@ class OrbitalMechSimulator:
         """
         Print metrics to score approaches
         """
-        if self.cylindrical_states is None:
-            self.convert_to_cylindrical_coordinates()
+        oe_filtered, oe_ref = self.filter_oe()
+        main_states = Conversion.oe2main(oe_filtered, oe_ref, self.reference_angle_offsets)
+        radius = main_states[:, 0::3]
+        theta = main_states[:, 1::3]
+        Omega = main_states[:, 2::3]
 
         if self.thrust_forces is None:
             self.get_thrust_forces_from_acceleration()
 
-        state_values = self.cylindrical_states.reshape((-1, 6))
-        mean_state_values = np.mean(np.abs(state_values[:, :3]), axis=0)
-        mean_norm_state = np.mean(np.linalg.norm(state_values[:, :3], axis=1))
+        mean_radius = np.mean(np.abs(radius))
+        mean_theta = np.mean(np.abs(theta))
+        mean_Omega = np.mean(np.abs(Omega))
 
-        input_values = self.thrust_forces.transpose(1, 2, 0).reshape((3, -1)).T
-        mean_input_values = np.mean(np.abs(input_values), axis=0)
-        mean_norm_input = np.mean(np.linalg.norm(input_values, axis=1))
+        inputs_r = self.thrust_forces[1:, 0::3]
+        inputs_t = self.thrust_forces[1:, 1::3]
+        inputs_n = self.thrust_forces[1:, 2::3]
 
-        state_results = f"{mean_state_values=}, {mean_norm_state=}\n"
-        input_results = f"{mean_input_values=}, {mean_norm_input}"
+        inputs_order = np.concatenate((inputs_r.reshape((-1, 1)), inputs_t.reshape((-1, 1)),
+                                       inputs_n.reshape((-1, 1))), axis=1)
+
+        mean_ur = np.mean(np.abs(inputs_r))
+        mean_ut = np.mean(np.abs(inputs_t))
+        mean_un = np.mean(np.abs(inputs_n))
+
+        norms = np.mean(np.linalg.norm(inputs_order, axis=1))
+
+        state_results = f"Mean radius: {mean_radius=}, mean theta: {mean_theta=} and mean omega: {mean_Omega}\n"
+        input_results = f"Mean u_r: {mean_ur}, mean u_t: {mean_ut}, mean u_n: {mean_un} and mean norm: {norms}"
 
         return state_results + input_results

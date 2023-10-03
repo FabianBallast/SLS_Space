@@ -21,30 +21,33 @@ class Blend(TranslationalDynamics):
 
         self.e_c = scenario.orbital.eccentricity
 
+        self.theta2ex = 2 / self.mean_motion
+        self.r2ey = 1 / (self.mean_motion * self.orbit_radius)
+
         self.state_size = 6
         if not self.J2_active:
-            self.param = DynamicParameters(state_limit=[0.1, 10, 0.1, 0.1, 2, 2],
+            self.param = DynamicParameters(state_limit=[0.1, 10, self.mean_motion / 10 * self.theta2ex, 0.1 * self.r2ey, 1, 1],
                                            input_limit=[0.1, 0.1, 0.1],
-                                           q_sqrt=np.diag(np.array([4, 50, 10, 10, 0.1, 0.1])),
+                                           q_sqrt=np.diag(np.array([5, 50, 100 / np.sqrt(self.theta2ex), 50 / np.sqrt(self.r2ey), 10, 10])),
                                            r_sqrt_scalar=1e-2,
                                            slack_variable_length=0,
                                            slack_variable_costs=[1000000, 0, 0, 0, 0, 0],
                                            planetary_distance=np.deg2rad(5)
                                            )
         elif not isinstance(scenario.orbital.longitude, list):  # Single orbit
-            self.param = DynamicParameters(state_limit=[0.1, 10, 0.1, 0.1, 2, 2],
+            self.param = DynamicParameters(state_limit=[0.1, 10, self.mean_motion / 10 * self.theta2ex, 0.1 * self.r2ey, 1, 1],
                                            input_limit=[0.1, 0.1, 0.1],
-                                           q_sqrt=np.diag(np.array([4, 200, 15, 10, 0.1, 0.1])),
+                                           q_sqrt=np.diag(np.array([5, 50, 100 / np.sqrt(self.theta2ex), 50 / np.sqrt(self.r2ey), 10, 10])),
                                            r_sqrt_scalar=1e-2,
-                                           slack_variable_length=10,
+                                           slack_variable_length=0,
                                            slack_variable_costs=[1000000, 0, 0, 0, 0, 0],
                                            planetary_distance=np.deg2rad(5))
         else:
-            self.param = DynamicParameters(state_limit=[0.1, 10, 0.1, 0.1, 2, 2],
+            self.param = DynamicParameters(state_limit=[0.1, 10, self.mean_motion / 10 * self.theta2ex, 0.1 * self.r2ey, 11],
                                            input_limit=[0.1, 0.1, 0.1],
-                                           q_sqrt=np.diag(np.array([4, 200, 15, 10, 0.1, 0.1])),
+                                           q_sqrt=np.diag(np.array([5, 50, 100 / np.sqrt(self.theta2ex), 50 / np.sqrt(self.r2ey), 10, 10])),
                                            r_sqrt_scalar=1e-2,
-                                           slack_variable_length=10,
+                                           slack_variable_length=0,
                                            slack_variable_costs=[1000000, 0, 0, 0, 0, 0],
                                            planetary_distance=np.deg2rad(5),
                                            inter_planetary_distance=np.deg2rad(5),
@@ -77,23 +80,23 @@ class Blend(TranslationalDynamics):
 
         if self.J2_active:
             M_base = 3 * np.cos(self.inclination) ** 2 - 1
-            omega_base = 5 * np.cos(self.inclination) ** 2 - 1
-            Omega_base = -2 * np.cos(self.inclination)
+            Lat_base = -7 / 2 * (9 * np.cos(self.inclination) ** 2 - 2)
+            xi_base = 8 * np.cos(self.inclination) ** 2 - 2
 
             # M_dot = np.array([-7/2 * M_base, 0, -7/2 * M_base * np.cos(true_anomaly), -3 * eta * np.sin(self.inclination * 2), 0])
             # omega_dot = np.array([-7 / 2 * omega_base, 0, -7/2 * omega_base * np.cos(true_anomaly), -5 * np.sin(self.inclination * 2), 0])
             # Omega_dot = np.array([-7/2 * Omega_base, 0, -7/2 * Omega_base * np.cos(true_anomaly), 2 * np.sin(self.inclination), 0])
 
-            M_dot = np.array([-7 / 2 * M_base * 0, 0, 0, 0, -3 * np.sin(self.inclination * 2), 0])
-            omega_dot = np.array([-7 / 2 * omega_base * 0, 0, 0, 0, -5 * np.sin(self.inclination * 2), 0])
-            Omega_dot = np.array([-7 / 2 * Omega_base * 0, 0, 0, 0, 2 * np.sin(self.inclination), 0])
-
-            A_J2 = self.J2_scaling_factor * np.array([np.zeros(self.state_size),
-                                                      np.zeros(self.state_size),
-                                                      M_dot + omega_dot,
-                                                      np.zeros(self.state_size),
-                                                      np.zeros(self.state_size),
-                                                      Omega_dot])
+            # M_dot = np.array([-7 / 2 * M_base * 0, 0, 0, 0, -3 * np.sin(self.inclination * 2), 0])
+            # omega_dot = np.array([-7 / 2 * omega_base * 0, 0, 0, 0, -5 * np.sin(self.inclination * 2), 0])
+            # Omega_dot = np.array([-7 / 2 * Omega_base * 0, 0, 0, 0, 2 * np.sin(self.inclination), 0])
+            gamma = 3 / 4 * self.J2_scaling_factor * self.earth_radius * np.sqrt(self.earth_gravitational_parameter) * self.orbit_radius**(-4.5)
+            A_J2 = gamma * np.array([[0, 0, 0, self.orbit_radius ** 2 * M_base, 0, 0],
+                                     [Lat_base, 0, self.orbit_radius * Lat_base, 0, 0, 0],
+                                     [0, 0, 0, -self.orbit_radius * M_base, 0, 0],
+                                     [0, 0, self.orbit_radius * M_base, 0, 0, 0],
+                                     [0, 0, 0, 0, 0, -self.orbit_radius * xi_base],
+                                     [0, 0, 0, 0, self.orbit_radius * xi_base, 0]])
 
             A_matrix += A_J2
 
@@ -199,7 +202,7 @@ class Blend(TranslationalDynamics):
         cos_theta_sin_i_sat = state[4::6] + np.cos(absolute_latitude_reference) * self.inclination
         sin_theta_sin_i_sat = state[5::6] + np.sin(absolute_latitude_reference) * self.inclination
 
-        inclination = np.arcsin(np.sqrt(cos_theta_sin_i_sat**2 + sin_theta_sin_i_sat**2))
+        inclination = np.arcsin(np.sqrt(cos_theta_sin_i_sat ** 2 + sin_theta_sin_i_sat ** 2))
         relative_latitude = np.arccos(cos_theta_sin_i_sat / np.sin(inclination)).flatten()
         absolute_latitude = (relative_latitude + absolute_latitude_reference)  # % (2 * np.pi)
         return absolute_latitude, np.zeros_like(relative_latitude)
@@ -334,7 +337,7 @@ class BlendSmall(Blend):
         #                                                [0, 0, 0, 0],
         #                                                [0, 0, 0, 0]])
         A_matrix = np.array([[0, 0, 0, self.mean_motion, 0, 0],
-                             [-3/2 * self.mean_motion, 0, self.mean_motion / 2, 0, 0, 0],
+                             [-3 / 2 * self.mean_motion, 0, self.mean_motion / 2, 0, 0, 0],
                              [0, 0, 0, -self.mean_motion, 0, 0],
                              [0, 0, self.mean_motion, 0, 0, 0],
                              [0, 0, 0, 0, 0, 0],
@@ -349,9 +352,12 @@ class BlendSmall(Blend):
             # omega_dot = np.array([-7 / 2 * omega_base, 0, -7/2 * omega_base * np.cos(true_anomaly), -5 * np.sin(self.inclination * 2), 0])
             # Omega_dot = np.array([-7/2 * Omega_base, 0, -7/2 * Omega_base * np.cos(true_anomaly), 2 * np.sin(self.inclination), 0])
 
-            M_dot = np.array([0, 0, 0, 0 * -7/2 * M_base * np.cos(true_anomaly), -3 * np.sin(self.inclination * 2), 0])
-            omega_dot = np.array([0, 0, 0, 0 * -7/2 * omega_base * np.cos(true_anomaly), -5 * np.sin(self.inclination * 2), 0])
-            Omega_dot = np.array([0, 0, 0, 0 * -7/2 * Omega_base * np.cos(true_anomaly), 2 * np.sin(self.inclination), 0])
+            M_dot = np.array(
+                [0, 0, 0, 0 * -7 / 2 * M_base * np.cos(true_anomaly), -3 * np.sin(self.inclination * 2), 0])
+            omega_dot = np.array(
+                [0, 0, 0, 0 * -7 / 2 * omega_base * np.cos(true_anomaly), -5 * np.sin(self.inclination * 2), 0])
+            Omega_dot = np.array(
+                [0, 0, 0, 0 * -7 / 2 * Omega_base * np.cos(true_anomaly), 2 * np.sin(self.inclination), 0])
 
             A_J2 = self.J2_scaling_factor * np.array([np.zeros(self.state_size),
                                                       M_dot + omega_dot,
@@ -467,7 +473,7 @@ class BlendSmall(Blend):
         argument_of_periapsis_dot = self.get_orbital_differentiation()[4]
         relative_latitude = state[1::self.state_size].flatten()
         absolute_latitude = (relative_latitude + (
-                    self.mean_motion + argument_of_periapsis_dot) * time_since_start)  # % (2 * np.pi)
+                self.mean_motion + argument_of_periapsis_dot) * time_since_start)  # % (2 * np.pi)
         return absolute_latitude, np.zeros_like(relative_latitude)
 
         #

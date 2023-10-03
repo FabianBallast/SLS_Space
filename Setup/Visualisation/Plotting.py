@@ -20,16 +20,17 @@ def get_time_axis(states_over_time: np.ndarray, timestep: float, required_scale:
     return np.arange(0, states_over_time.shape[0]) * timestep / required_scale
 
 
-def get_figure_and_axes(figure: plt.figure, shape_of_plots: tuple) -> (plt.figure, tuple):
+def get_figure_and_axes(figure: plt.figure, shape_of_plots: tuple, sharex: bool = False) -> (plt.figure, tuple):
     """
     Get the figure with its axes given a shape.
 
     :param figure: Figure that is possibly already present. Use None to create a new one.
     :param shape_of_plots: Shape of the required plot if no figure was provided.
+    :param sharex: Share the x-axis.
     :return: Tuple with figure and a tuple of axes.
     """
     if figure is None:
-        fig, _ = plt.subplots(shape_of_plots[0], shape_of_plots[1], figsize=(16, 9))
+        fig, _ = plt.subplots(shape_of_plots[0], shape_of_plots[1], figsize=(16, shape_of_plots[0] * 3), sharex=sharex)
     else:
         fig = figure
 
@@ -445,9 +446,9 @@ def plot_blend(blend_states: np.ndarray, timestep: float, legend_name: str = '',
     fig.suptitle('Evolution of states.')
 
     is_angle_list = [False, True, False, False, False, False]
-    y_label_list = [r'$\delta r\mathrm{\;[m]}$', r'$\delta\theta+\delta \Omega\mathrm{\;[deg]}$',
-                    r'$\delta e_x \mathrm{\;[-]}$', r'$\delta e_y\mathrm{\;[-]}$',
-                    r'$\delta i_x \mathrm{\;[-]}$', r'$\delta i_y \mathrm{\;[-]}$']
+    y_label_list = [r'$\delta r\mathrm{\;[m]}$', r'$\delta\lambda^f\mathrm{\;[deg]}$',
+                    r'$\delta e_x^f \mathrm{\;[-]}$', r'$\delta e_y^f\mathrm{\;[-]}$',
+                    r'$\delta \xi_x \mathrm{\;[-]}$', r'$\delta \xi_y \mathrm{\;[-]}$']
     legend_names = [None] + [legend_name] + [None] * 4
 
     plot_onto_axes(blend_states, time_hours, list(axes), is_angle_list, y_label_list, legend_names,

@@ -6,6 +6,8 @@ from Scenarios.MainScenarios import ScenarioEnum
 from Scenarios.ScenarioHandler import ScenarioHandler
 from tudatpy.kernel.astro import element_conversion
 
+states = None
+
 # Select desired scenario
 # scenario = ScenarioEnum.position_keeping_scenario_translation_HCW
 # scenario = ScenarioEnum.position_keeping_scenario_translation_HCW_scaled
@@ -17,7 +19,7 @@ from tudatpy.kernel.astro import element_conversion
 # scenario = ScenarioEnum.simple_scenario_translation_HCW_scaled
 
 # scenario = ScenarioEnum.simple_scenario_translation_ROE
-scenario = ScenarioEnum.simple_scenario_translation_ROE_scaled
+# scenario = ScenarioEnum.simple_scenario_translation_ROE_scaled
 
 # scenario = ScenarioEnum.j2_scenario_pos_keep_HCW
 # scenario = ScenarioEnum.j2_scenario_pos_keep_HCW_scaled
@@ -29,7 +31,7 @@ scenario = ScenarioEnum.simple_scenario_translation_ROE_scaled
 # scenario = ScenarioEnum.simple_scenario_translation_ROEV2_scaled
 # scenario = ScenarioEnum.j2_scenario_translation_ROEV2_scaled
 
-# scenario = ScenarioEnum.simple_scenario_translation_blend_scaled
+scenario = ScenarioEnum.simple_scenario_translation_blend_scaled
 # scenario = ScenarioEnum.j2_scenario_translation_blend_scaled
 # scenario = ScenarioEnum.simple_scenario_translation_blend_small_scaled
 # scenario = ScenarioEnum.j2_scenario_translation_blend_small_scaled
@@ -38,6 +40,8 @@ scenario = ScenarioEnum.simple_scenario_translation_ROE_scaled
 # scenario = ScenarioEnum.simple_scenario_HCW_6_orbits
 # scenario = ScenarioEnum.simple_scenario_HCW_2_orbits
 # scenario = ScenarioEnum.simple_scenario_moving_blend_2_orbits
+# scenario = ScenarioEnum.simple_scenario_ROE_2_orbits
+# scenario = ScenarioEnum.simple_scenario_ROE_6_orbits
 # scenario = ScenarioEnum.simple_scenario_moving_blend_6_orbits
 # scenario = ScenarioEnum.j2_scenario_moving_HCW_2_orbits
 # scenario = ScenarioEnum.j2_scenario_moving_blend_2_orbits
@@ -70,7 +74,7 @@ orbital_sim = scenario_handler.export_results()
 #     reference = np.concatenate((np.array([0]), reference.reshape((-1,))))
 # state_fig = orbital_sim.plot_cylindrical_states(figure=None)
 # orbital_sim.plot_3d_orbit()
-orbital_sim.plot_quasi_roe_states(figure=None)
+# orbital_sim.plot_quasi_roe_states(figure=None)
 # orbital_sim.plot_roe_states(reference_angles=reference, figure=None)
 # orbital_sim.plot_keplerian_states(plot_argument_of_latitude=False)
 # orbital_sim.plot_kalman_states()
@@ -79,6 +83,18 @@ orbital_sim.plot_quasi_roe_states(figure=None)
 # orbital_sim.plot_small_blend_states(figure=None)
 # input_fig = orbital_sim.plot_thrusts(figure=None)
 
+if scenario.value.model == Model.HCW:
+    orbital_sim.plot_cylindrical_states(figure=states)
+elif scenario.value.model == Model.ROE:
+    orbital_sim.plot_quasi_roe_states(figure=states)
+elif scenario.value.model == Model.BLEND:
+    orbital_sim.plot_blend_states(figure=states)
+
+orbital_sim.plot_main_states()
+orbital_sim.plot_side_states()
+orbital_sim.plot_inputs()
+
+print(orbital_sim.print_metrics())
 
 # anim = orbital_sim.create_animation()
 # print(orbital_sim.print_metrics())
@@ -103,8 +119,8 @@ orbital_sim.plot_quasi_roe_states(figure=None)
 plt.show()
 
 # Save data
-oe_sat = orbital_sim.dep_vars[:,  orbital_sim.dependent_variables_dict['keplerian state'][orbital_sim.controlled_satellite_names[0]][0]:
-                                  orbital_sim.dependent_variables_dict['keplerian state'][orbital_sim.controlled_satellite_names[-1]][-1] + 1]
-_, oe_ref = orbital_sim.filter_oe()
-inputs = orbital_sim.thrust_forces
+# oe_sat = orbital_sim.dep_vars[:,  orbital_sim.dependent_variables_dict['keplerian state'][orbital_sim.controlled_satellite_names[0]][0]:
+#                                   orbital_sim.dependent_variables_dict['keplerian state'][orbital_sim.controlled_satellite_names[-1]][-1] + 1]
+# _, oe_ref = orbital_sim.filter_oe()
+# inputs = orbital_sim.thrust_forces
 # np.savez("..\\Data\\Temp\\control5", oe_sat=oe_sat, oe_ref=oe_ref, inputs=inputs)

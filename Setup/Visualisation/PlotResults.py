@@ -10,7 +10,7 @@ mpl.rcParams["mathtext.fontset"] = 'cm'  # Better font for LaTex
 
 def plot_onto_axes(states: np.ndarray, time: np.ndarray, axes_list: list[plt.axes], is_angle: list[bool],
                    y_label_names: list[str], legend_names: list[str | None], unwrap_angles: bool = True,
-                   states2plot: list[int] = None, **kwargs) -> None:
+                   states2plot: list[int] = None, xlabel_plot: list[int] = None, **kwargs) -> None:
     """
     Plot states on the provided axes with a given label and legend label name.
     :param states: The states (y-component) to be plotted.
@@ -36,7 +36,9 @@ def plot_onto_axes(states: np.ndarray, time: np.ndarray, axes_list: list[plt.axe
 
         # Plot data
         axes.plot(time, state, label=legend_names[state_idx], **kwargs)
-        axes.set_xlabel(r'$\mathrm{Time\;[min]}$', fontsize=14)
+
+        if xlabel_plot is None or idx in xlabel_plot:
+            axes.set_xlabel(r'$\mathrm{Time\;[min]}$', fontsize=14)
         axes.set_ylabel(y_label_names[state_idx], fontsize=14)
         axes.set_xlim([min(time), max(time)])
         axes.grid(True)
@@ -62,19 +64,19 @@ def plot_main_states_report(states: np.ndarray, timestep: float, legend_name: st
     time_hours = get_time_axis(states, timestep)
 
     if states2plot is None:
-        fig, axes = get_figure_and_axes(figure, (3, 1))
+        fig, axes = get_figure_and_axes(figure, (3, 1), sharex=True)
         states2plot = [0, 1, 2]
     else:
         fig, axes = get_figure_and_axes(figure, (1, len(states2plot)))
 
-    fig.suptitle('Evolution of states.')
+    # fig.suptitle('Evolution of states.')
 
     is_angle_list = [False, True, True]
     y_label_list = [r'$\delta r\mathrm{\;[m]}$', r'$\delta\theta\mathrm{\;[deg]}$', r'$\delta \Omega \mathrm{\;[deg]}$']
     legend_names = [legend_name] + [None] * 2
 
     plot_onto_axes(states, time_hours, list(axes), is_angle_list, y_label_list, legend_names,
-                   states2plot=states2plot, **kwargs)
+                   states2plot=states2plot, xlabel_plot=[2], **kwargs)
 
     return fig
 
@@ -94,19 +96,19 @@ def plot_side_states_report(states: np.ndarray, timestep: float, legend_name: st
     time_hours = get_time_axis(states, timestep)
 
     if states2plot is None:
-        fig, axes = get_figure_and_axes(figure, (1, 2))
+        fig, axes = get_figure_and_axes(figure, (2, 1), sharex=True)
         states2plot = [0, 1]
     else:
         fig, axes = get_figure_and_axes(figure, (1, len(states2plot)))
 
-    fig.suptitle('Evolution of states.')
+    # fig.suptitle('Evolution of states.')
 
     is_angle_list = [False, True]
     y_label_list = [r'$\delta e\mathrm{\;[-]}$', r'$\delta i\mathrm{\;[deg]}$']
     legend_names = [None] + [legend_name]
 
     plot_onto_axes(states, time_hours, list(axes), is_angle_list, y_label_list, legend_names,
-                   states2plot=states2plot, **kwargs)
+                   states2plot=states2plot, xlabel_plot=[1], **kwargs)
 
     return fig
 
@@ -126,18 +128,18 @@ def plot_inputs_report(inputs: np.ndarray, timestep: float, legend_name: str = '
     time_hours = get_time_axis(inputs, timestep)
 
     if states2plot is None:
-        fig, axes = get_figure_and_axes(figure, (3, 1))
+        fig, axes = get_figure_and_axes(figure, (3, 1), sharex=True)
         states2plot = [0, 1, 2]
     else:
         fig, axes = get_figure_and_axes(figure, (1, len(states2plot)))
 
-    fig.suptitle('Control inputs')
+    # fig.suptitle('Control inputs')
 
     is_angle_list = [False, False, False]
     y_label_list = [r'$u_r \mathrm{\;[N]}$', r'$u_t\mathrm{\;[N]}$', r'$u_n \mathrm{\;[N]}$']
     legend_names = [legend_name] + [None] * 2
 
     plot_onto_axes(inputs, time_hours, list(axes), is_angle_list, y_label_list, legend_names,
-                   states2plot=states2plot, **kwargs)
+                   states2plot=states2plot, xlabel_plot=[2], **kwargs)
 
     return fig

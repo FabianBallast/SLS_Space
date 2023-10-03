@@ -4,13 +4,13 @@ from Scenarios.ScenarioHandler import ScenarioHandler
 from Results.ModelComparison.Scripts.plotFromData import plot_data
 import pickle
 
-scenarios_to_run = [ScenarioEnum.simple_scenario_HCW_6_orbits,
-                    # ScenarioEnum.simple_scenario_translation_ROE_scaled,
+scenarios_to_run = [#ScenarioEnum.simple_scenario_HCW_6_orbits,
+                    ScenarioEnum.simple_scenario_ROE_6_orbits,
                     ScenarioEnum.simple_scenario_moving_blend_6_orbits]
 
 main_naming_identifier = 'hex_plane_kepler'
-scenario_name_list = ['HCW',
-                      # 'ROE',
+scenario_name_list = [#'HCW',
+                      'ROE',
                       'BLEND']
 satellites_to_plot = None
 

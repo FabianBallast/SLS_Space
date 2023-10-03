@@ -2,13 +2,15 @@ from Simulator.RK4 import RK4_integration
 import numpy as np
 from Scenarios.MainScenarios import Scenario
 
-def mean_orbital_elements_simulator(x0: np.ndarray, inputs: np.ndarray, scenario: Scenario):
+
+def mean_orbital_elements_simulator(x0: np.ndarray, inputs: np.ndarray, scenario: Scenario, simulation_length: int):
     """
     Simulate the dynamics of the system using RK4
 
     :param x0: The starting state in shape (6 * number_of_satellites, )
     :param inputs: The control inputs in shape (t, 3 * number_of_satellites) in N.
     :param scenario: Scenario that is running.
+    :param simulation_length: Length of the simulation.
     :return: States over time in shape (t, 6 * number_of_satellites).
     """
     # Convert mean orbital elements to state that is used for simulation
@@ -27,7 +29,7 @@ def mean_orbital_elements_simulator(x0: np.ndarray, inputs: np.ndarray, scenario
     sim_state = np.concatenate((r, theta, ex, ey, i, Omega)).reshape((6, -1)).T.flatten()
 
     # Simulate
-    states = RK4_integration(sim_state, inputs, scenario)
+    states = RK4_integration(sim_state, inputs, scenario, simulation_length)
 
     # Convert back
     r = states[:, 0::6]
@@ -50,8 +52,10 @@ def mean_orbital_elements_simulator(x0: np.ndarray, inputs: np.ndarray, scenario
 
 
 if __name__ == '__main__':
-    number_of_satellites = 5
+    from Scenarios.MainScenarios import ScenarioEnum
+
+    number_of_satellites = 10
     x0_test = np.array([55, 0, 0.7, 0.1, 0.1, 0.3] * number_of_satellites)
     inputs = np.zeros((3600, 3 * number_of_satellites))
 
-    res = mean_orbital_elements_simulator(x0_test, inputs, 1, 10)
+    res = mean_orbital_elements_simulator(x0_test, inputs, ScenarioEnum.simple_scenario_translation_ROE_scaled.value, 10)

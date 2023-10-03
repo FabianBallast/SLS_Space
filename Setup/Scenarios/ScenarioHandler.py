@@ -34,6 +34,7 @@ class ScenarioHandler:
         self.sls_states = None
         self.pos_states = None
         self.rot_states = None
+        self.control_inputs = None
 
         self.dep_vars = None
         self.dep_vars_dict = None
@@ -114,6 +115,8 @@ class ScenarioHandler:
         self.rot_states = np.zeros((self.t_horizon_simulation + 1, (
                     self.scenario.number_of_satellites + self.number_of_planes * self.reference_satellites_added) * 7))
 
+        self.control_inputs = np.zeros((self.t_horizon_simulation + 1, len(self.controller.x0) // 2))
+
     def __create_simulation(self) -> None:
         """
         Create an OrbitalMechSim and set most of the parameters, except initial positions.
@@ -149,7 +152,7 @@ class ScenarioHandler:
 
         # Add dependent variables to track
         self.orbital_mech.set_dependent_variables_translation(add_keplerian_state=True,
-                                                              add_rsw_rotation_matrix=True,
+                                                              add_rsw_rotation_matrix=False,
                                                               add_thrust_accel=True)
         # self.orbital_mech.set_dependent_variables_rotation(add_control_torque=True, add_torque_norm=False)
 
@@ -268,7 +271,7 @@ class ScenarioHandler:
 
         :param time: The time for which the simulation is.
         :param initial_setup: Whether this simulation is to provide some initial values.
-                              Simplified simulation in that case.\
+                              Simplified simulation in that case.
         :param full_simulation: Whether to run the complete simulation in one go. No control possible in that case.
                                 Use time = 0 in that case.
         """
@@ -291,6 +294,7 @@ class ScenarioHandler:
 
         self.orbital_mech.set_initial_position(self.pos_states[time * self.control_simulation_ratio:
                                                                time * self.control_simulation_ratio + 1].T)
+
         # self.orbital_mech.set_initial_orientation(self.rot_states[time * self.control_simulation_ratio:
         #                                                           time * self.control_simulation_ratio + 1].T)
 
@@ -323,6 +327,8 @@ class ScenarioHandler:
                 self.dep_vars = self.orbital_mech.dep_vars
                 self.sls_states = control_states
                 self.done_full_sim = True
+
+                self.control_inputs = self.control_inputs_thrust.flatten()
             else:
                 index_selection = np.arange(time * self.control_simulation_ratio + 1,
                                             (time + 1) * self.control_simulation_ratio + 1)
@@ -331,6 +337,9 @@ class ScenarioHandler:
                 # self.rot_states[index_selection] = self.orbital_mech.rotation_states[1:]
                 self.dep_vars[index_selection] = dep_vars_array[1:]
                 self.sls_states[index_selection] = control_states[1:self.control_simulation_ratio + 1]
+                self.orbital_mech.update_mean_orbital_elements(dep_vars_array[-1, 1:])
+
+                self.control_inputs[index_selection] = np.tile(self.control_inputs_thrust[:, :, 0].reshape((1, -1)), (self.control_simulation_ratio, 1))
 
         # Unwrap to prevent weird positions when positions are involved
         if isinstance(self.controller.dynamics, TranslationalDynamics) and not initial_setup and not full_simulation:
@@ -501,5 +510,10 @@ class ScenarioHandler:
         #     orbital_sim.roe = self.orbital_mech.roe
         #     orbital_sim.quasi_roe = self.orbital_mech.quasi_roe
         #     orbital_sim.blend_states = self.orbital_mech.blend_states
+
+        orbital_sim.thrust_forces = self.control_inputs
+        orbital_sim.solver_time = self.controller.total_solver_time
+        print(orbital_sim.solver_time)
+        # print(self.orbital_mech.thrust_forces)
 
         return orbital_sim
