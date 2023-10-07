@@ -1,4 +1,4 @@
-import osqp
+import cuosqp as osqp
 import time
 import numpy as np
 from scipy import sparse

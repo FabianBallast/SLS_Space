@@ -1,6 +1,6 @@
 import numpy as np
-from Optimisation.Transformed.Gurobi_transform import time_optimisation as Gurobi_timer
-from Optimisation.Transformed.OSQP_transform import time_optimisation as OSQP_timer
+# from Optimisation.Transformed.Gurobi_transform import time_optimisation as Gurobi_timer
+from Optimisation.Transformed.cuOSQP_transform import time_optimisation as cuOSQP_timer
 from Results.SolverComparison.Scripts.plotFromData import plot_data
 import pickle
 
@@ -10,10 +10,10 @@ scaling_factor = 1.1
 initial_number_of_satellites = 3
 maximum_time_in_seconds = 2
 
-timers_to_run = [Gurobi_timer,
-                 OSQP_timer]
-timer_names = ['Gurobi',
-               'OSQP']
+timers_to_run = [#Gurobi_timer,
+                 cuOSQP_timer]
+timer_names = [#'Gurobi',
+               'cuOSQP']
 satellite_array = [[initial_number_of_satellites] for i in range(len(timer_names))]
 time_array = [list() for i in range(len(timer_names))]
 arguments = {timer_name: {'prediction_horizon': prediction_horizon} for timer_name in timer_names}
