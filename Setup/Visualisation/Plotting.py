@@ -1,3 +1,4 @@
+from __future__ import annotations
 from matplotlib import pyplot as plt
 import matplotlib as mpl
 from matplotlib.cbook import silent_list

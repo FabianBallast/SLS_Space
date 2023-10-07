@@ -1,8 +1,8 @@
 import numpy as np
-from Optimisation.Vector.OSQP import time_optimisation as OSPQ_timer
-from Optimisation.Vector.Gurobi import time_optimisation as Gurobi_timer
-from Optimisation.Vector.QuadProg import time_optimisation as QuadProg_timer
-from Optimisation.Vector.CVXPY import time_optimisation as CVXPY_timer
+from Optimisation.Vector.cuOSQP import time_optimisation as cuOSQP_timer
+#from Optimisation.Vector.Gurobi import time_optimisation as Gurobi_timer
+#from Optimisation.Vector.QuadProg import time_optimisation as QuadProg_timer
+#from Optimisation.Vector.CVXPY import time_optimisation as CVXPY_timer
 # from Controllers.SimulatedAnnealing import time_optimisation as SimAn_timer
 from Results.SolverComparison.Scripts.plotFromData import plot_data
 import matplotlib.pyplot as plt
@@ -14,15 +14,17 @@ scaling_factor = 1.1
 initial_number_of_satellites = 3
 maximum_time_in_seconds = 1
 
-timers_to_run = [QuadProg_timer, OSPQ_timer, Gurobi_timer, CVXPY_timer, CVXPY_timer]
-timer_names = ['QuadProg', 'OSQP', 'Gurobi', 'CVXPY(OSQP)', 'CVXPY(Gurobi)']
+#timers_to_run = [QuadProg_timer, OSPQ_timer, Gurobi_timer, CVXPY_timer, CVXPY_timer]
+#timer_names = ['QuadProg', 'OSQP', 'Gurobi', 'CVXPY(OSQP)', 'CVXPY(Gurobi)']
 # timers_to_run = [Gurobi_timer, CVXPY_timer]
 # timer_names = ['Gurobi', 'CVXPY(OSQP)']
+timers_to_run = [cuOSQP_timer]
+timer_names = ['cuOSQP']
 
 satellite_array = [[initial_number_of_satellites] for i in range(len(timer_names))]
 time_array = [list() for i in range(len(timer_names))]
 arguments = {timer_name: {'prediction_horizon': prediction_horizon} for timer_name in timer_names}
-arguments['CVXPY(OSQP)']['solver'] = 'OSQP'
+# arguments['CVXPY(OSQP)']['solver'] = 'OSQP'
 
 for idx, timer in enumerate(timers_to_run):
     print(f'Starting on {timer_names[idx]}')

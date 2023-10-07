@@ -1,9 +1,9 @@
+from __future__ import annotations
 from typing import Callable
 import control as ct
 import numpy as np
 from matplotlib import pyplot as plt
-from tudatpy.kernel.astro import element_conversion
-
+# from tudatpy.kernel.astro import element_conversion
 from Dynamics.DynamicsParameters import DynamicParameters
 from Dynamics.SystemDynamics import TranslationalDynamics
 import Visualisation.Plotting as Plot
@@ -24,7 +24,7 @@ class Blend(TranslationalDynamics):
         self.theta2ex = 2 / self.mean_motion
         self.r2ey = 1 / (self.mean_motion * self.orbit_radius)
 
-        print(self.r2ey)
+        # print(self.r2ey)
 
         self.state_size = 6
         if not self.J2_active:

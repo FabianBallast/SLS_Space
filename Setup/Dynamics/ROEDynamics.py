@@ -1,9 +1,8 @@
+from __future__ import annotations
 from typing import Callable
 import control as ct
 import numpy as np
 from matplotlib import pyplot as plt
-from tudatpy.kernel.astro import element_conversion
-
 from Dynamics.DynamicsParameters import DynamicParameters
 from Dynamics.SystemDynamics import TranslationalDynamics
 import Visualisation.Plotting as Plot

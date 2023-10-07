@@ -10,7 +10,7 @@ from Scenarios.ControlScenarios import Model
 
 def create_sparse_problem(number_of_satellites: int,
                           prediction_horizon: int = None,
-                          scenario: Scenario = ScenarioEnum.simple_scenario_translation_HCW_scaled.value) -> dict:
+                          scenario: Scenario = ScenarioEnum.simple_scenario_translation_blend_scaled.value) -> dict:
     """
     Create a sparse optimisation problem.
 

@@ -1,12 +1,26 @@
 from enum import Enum
 import numpy as np
-from tudatpy.kernel.interface import spice
-from tudatpy.kernel.numerical_simulation import environment_setup
+# from tudatpy.kernel.interface import spice
+# from tudatpy.kernel.numerical_simulation import environment_setup
 
 # Find default physical parameters
-spice.load_standard_kernels()
-body_settings = environment_setup.get_default_body_settings(['Earth'], 'Earth', 'J2000')
+# spice.load_standard_kernels()
+# body_settings = environment_setup.get_default_body_settings(['Earth'], 'Earth', 'J2000')
 
+class ShapeSettings:
+    def __init__(self, radius):
+        self.radius = radius
+
+class GravityFieldSettings:
+    def __init__(self, grav_param):
+        self.gravitational_parameter = grav_param
+
+class BodySettings:
+    def __init__(self, radius, grav_param):
+        self.shape_settings = ShapeSettings(radius)
+        self.gravity_field_settings = GravityFieldSettings(grav_param)
+
+body_settings = {'Earth': BodySettings(6371e3, 3.986e14)}
 
 class Physics:
     """
