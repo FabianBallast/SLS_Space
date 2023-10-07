@@ -6,25 +6,32 @@ import pickle
 
 prediction_horizon = 10
 main_naming_identifier = 'sparse_SLS'
+scaling_factor = 1.1
+initial_number_of_satellites = 3
+maximum_time_in_seconds = 2
 
 timers_to_run = [Gurobi_timer, OSQP_timer]
 timer_names = ['Gurobi', 'OSQP']
-satellite_array = [np.logspace(np.log10(3), np.log10(100), num=10, dtype=int),
-                   np.logspace(np.log10(3), np.log10(100), num=10, dtype=int)]
-
-time_array = [np.zeros_like(satellite_arr, dtype=float) for satellite_arr in satellite_array]
+satellite_array = [[initial_number_of_satellites] for i in range(len(timer_names))]
+time_array = [list() for i in range(len(timer_names))]
+arguments = {timer_name: {'prediction_horizon': prediction_horizon} for timer_name in timer_names}
 
 for idx, timer in enumerate(timers_to_run):
     print(f'Starting on {timer_names[idx]}')
 
-    for i, number_of_satellites in enumerate(satellite_array[idx]):
-        time_array[idx][i] = timers_to_run[idx](int(number_of_satellites), prediction_horizon=prediction_horizon)
+    while True:
+        last_time = timers_to_run[idx](satellite_array[idx][-1], **arguments[timer_names[idx]])
+        time_array[idx].append(last_time)
+        if last_time >= maximum_time_in_seconds:
+            break
+
+        satellite_array[idx].append(max(satellite_array[idx][-1] + 1, int(scaling_factor * satellite_array[idx][-1])))
 
     # Save orbital sim with all data
     file_name = '../Data/' + main_naming_identifier + '_' + timer_names[idx]
     with open(file_name, 'wb') as file:
-        pickle.dump(satellite_array[idx], file)
-        pickle.dump(time_array[idx], file)
+        pickle.dump(np.array(satellite_array[idx]), file)
+        pickle.dump(np.array(time_array[idx]), file)
         pickle.dump(timer_names[idx], file)
 
 plot_data(main_naming_identifier)

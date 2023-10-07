@@ -43,13 +43,13 @@ def plot_onto_axes(states: np.ndarray, time: np.ndarray, axes_list: list[plt.axe
         axes.set_xlim([min(time), max(time)])
         axes.grid(True)
 
-        # if legend_names[state_idx] is not None:
-        #     axes.legend(fontsize=12)
+        if legend_names[state_idx] is not None:
+            axes.legend(fontsize=12)
 
     plt.tight_layout()
 
 
-def plot_main_states_report(states: np.ndarray, timestep: float, legend_name: str = '',
+def plot_main_states_report(states: np.ndarray, timestep: float, legend_name: str = None,
                             figure: plt.figure = None, states2plot: list[int] = None, **kwargs) -> plt.figure:
     """
     Method to plot the main states over time.
@@ -74,14 +74,14 @@ def plot_main_states_report(states: np.ndarray, timestep: float, legend_name: st
     is_angle_list = [False, True, True]
     y_label_list = [r'$\delta r\mathrm{\;[m]}$', r'$\delta\theta\mathrm{\;[deg]}$', r'$\delta \Omega \mathrm{\;[deg]}$']
     legend_names = [legend_name] + [None] * 2
-
+    # print(legend_names)
     plot_onto_axes(states, time_hours, list(axes), is_angle_list, y_label_list, legend_names,
                    states2plot=states2plot, xlabel_plot=[2], **kwargs)
 
     return fig
 
 
-def plot_side_states_report(states: np.ndarray, timestep: float, legend_name: str = '',
+def plot_side_states_report(states: np.ndarray, timestep: float, legend_name: str = None,
                             figure: plt.figure = None, states2plot: list[int] = None, **kwargs) -> plt.figure:
     """
     Method to plot the side states over time.
@@ -105,7 +105,7 @@ def plot_side_states_report(states: np.ndarray, timestep: float, legend_name: st
 
     is_angle_list = [False, True]
     y_label_list = [r'$\delta e\mathrm{\;[-]}$', r'$\delta i\mathrm{\;[deg]}$']
-    legend_names = [None] + [legend_name]
+    legend_names = [legend_name] + [None]
 
     plot_onto_axes(states, time_hours, list(axes), is_angle_list, y_label_list, legend_names,
                    states2plot=states2plot, xlabel_plot=[1], **kwargs)
@@ -113,7 +113,7 @@ def plot_side_states_report(states: np.ndarray, timestep: float, legend_name: st
     return fig
 
 
-def plot_inputs_report(inputs: np.ndarray, timestep: float, legend_name: str = '',
+def plot_inputs_report(inputs: np.ndarray, timestep: float, legend_name: str = None,
                        figure: plt.figure = None, states2plot: list[int] = None, **kwargs) -> plt.figure:
     """
     Method to plot the inputs over time.

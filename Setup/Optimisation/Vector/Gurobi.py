@@ -39,7 +39,7 @@ def time_optimisation(number_of_satellites: int, prediction_horizon: int = None,
     obj2 = sum(u[k, :] @ problem['R'] @ u[k, :] for k in range(problem['N']))
     m.setObjective(obj1 + obj2, GRB.MINIMIZE)
     m.setParam("OutputFlag", 0)
-    m.setParam("OptimalityTol", 1e-3)
+    m.setParam("BarConvTol", 1e-3)
 
     t_0 = 0
     nsim = 11

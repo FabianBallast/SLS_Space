@@ -24,11 +24,13 @@ class Blend(TranslationalDynamics):
         self.theta2ex = 2 / self.mean_motion
         self.r2ey = 1 / (self.mean_motion * self.orbit_radius)
 
+        print(self.r2ey)
+
         self.state_size = 6
         if not self.J2_active:
             self.param = DynamicParameters(state_limit=[0.1, 10, self.mean_motion / 10 * self.theta2ex, 0.1 * self.r2ey, 1, 1],
                                            input_limit=[0.1, 0.1, 0.1],
-                                           q_sqrt=np.diag(np.array([5, 50, 100 / np.sqrt(self.theta2ex), 50 / np.sqrt(self.r2ey), 10, 10])),
+                                           q_sqrt=np.diag(np.array([5, 50, 100 / self.theta2ex, 50 / self.r2ey, 10, 10])),
                                            r_sqrt_scalar=1e-2,
                                            slack_variable_length=0,
                                            slack_variable_costs=[1000000, 0, 0, 0, 0, 0],
@@ -37,15 +39,15 @@ class Blend(TranslationalDynamics):
         elif not isinstance(scenario.orbital.longitude, list):  # Single orbit
             self.param = DynamicParameters(state_limit=[0.1, 10, self.mean_motion / 10 * self.theta2ex, 0.1 * self.r2ey, 1, 1],
                                            input_limit=[0.1, 0.1, 0.1],
-                                           q_sqrt=np.diag(np.array([5, 50, 100 / np.sqrt(self.theta2ex), 50 / np.sqrt(self.r2ey), 10, 10])),
+                                           q_sqrt=np.diag(np.array([5, 50, 100 / self.theta2ex**2, 50 / self.r2ey**2, 10, 10])),
                                            r_sqrt_scalar=1e-2,
                                            slack_variable_length=0,
                                            slack_variable_costs=[1000000, 0, 0, 0, 0, 0],
                                            planetary_distance=np.deg2rad(5))
         else:
-            self.param = DynamicParameters(state_limit=[0.1, 10, self.mean_motion / 10 * self.theta2ex, 0.1 * self.r2ey, 11],
+            self.param = DynamicParameters(state_limit=[0.1, 10, self.mean_motion / 10 * self.theta2ex, 0.1 * self.r2ey, 1, 1],
                                            input_limit=[0.1, 0.1, 0.1],
-                                           q_sqrt=np.diag(np.array([5, 50, 100 / np.sqrt(self.theta2ex), 50 / np.sqrt(self.r2ey), 10, 10])),
+                                           q_sqrt=np.diag(np.array([5, 50, 100 / self.theta2ex**2, 50 / self.r2ey**2, 10, 10])),
                                            r_sqrt_scalar=1e-2,
                                            slack_variable_length=0,
                                            slack_variable_costs=[1000000, 0, 0, 0, 0, 0],

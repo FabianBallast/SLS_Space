@@ -59,7 +59,7 @@ def time_optimisation(number_of_satellites: int, prediction_horizon: int = None,
 
     m.setObjective(x @ Q @ x + u @ R @ u, GRB.MINIMIZE)
     m.setParam("OutputFlag", 0)
-    m.setParam("OptimalityTol", 1e-3)
+    m.setParam("BarConvTol", 1e-3)
     # m.setParam("BarConvTol", 1e-4)
 
     # Simulate in closed loop

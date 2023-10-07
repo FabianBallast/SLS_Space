@@ -11,7 +11,7 @@ from Visualisation import Plotting as Plot
 from Visualisation import PlotResults as PlotRes
 from Dynamics import HCWDynamics, ROEDynamics, SystemDynamics, AttitudeDynamics, DifferentialDragDynamics, BlendDynamics
 from scipy.spatial.transform import Rotation
-from Scenarios.MainScenarios import Scenario
+from Scenarios.MainScenarios import Scenario, Model
 import Utils.Conversions as Conversion
 from Filters.KalmanFilter import KalmanFilter
 from Scenarios.OrbitalScenarios import OrbitGroup
@@ -95,6 +95,8 @@ class OrbitalMechSimulator:
         self.number_of_simulation_steps = None
         self.initial_state_oe = None
         self.solver_time = 0
+
+        self.update_translation_states = False
 
     def create_bodies(self, number_of_satellites: int, satellite_mass: float, satellite_inertia: np.ndarray[3, 3],
                       add_reference_satellite: bool = False, use_parameters_from_scenario: Scenario = None) -> None:
@@ -668,8 +670,10 @@ class OrbitalMechSimulator:
         if self.scenario.use_mean_simulator:
             # print(self.initial_state_oe)
             dynamics_simulator = mean_simulator.create_dynamics_simulator(self.initial_state_oe, self.thrust_inputs,
-                                                                          self.scenario, self.number_of_simulation_steps)
+                                                                          self.scenario,
+                                                                          self.number_of_simulation_steps)
             self.thrust_forces = self.thrust_inputs.T
+            self.update_translation_states = False
             # self.initial_state_oe = dynamics_simulator.dependent_variable_history[self.number_of_simulation_steps]
         else:
             with util.redirect_std():
@@ -1110,13 +1114,62 @@ class OrbitalMechSimulator:
         :param figure: Figure to plot into. If none, a new one is created.
         :return: Figure with the orbit in 3D.
         """
+        if self.scenario.use_mean_simulator and not self.update_translation_states:
+            for t in range(self.translation_states.shape[0]):
+                for i in range(self.number_of_controlled_satellites):
+                    self.translation_states[t, i * 6: i * 6 + 3] = element_conversion.keplerian_to_cartesian(
+                        self.translation_states[t, i * 6: i * 6 + 6],
+                        self.gravitational_constant)[:3]
+            self.update_translation_states = True
+
         satellite_names, satellite_indices = self.find_satellite_names_and_indices(satellite_names)
 
         for idx, satellite_name in enumerate(satellite_names):
-            figure = Plot.plot_3d_trajectory(
+            figure = Plot.plot_3d_trajectory_complete(
                 self.translation_states[:, satellite_indices[idx]:satellite_indices[idx] + 3],
                 state_label_name=satellite_name,
                 figure=figure)
+
+        return figure
+
+    def plot_3d_orbit_projection(self, satellite_names: list[str] = None, figure: plt.figure = None) -> plt.figure:
+        """
+        Plot the orbit in 3D projected on the reference orbit.
+
+        :param satellite_names: Names of the satellites to plot. If none, all are plotted.
+        :param figure: Figure to plot into. If none, a new one is created.
+        :return: Figure with the orbit in 3D.
+        """
+        if self.scenario.use_mean_simulator and not self.update_translation_states:
+            for t in range(self.translation_states.shape[0]):
+                for i in range(self.number_of_controlled_satellites):
+                    self.translation_states[t, i * 6: i * 6 + 3] = element_conversion.keplerian_to_cartesian(
+                        self.translation_states[t, i * 6: i * 6 + 6],
+                        self.gravitational_constant)[:3]
+            self.update_translation_states = True
+
+        satellite_names, satellite_indices = self.find_satellite_names_and_indices(satellite_names)
+
+        rot_mat = np.array([[1, 0, 0],
+                            [0, np.cos(np.pi / 4), np.sin(np.pi / 4)],
+                            [0, -np.sin(np.pi / 4), np.cos(np.pi / 4)]])
+
+        trans_copy = np.zeros_like(self.translation_states)
+        for t in range(self.translation_states.shape[0]):
+            for i in range(self.number_of_controlled_satellites):
+                trans_copy[t, i * 6: i * 6 + 3] = rot_mat @ self.translation_states[t, i * 6: i * 6 + 3]
+
+        satellite_names = [r'$\Omega=0\;\mathrm{deg}$', r'$\Omega=15\;\mathrm{deg}$', r'$\Omega=30\;\mathrm{deg}$',
+                           r'$\Omega=60\;\mathrm{deg}$']
+        linestyles = ['-', '--', '-.', ':']
+
+        for idx, satellite_name in enumerate(satellite_names):
+            figure = Plot.plot_3d_trajectory_complete(
+                trans_copy[:, satellite_indices[idx]:satellite_indices[idx] + 3],
+                state_label_name=satellite_name,
+                figure=figure,
+                linestyle=linestyles[idx])
+
         return figure
 
     def create_animation(self, satellite_names: list[str] = None, figure: plt.figure = None) -> FuncAnimation:
@@ -1428,6 +1481,23 @@ class OrbitalMechSimulator:
 
         return figure
 
+    def plot_controller_states(self, satellite_names: list[str] = None, figure: plt.figure = None,
+                               reference_angles: list[float] = None, legend_name: str = None) -> plt.figure:
+        """
+        Plot the states of the controller.
+
+        :param satellite_names: Names of the satellites to plot. If none, all are plotted.
+        :param figure: Figure to plot into. If none, a new one is created.
+        :param reference_angles: Reference angles to plot.
+        :return: Figure with the added states.
+        """
+        if self.scenario.model == Model.HCW:
+            return self.plot_cylindrical_states(satellite_names, figure, reference_angles, legend_name)
+        elif self.scenario.model == Model.ROE:
+            return self.plot_quasi_roe_states(satellite_names, figure, reference_angles, legend_name)
+        elif self.scenario.model == Model.BLEND:
+            return self.plot_blend_states(satellite_names, figure, reference_angles, legend_name)
+
     def plot_quaternions(self, satellite_names: list[str] = None, figure: plt.figure = None) -> plt.figure:
         """
         Plot the quaternions from body-fixed to inertial frame over time.
@@ -1549,72 +1619,99 @@ class OrbitalMechSimulator:
         plt.legend()
         return figure
 
-    def plot_main_states(self, satellite_names: list[str] = None, figure: plt.figure = None) -> plt.figure:
+    def plot_main_states(self, satellite_indices: list[int] = None, figure: plt.figure = None, legend_name: str = '',
+                         plot_duration: int = None, **kwargs) -> plt.figure:
         """
         Create a plot with the main results for the report.
 
-        :param satellite_names: Names of the satellites to plot. If none, all are plotted.
+        :param satellite_indices: Indices the satellites to plot. If none, all are plotted.
         :param figure: Figure to plot the results onto.
+        :param legend_name: Name for the legend
+        :param plot_duration: Length of the plot in min.
 
         :return: Figure with the results.
         """
         oe_filtered, oe_ref = self.filter_oe()
         main_states = Conversion.oe2main(oe_filtered, oe_ref, self.reference_angle_offsets)
+
+        if plot_duration is not None:
+            main_states = main_states[:plot_duration * 60 + 1, :]
+
         radius = main_states[:, 0::3]
         theta = main_states[:, 1::3]
         Omega = main_states[:, 2::3]
 
-        satellite_names, satellite_indices = self.find_satellite_names_and_indices(satellite_names, state_length=1)
+        # satellite_names, satellite_indices = self.find_satellite_names_and_indices(satellite_names, state_length=1)
 
         if np.max(Omega) - np.min(Omega) < 1e-6:
             Omega *= 0
 
-        for idx, satellite_name in enumerate(satellite_names):
-            satellite_idx = satellite_indices[idx]
-            states = np.concatenate((radius[:, satellite_idx:satellite_idx + 1],
-                                     theta[:, satellite_idx:satellite_idx + 1],
-                                     Omega[:, satellite_idx:satellite_idx + 1]), axis=1)
+        if satellite_indices is None:
+            satellite_indices = np.arange(self.number_of_controlled_satellites)
+
+        for idx in satellite_indices:
+            # satellite_idx = satellite_indices[idx]
+            states = np.concatenate((radius[:, idx:idx + 1],
+                                     theta[:, idx:idx + 1],
+                                     Omega[:, idx:idx + 1]), axis=1)
             figure = PlotRes.plot_main_states_report(states=states, timestep=self.simulation_timestep, figure=figure,
-                                                     legend_name=satellite_name)
+                                                     legend_name=legend_name, **kwargs)
+
+            if idx == satellite_indices[0]:
+                legend_name = None
 
         return figure
 
-    def plot_side_states(self, satellite_names: list[str] = None, figure: plt.figure = None) -> plt.figure:
+    def plot_side_states(self, satellite_indices: list[int] = None, figure: plt.figure = None, legend_name: str = '',
+                         plot_duration: int = None, **kwargs) -> plt.figure:
         """
         Create a plot with the side results for the report.
 
-        :param satellite_names: Names of the satellites to plot. If none, all are plotted.
+        :param satellite_indices: Indices the satellites to plot. If none, all are plotted.
         :param figure: Figure to plot the results onto.
+        :param legend_name: Name for the legend
+        :param plot_duration: Length of the plot in min.
 
         :return: Figure with the results.
         """
         oe_filtered, oe_ref = self.filter_oe()
-        satellite_names, satellite_indices = self.find_satellite_names_and_indices(satellite_names, state_length=1)
+        # satellite_names, satellite_indices = self.find_satellite_names_and_indices(satellite_names, state_length=1)
 
         side_states = Conversion.oe2side(oe_filtered, oe_ref)
+
+        if plot_duration is not None:
+            side_states = side_states[:plot_duration * 60 + 1, :]
+
         e = side_states[:, 0::2]
         i = side_states[:, 1::2]
 
         if np.max(i) - np.min(i) < 1e-6:
             i *= 0
 
-        for idx, satellite_name in enumerate(satellite_names):
-            satellite_idx = satellite_indices[idx]
-            states = np.concatenate((e[:, satellite_idx:satellite_idx + 1],
-                                     i[:, satellite_idx:satellite_idx + 1]), axis=1)
+        if satellite_indices is None:
+            satellite_indices = np.arange(self.number_of_controlled_satellites)
+
+        for idx in satellite_indices:
+            # satellite_idx = satellite_indices[idx]
+            states = np.concatenate((e[:, idx:idx + 1],
+                                     i[:, idx:idx + 1]), axis=1)
             figure = PlotRes.plot_side_states_report(states=states, timestep=self.simulation_timestep, figure=figure,
-                                                     legend_name=satellite_name)
+                                                     legend_name=legend_name, **kwargs)
+
+            if idx == satellite_indices[0]:
+                legend_name = None
 
         return figure
 
-    def plot_inputs(self, satellite_names: list[str] = None, figure: plt.figure = None, legend_name: str = None,
-                    **kwargs) -> plt.figure:
+    def plot_inputs(self, satellite_indices: list[int] = None, figure: plt.figure = None, legend_name: str = None,
+                    plot_duration: int = None, **kwargs) -> plt.figure:
         """
         Create a plot with the control inputs for the report.
 
-        :param satellite_names: Names of the satellites to plot. If none, all are plotted.
+        :param satellite_indices: Indices of the satellites to plot. If none, all are plotted.
         :param figure: Figure to plot into. If none, a new one is created.
         :param legend_name: Name to put in the legend.
+        :param plot_duration: Length of the plot in min.
         :return: Figure with the thrust forces.
 
         :return: Figure with the inputs.
@@ -1623,26 +1720,42 @@ class OrbitalMechSimulator:
         if self.thrust_forces is None:
             self.get_thrust_forces_from_acceleration()
 
-        satellite_names, satellite_indices = self.find_satellite_names_and_indices(satellite_names, state_length=3)
+        forces = self.thrust_forces[1:]
+        if plot_duration is not None:
+            forces = forces[:plot_duration * 60 + 1, :]
+        # satellite_names, satellite_indices = self.find_satellite_names_and_indices(satellite_names, state_length=3)
 
-        color_palette = list(mcolors.TABLEAU_COLORS.values())
-        legend_names = [legend_name] + [None] * len(satellite_names)
+        # legend_names = [legend_name] + [None] * len(satellite_names)
+        if satellite_indices is None:
+            satellite_indices = np.arange(self.number_of_controlled_satellites)
 
-        for idx, satellite_name in enumerate(satellite_names):
-            inputs = np.concatenate((self.thrust_forces[1:, satellite_indices[idx]:satellite_indices[idx]+1],
-                                     self.thrust_forces[1:, satellite_indices[idx] + 1:satellite_indices[idx]+2],
-                                     self.thrust_forces[1:, satellite_indices[idx] + 2:satellite_indices[idx]+3]), axis=1)
-            figure = PlotRes.plot_inputs_report(inputs,
-                                                self.simulation_timestep,
-                                                figure=figure,
-                                                color=color_palette[idx % 10],
-                                                legend_name=legend_names[idx], **kwargs)
+        for idx in satellite_indices:
+            inputs = np.concatenate((forces[:, idx * 3:idx * 3 + 1],
+                                     forces[:, idx * 3 + 1:idx * 3 + 2],
+                                     forces[:, idx * 3 + 2:idx * 3 + 3]), axis=1)
+            figure = PlotRes.plot_inputs_report(inputs, self.simulation_timestep, figure=figure,
+                                                legend_name=legend_name, **kwargs)
+            if idx == satellite_indices[0]:
+                legend_name = None
 
         return figure
 
     def print_metrics(self) -> str:
         """
         Print metrics to score approaches
+        """
+        metric_values = self.find_metric_values()
+
+        state_results = f"Mean radius: {metric_values[0]}, mean theta: {metric_values[1]} and mean omega: {metric_values[2]}\n"
+        input_results = f"Mean u_r: {metric_values[3]}, mean u_t: {metric_values[4]}, mean u_n: {metric_values[5]} and mean norm: {metric_values[6]}"
+
+        return state_results + input_results
+
+    def find_metric_values(self) -> list[float]:
+        """
+        Find all the metric values.
+
+        :return: List with all the metric values.
         """
         oe_filtered, oe_ref = self.filter_oe()
         main_states = Conversion.oe2main(oe_filtered, oe_ref, self.reference_angle_offsets)
@@ -1670,7 +1783,48 @@ class OrbitalMechSimulator:
 
         norms = np.mean(np.linalg.norm(inputs_order, axis=1))
 
-        state_results = f"Mean radius: {mean_radius=}, mean theta: {mean_theta=} and mean omega: {mean_Omega}\n"
-        input_results = f"Mean u_r: {mean_ur}, mean u_t: {mean_ut}, mean u_n: {mean_un} and mean norm: {norms}"
+        return [mean_radius, mean_theta, mean_Omega, mean_ur, mean_ut, mean_un, norms]
 
-        return state_results + input_results
+    def plot_relative_radius_and_height(self, satellite_names: list[str] = None, figure: plt.figure = None,
+                                        reference_angles: list[float] = None, legend_name: str = None,
+                                        states2plot: list = None, **kwargs) -> plt.figure:
+        """
+        Plot the relative cylindrical states (only radius and height).
+
+        :param satellite_names: Names of the satellites to plot. If none, all are plotted.
+        :param figure: Figure to plot into. If none, a new one is created.
+        :param reference_angles: Reference angles to plot.
+        :param legend_name: Name for in the legend
+        :param states2plot: Indices of which states to plot.
+        :return: Figure with the added states.
+        """
+        # Find cylindrical states if not yet done
+        if self.cylindrical_states is None:
+            self.convert_to_cylindrical_coordinates()
+
+        satellite_names, satellite_indices = self.find_satellite_names_and_indices(satellite_names)
+
+        satellite_names = [r'$\Omega=0\;\mathrm{deg}$', r'$\Omega=15\;\mathrm{deg}$', r'$\Omega=30\;\mathrm{deg}$',
+                           r'$\Omega=60\;\mathrm{deg}$']
+        linestyles = ['-', '--', '-.', ':']
+
+        # Plot required states
+        for idx, satellite_name in enumerate(satellite_names):
+            rel_states = self.cylindrical_states[:, satellite_indices[idx]: satellite_indices[idx] + 6]
+
+            # Plot relative error if possible
+            if reference_angles is not None:
+                rel_states[:, 1] -= reference_angles[self.all_satellite_names.index(satellite_name)]
+                if rel_states[0, 1] > np.pi:
+                    rel_states[:, 1] -= 2 * np.pi
+                elif rel_states[0, 1] < -np.pi:
+                    rel_states[:, 1] += 2 * np.pi
+
+            figure = Plot.plot_cylindrical_radius_height(rel_states,
+                                                         self.simulation_timestep,
+                                                         figure=figure,
+                                                         legend_name=satellite_name,
+                                                         states2plot=states2plot,
+                                                         linestyle=linestyles[idx],
+                                                         **kwargs)
+        return figure

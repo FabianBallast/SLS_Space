@@ -152,7 +152,7 @@ def time_optimisation(number_of_satellites: int, prediction_horizon: int = None,
     prob = osqp.OSQP()
 
     # Setup workspace
-    prob.setup(P, q, A, lb, ub, warm_start=True, verbose=False) #, linsys_solver='qdldl', eps_abs=1e-3, eps_rel=1e-3)
+    prob.setup(P, q, A, lb, ub, warm_start=True, verbose=False, eps_abs=1e-3, eps_rel=1e-3)
 
     t_0 = 0
     nsim = 11

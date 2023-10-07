@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 from Scenarios.MainScenarios import ScenarioEnum
 from Scenarios.ScenarioHandler import ScenarioHandler
-from Results.ModelComparison.Scripts.plotFromData import plot_data
+from Results.ModelComparison.Scripts.plotFromData import plot_data_comparison
 import pickle
 
 scenarios_to_run = [ScenarioEnum.j2_scenario_HCW_6_orbits,
@@ -22,7 +22,10 @@ for idx, scenario in enumerate(scenarios_to_run):
     scenario_handler.create_storage_variables()
 
     # Run simulation
-    scenario_handler.simulate_system_closed_loop(print_progress=False)
+    if scenario_name_list[idx] == 'HCW':
+        scenario_handler.simulate_system_no_control()
+    else:
+        scenario_handler.simulate_system_closed_loop(print_progress=False)
     orbital_sim = scenario_handler.export_results()
 
     # Save orbital sim with all data
@@ -30,7 +33,7 @@ for idx, scenario in enumerate(scenarios_to_run):
     with open(file_name, 'wb') as file:
         pickle.dump(orbital_sim, file)
 
-plot_data(main_naming_identifier)
+plot_data_comparison(main_naming_identifier)
 
 
 print(f"{main_naming_identifier}: done")

@@ -232,7 +232,7 @@ def time_optimisation(number_of_satellites: int, prediction_horizon: int = None,
 
     # Setup workspace
     A_temp = sparse.vstack([Aeq_dynamics, Aeq_constraint_full, Aineq], format='csc')
-    m.setup(P, q, A_temp, l, u, warm_start=True, verbose=True, eps_abs=eps_abs, eps_rel=eps_rel, max_iter=5000000) #, scaled_termination=True)
+    m.setup(P, q, A_temp, l, u, warm_start=True, verbose=False, eps_abs=eps_abs, eps_rel=eps_rel, max_iter=5000000) #, scaled_termination=True)
     m.update(Ax=A_values_change, Ax_idx=A_indices_change)
 
     # Simulate in closed loop

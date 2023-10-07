@@ -72,6 +72,8 @@ class OrbitalScenarios(Enum):
     tilted_orbit_45deg_group_2_close = OrbitGroup(inclination=45, argument_of_periapsis=10,
                                                   longitude_list=[0, 5], eccentricity=0)
 
+    projection_comparison = OrbitGroup(inclination=45, longitude_list=[0, 15, 30, 60])
+
 
 if __name__ == '__main__':
     print(list(OrbitalScenarios))

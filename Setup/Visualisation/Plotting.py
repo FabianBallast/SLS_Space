@@ -74,6 +74,53 @@ def create_3d_plot(max_distance: int, unit_label: str = 'km') -> tuple[plt.figur
     return figure, ax
 
 
+def create_full_3d_overview(max_distance: int, unit_label: str = 'km') -> tuple[plt.figure, plt.axes]:
+    """
+    Basis for a 3D plot with the Earth.
+
+    :param max_distance: Maximum distance from satellite to Earth in km for scaling the plot.
+    :param unit_label: The unit to use in the label. Defaults to km.
+    :return: Tuple with figure and corresponding axes.
+    """
+    # Define a 3D figure using pyplot
+    figure = plt.figure(figsize=(18, 5.5), constrained_layout=True)
+    ax1 = figure.add_subplot(131, projection='3d')
+    # ax1.set_title(f'Satellite trajectories around Earth')
+    ax1.set_xlabel(f'x [{unit_label}]')
+    ax1.set_ylabel(f'y [{unit_label}]')
+    ax1.set_zlabel(f'z [{unit_label}]')
+    # ax1.scatter(0.0, 0.0, 0.0, label="Earth", marker='o', color='blue')
+    ax1.set_xlim(-max_distance, max_distance)
+    ax1.set_ylim(-max_distance, max_distance)
+    ax1.set_zlim(-max_distance, max_distance)
+
+    ax2 = figure.add_subplot(132, projection='3d')
+    # ax2.set_title(f'Satellite trajectories around Earth')
+    ax2.set_xlabel(f'x [{unit_label}]')
+    ax2.set_ylabel(f'y [{unit_label}]')
+    # ax2.set_zlabel(f'z [{unit_label}]')
+    # ax2.scatter(0.0, 0.0, 0.0, label="Earth", marker='o', color='blue')
+    ax2.tick_params(axis='z', labelleft=False, bottom=False, top=False, left=False, right=False)
+    ax2.set_xlim(-max_distance, max_distance)
+    ax2.set_ylim(-max_distance, max_distance)
+    ax2.set_zlim(-max_distance, max_distance)
+    ax2.view_init(90, -90, 0)
+
+    ax3 = figure.add_subplot(133, projection='3d')
+    # ax3.set_title(f'Satellite trajectories around Earth')
+    ax3.set_xlabel(f'x [{unit_label}]')
+    # ax3.set_ylabel(f'y [{unit_label}]')
+    ax3.tick_params(axis='y', labelleft=False, bottom=False, top=False, left=False, right=False)
+    ax3.set_zlabel(f'z [{unit_label}]')
+    # ax3.scatter(0.0, 0.0, 0.0, label="Earth", marker='o', color='blue')
+    ax3.set_xlim(-max_distance, max_distance)
+    ax3.set_ylim(-max_distance, max_distance)
+    ax3.set_zlim(-max_distance, max_distance)
+    ax3.view_init(0, -90, 0)
+
+    return figure, [ax1, ax2, ax3]
+
+
 def plot_3d_trajectory(states: np.ndarray, state_label_name: str, figure: plt.figure = None) -> plt.figure:
     """
     Plot the trajectory of a satellite in 3D.
@@ -94,8 +141,42 @@ def plot_3d_trajectory(states: np.ndarray, state_label_name: str, figure: plt.fi
     ax.plot(states[:, 0] / scaling_factor, states[:, 1] / scaling_factor,
             states[:, 2] / scaling_factor, label=state_label_name, linestyle='-')
 
+    plt.tight_layout()
     # Add the legend
-    ax.legend()
+    # ax.legend()
+
+    return figure
+
+
+def plot_3d_trajectory_complete(states: np.ndarray, state_label_name: str, figure: plt.figure = None, **kwargs) -> plt.figure:
+    """
+    Plot the trajectory of a satellite in 3D.
+
+    :param states: States of the satellite in the shape (t, 3) in m.
+    :param state_label_name: Label for the legend for these states.
+    :param figure: Figure to plot the trajectories in. If not provided, a new one is created.
+    :return: Figure with the added trajectory.
+    """
+    max_distance, units, scaling_factor = get_scaling_parameters(states[0])
+
+    if figure is None:
+        figure, ax_list = create_full_3d_overview(max_distance=max_distance, unit_label=units)
+    else:
+        ax_list = list(figure.get_axes())
+
+    # Plot the positional state history
+    for ax in ax_list:
+        ax.plot(states[:, 0] / scaling_factor, states[:, 1] / scaling_factor,
+                states[:, 2] / scaling_factor, label=state_label_name, **kwargs)
+
+        # set_axes_equal(ax)
+
+        if state_label_name is not None:
+            ax.legend()
+            state_label_name = None
+
+    # Add the legend
+    # ax_list[0].legend()
 
     return figure
 
@@ -128,7 +209,7 @@ def plot_3d_position(position: np.ndarray, state_label_name: str, figure: plt.fi
 
 def plot_onto_axes(states: np.ndarray, time: np.ndarray, axes_list: list[plt.axes], is_angle: list[bool],
                    y_label_names: list[str], legend_names: list[str | None], unwrap_angles: bool = True,
-                   states2plot: list[int] = None, **kwargs) -> None:
+                   states2plot: list[int] = None, xlabel_plot: list[int] = None, **kwargs) -> None:
     """
     Plot states on the provided axes with a given label and legend label name.
     :param states: The states (y-component) to be plotted.
@@ -154,13 +235,14 @@ def plot_onto_axes(states: np.ndarray, time: np.ndarray, axes_list: list[plt.axe
 
         # Plot data
         axes.plot(time, state, label=legend_names[state_idx], **kwargs)
-        axes.set_xlabel(r'$\mathrm{Time\;[min]}$', fontsize=14)
+        if xlabel_plot is None or idx in xlabel_plot:
+            axes.set_xlabel(r'$\mathrm{Time\;[min]}$', fontsize=14)
         axes.set_ylabel(y_label_names[state_idx], fontsize=14)
         axes.set_xlim([min(time), max(time)])
         axes.grid(True)
 
-        # if legend_names[state_idx] is not None:
-        #     axes.legend(fontsize=12)
+        if legend_names[state_idx] is not None:
+            axes.legend(fontsize=12, loc='upper right')
 
     plt.tight_layout()
 
@@ -345,12 +427,48 @@ def plot_cylindrical_states(cylindrical_states: np.ndarray, timestep: float, leg
     # fig.suptitle(r'$\mathrm{Evolution\; of\; relative\; cylindrical\; states\; compared\; to\; reference}$', fontsize=16)
 
     is_angle_list = [False, True, False, False, True, False]
-    y_label_list = [r'$\mathrm{Radius \; [m]}$', r'$\mathrm{Angle \;[deg]}$', r'$\mathrm{Height \;[m]}$',
-                    r"$\mathrm{\dot{\rho}\; [m/s]}$", r'$\mathrm{\dot{\theta}\;[deg/s]}$', r'$\mathrm{\dot{z}\;[m/s]}$']
+    y_label_list = [r'$\mathrm{\Delta r \; [m]}$', r'$\mathrm{\Delta \varphi \;[deg]}$', r'$\mathrm{\Delta z \;[m]}$',
+                    r"$\mathrm{\Delta \dot{r}\; [m/s]}$", r'$\mathrm{\Delta \dot{\varphi}\;[deg/s]}$', r'$\mathrm{\Delta \dot{z}\;[m/s]}$']
 
     legend_names = [None] + [legend_name] + [None] * 4
     plot_onto_axes(cylindrical_states, time_hours, list(axes), is_angle_list,
-                   y_label_list, legend_names=legend_names, states2plot=states2plot, **kwargs)
+                   y_label_list, legend_names=legend_names, states2plot=states2plot, xlabel_plot=[4, 5], **kwargs)
+
+    return fig
+
+
+def plot_cylindrical_radius_height(cylindrical_states: np.ndarray, timestep: float, legend_name: str = '',
+                                  figure: plt.figure = None, states2plot: list[int] = None, **kwargs) -> plt.figure:
+    """
+    Method to plot the relative cylindrical states over time.
+
+    :param cylindrical_states: 2D-array with the cylindrical states over time with shape (t, 6).
+    :param timestep: Amount of time between each state in s.
+    :param figure: Figure to plot the states into. If not provided, a new one is created.
+    :param legend_name: The name to pass to the legend
+    :param states2plot: Which states to plot.
+    :param kwargs: Kwargs for plotting purposes.
+    :return: Figure with the added cylindrical states.
+    """
+    time_hours = get_time_axis(cylindrical_states, timestep)
+
+    if states2plot is None:
+        fig, axes = get_figure_and_axes(figure, (2, 1), sharex=True)
+        states2plot = [0, 1]
+    else:
+        fig, axes = get_figure_and_axes(figure, (1, len(states2plot)))
+
+        if len(states2plot) != len(axes):
+            axes = [axes[states2plot[0]]]
+
+    # fig.suptitle(r'$\mathrm{Evolution\; of\; relative\; cylindrical\; states\; compared\; to\; reference}$', fontsize=16)
+
+    is_angle_list = [False, False]
+    y_label_list = [r'$\mathrm{\Delta r \; [m]}$', r'$\mathrm{\Delta z \;[m]}$']
+
+    legend_names = [None, legend_name]
+    plot_onto_axes(cylindrical_states[:, [0,2]], time_hours, list(axes), is_angle_list,
+                   y_label_list, legend_names=legend_names, states2plot=states2plot, xlabel_plot=[1], **kwargs)
 
     return fig
 
@@ -375,7 +493,7 @@ def plot_quasi_roe(quasi_roe_states: np.ndarray, timestep: float, legend_name: s
     else:
         fig, axes = get_figure_and_axes(figure, (1, len(states2plot)))
 
-    fig.suptitle(r'$\mathrm{Evolution\;of \;quasi \;ROE}$', fontsize=16)
+    # fig.suptitle(r'$\mathrm{Evolution\;of \;quasi \;ROE}$', fontsize=16)
 
     is_angle_list = [False, True, False, False, True, True]
     y_label_list = [r'$\mathrm{\delta a\;[-]}$', r'$\mathrm{\delta \lambda\;[deg]}$',
@@ -384,7 +502,7 @@ def plot_quasi_roe(quasi_roe_states: np.ndarray, timestep: float, legend_name: s
 
     legend_names = [None] + [legend_name] + [None] * 4
     plot_onto_axes(quasi_roe_states, time_hours, list(axes), is_angle_list,
-                   y_label_list, legend_names=legend_names, states2plot=states2plot, **kwargs)
+                   y_label_list, legend_names=legend_names, states2plot=states2plot, xlabel_plot=[4, 5], **kwargs)
 
     return fig
 
@@ -409,7 +527,7 @@ def plot_roe(roe_states: np.ndarray, timestep: float, legend_name: str = '',
     else:
         fig, axes = get_figure_and_axes(figure, (1, len(states2plot)))
 
-    fig.suptitle('Evolution of ROE.')
+    # fig.suptitle('Evolution of ROE.')
 
     is_angle_list = [False, True, False, True, True, True]
     y_label_list = ['delta a [-]', 'delta lambda [deg]',
@@ -418,7 +536,7 @@ def plot_roe(roe_states: np.ndarray, timestep: float, legend_name: str = '',
     legend_names = [None] + [legend_name] + [None] * 4
 
     plot_onto_axes(roe_states, time_hours, list(axes), is_angle_list, y_label_list, legend_names,
-                   states2plot=states2plot, **kwargs)
+                   states2plot=states2plot, xlabel_plot=[4, 5], **kwargs)
 
     return fig
 
@@ -443,7 +561,7 @@ def plot_blend(blend_states: np.ndarray, timestep: float, legend_name: str = '',
     else:
         fig, axes = get_figure_and_axes(figure, (1, len(states2plot)))
 
-    fig.suptitle('Evolution of states.')
+    # fig.suptitle('Evolution of states.')
 
     is_angle_list = [False, True, False, False, False, False]
     y_label_list = [r'$\delta r\mathrm{\;[m]}$', r'$\delta\lambda^f\mathrm{\;[deg]}$',
@@ -452,7 +570,7 @@ def plot_blend(blend_states: np.ndarray, timestep: float, legend_name: str = '',
     legend_names = [None] + [legend_name] + [None] * 4
 
     plot_onto_axes(blend_states, time_hours, list(axes), is_angle_list, y_label_list, legend_names,
-                   states2plot=states2plot, **kwargs)
+                   states2plot=states2plot, xlabel_plot=[4, 5], **kwargs)
 
     return fig
 
@@ -607,4 +725,32 @@ def plot_differential_drag_states(diff_drag_states: np.ndarray, timestep: float,
 
     return fig
 
+
+def set_axes_equal(ax):
+    """
+    Make axes of 3D plot have equal scale so that spheres appear as spheres,
+    cubes as cubes, etc.
+
+    Input
+      ax: a matplotlib axis, e.g., as output from plt.gca().
+    """
+
+    x_limits = ax.get_xlim3d()
+    y_limits = ax.get_ylim3d()
+    z_limits = ax.get_zlim3d()
+
+    x_range = abs(x_limits[1] - x_limits[0])
+    x_middle = np.mean(x_limits)
+    y_range = abs(y_limits[1] - y_limits[0])
+    y_middle = np.mean(y_limits)
+    z_range = abs(z_limits[1] - z_limits[0])
+    z_middle = np.mean(z_limits)
+
+    # The plot bounding box is a sphere in the sense of the infinity
+    # norm, hence I call half the max range the plot radius.
+    plot_radius = 0.5*max([x_range, y_range, z_range])
+
+    ax.set_xlim3d([x_middle - plot_radius, x_middle + plot_radius])
+    ax.set_ylim3d([y_middle - plot_radius, y_middle + plot_radius])
+    ax.set_zlim3d([z_middle - plot_radius, z_middle + plot_radius])
 

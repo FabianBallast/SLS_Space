@@ -19,16 +19,17 @@ def plot_data(plot_name: str) -> None:
                 solver_times.append(pickle.load(f))
                 solver_names.append(pickle.load(f))
 
-    fig = plt.figure()
+    fig = plt.figure(figsize=(8, 4))
 
     for idx, sat_arr in enumerate(solver_satellites):
         plt.loglog(sat_arr, solver_times[idx], label=solver_names[idx])
 
-    plt.legend(fontsize=14)
-    plt.xlabel(r'$\mathrm{Number \;of \;satellites \;[-]}$', fontsize=14)
-    plt.ylabel(r'$\mathrm{Computation \;Time \;[s]}$', fontsize=14)
+    plt.legend(fontsize=12)
+    plt.xlabel(r'$\mathrm{Number \;of \;satellites \;[-]}$', fontsize=12)
+    plt.ylabel(r'$\mathrm{Computation \;Time \;[s]}$', fontsize=12)
     plt.grid(True)
     fig.savefig('../Figures/' + plot_name + '.eps')
+    plt.tight_layout()
 
 
 def plot_all() -> None:
@@ -40,6 +41,6 @@ def plot_all() -> None:
 
 
 if __name__ == '__main__':
-    # plot_data('basic_MPC')
-    plot_all()
+    plot_data('sparse_SLS')
+    # plot_all()
     plt.show()

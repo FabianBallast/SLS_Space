@@ -10,6 +10,7 @@ from Space.OrbitalMechanics import OrbitalMechSimulator
 from Controllers.SLS_setup import SLSSetup
 from Controllers.SimulatedAnnealing import SimulatedAnnealing
 from Scenarios.ControlScenarios import Model
+from Scenarios.InitialStateScenarios import InitialStateScenarios
 from Utils.GenerateInitialPosition import generate_anomalies_and_longitudes, generate_reference
 import numpy as np
 
@@ -94,6 +95,7 @@ class ScenarioHandler:
         # Create x0 and x_ref
         self.controller.create_x0(number_of_dropouts=int(self.scenario.initial_state.dropouts *
                                                          self.scenario.number_of_satellites) + 1)
+
         self.controller.create_reference()
 
     def create_storage_variables(self) -> None:
@@ -168,7 +170,7 @@ class ScenarioHandler:
         elif isinstance(self.controller.dynamics, DifferentialDragDynamics):
             true_anomalies = [0] + np.rad2deg(self.controller.x0[self.controller.angle_states].reshape((-1,))).tolist()
         else:
-            number_of_dropouts = int(self.scenario.initial_state.dropouts * self.scenario.number_of_satellites) + 1
+            number_of_dropouts = int(self.scenario.initial_state.dropouts * self.scenario.number_of_satellites) + self.scenario.initial_state.dropouts > 0
             true_anomalies, self.satellite_longitudes = generate_anomalies_and_longitudes(number_of_dropouts,
                                                                                           self.scenario.orbital.longitude,
                                                                                           self.scenario.number_of_satellites,
@@ -513,7 +515,7 @@ class ScenarioHandler:
 
         orbital_sim.thrust_forces = self.control_inputs
         orbital_sim.solver_time = self.controller.total_solver_time
-        print(orbital_sim.solver_time)
+        # print(orbital_sim.solver_time)
         # print(self.orbital_mech.thrust_forces)
 
         return orbital_sim

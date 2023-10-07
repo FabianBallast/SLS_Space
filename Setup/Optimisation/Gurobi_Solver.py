@@ -24,6 +24,7 @@ class Gurobi_Solver(ABC):
         u_max = np.tile(input_limit, (self.prediction_horizon, self.number_of_satellites))
 
         self._problem = gp.Model('MPC')
+        # print(x_max.shape)
         self.x = self._problem.addMVar(shape=(self.prediction_horizon + 1, self._nx), name='x', lb=-x_max, ub=x_max)
         self.u = self._problem.addMVar(shape=(self.prediction_horizon, self._nu), name='u', lb=-u_max, ub=u_max)
 

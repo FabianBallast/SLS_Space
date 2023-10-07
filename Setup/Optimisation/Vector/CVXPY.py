@@ -7,7 +7,7 @@ from Scenarios.MainScenarios import ScenarioEnum, Scenario
 
 
 def time_optimisation(number_of_satellites: int, prediction_horizon: int = None, plot_results: bool = False,
-                      scenario: Scenario = ScenarioEnum.simple_scenario_translation_HCW_scaled.value) -> float:
+                      scenario: Scenario = ScenarioEnum.simple_scenario_translation_HCW_scaled.value, solver='GUROBI') -> float:
     """
     Measure the time it takes to optimise the controller.
 
@@ -15,6 +15,7 @@ def time_optimisation(number_of_satellites: int, prediction_horizon: int = None,
     :param prediction_horizon: Prediction horizon of the controller.
     :param plot_results: Whether to plot the results.
     :param scenario: Scenario to run. Defaults to HCW scenario.
+    :param solver: Specify the solver.
     :return: Float with average time (after first iteration has passed).
     """
 
@@ -43,7 +44,10 @@ def time_optimisation(number_of_satellites: int, prediction_horizon: int = None,
     # Simulate in closed loop
     for i in range(nsim):
         x_init.value = states[:, i]
-        prob.solve(solver=GUROBI, warm_start=True, OptimalityTol=1e-3, OutputFlag=0)
+        if solver == "GUROBI":
+            prob.solve(solver=GUROBI, warm_start=True, BarConvTol=1e-3, OutputFlag=0)
+        elif solver == "OSQP":
+            prob.solve(solver=OSQP, warm_start=True, eps_abs=1e-3, eps_rel=1e-3, verbose=False)
 
         states[:, i + 1] = problem['A'].dot(states[:, i]) + problem['B'].dot(u[:, 0].value)
 
@@ -53,7 +57,7 @@ def time_optimisation(number_of_satellites: int, prediction_horizon: int = None,
     t_end = time.time()
     average_time = (t_end - t_0) / (nsim - 1)
 
-    print(f"Average elapsed time CVXPY for {number_of_satellites} satellites: {average_time:.3}s")
+    print(f"Average elapsed time CVXPY({solver}) for {number_of_satellites} satellites: {average_time:.3}s")
 
     if plot_results:
         plt.figure()

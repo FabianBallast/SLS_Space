@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 from Scenarios.MainScenarios import ScenarioEnum
 from Scenarios.ScenarioHandler import ScenarioHandler
-from Results.ModelComparison.Scripts.plotFromData import plot_data
+from Results.ModelComparison.Scripts.plotFromData import plot_data_comparison
 import pickle
 
 scenarios_to_run = [ScenarioEnum.simple_scenario_translation_HCW_scaled,
@@ -30,7 +30,7 @@ for idx, scenario in enumerate(scenarios_to_run):
     with open(file_name, 'wb') as file:
         pickle.dump(orbital_sim, file)
 
-plot_data(main_naming_identifier)
+plot_data_comparison(main_naming_identifier)
 
 
 print(f"{main_naming_identifier}: done")

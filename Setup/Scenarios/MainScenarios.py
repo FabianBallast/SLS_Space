@@ -326,6 +326,15 @@ class ScenarioEnum(Enum):
         orbital_scenario=OrbitalScenarios.tilted_orbit_45deg_group_6,
         model=Model.BLEND_SMALL)
 
+    projection_comparison = TranslationalScenario(
+        physics_scenario=PhysicsScenarios.basic_physics_scaled,
+        initial_state_scenario=InitialStateScenarios.no_state_error,
+        control_scenario=ControlParameterScenarios.control_position_fine,
+        simulation_scenario=SimulationScenarios.sim_orbital_period,
+        number_of_satellites=4,
+        orbital_scenario=OrbitalScenarios.projection_comparison,
+        model=Model.HCW)
+
 #
 # simple_scenario_attitude = {'orbital': OrbitalScenarios.arbitrary_orbit.value,
 #                             'physics': PhysicsScenarios.basic_physics.value,
