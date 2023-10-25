@@ -8,7 +8,7 @@ from Scenarios.MainScenarios import ScenarioEnum, Scenario
 
 
 def time_optimisation(number_of_satellites: int, prediction_horizon: int = None, plot_results: bool = False,
-                      scenario: Scenario = ScenarioEnum.simple_scenario_translation_HCW_scaled.value) -> float:
+                      scenario: Scenario = ScenarioEnum.simple_scenario_translation_blend_scaled.value) -> float:
     """
     Measure the time it takes to optimise the controller.
 
@@ -80,4 +80,4 @@ def time_optimisation(number_of_satellites: int, prediction_horizon: int = None,
 
 
 if __name__ == '__main__':
-    time_optimisation(10, plot_results=True)
+    time_optimisation(3, prediction_horizon=6, plot_results=True)

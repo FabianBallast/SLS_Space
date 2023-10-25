@@ -27,7 +27,7 @@ def generate_anomalies_and_longitudes(number_of_dropouts: int, longitude_list: l
         number_of_planes = 1
     random.seed(100)
 
-    if number_of_planes == 1:
+    if number_of_planes == 1 or number_of_systems == 1:
         if isinstance(dynamics, DifferentialDragDynamics):
             number_of_original_systems += 1
 
@@ -42,6 +42,10 @@ def generate_anomalies_and_longitudes(number_of_dropouts: int, longitude_list: l
             angles_sorted = start_angles[np.sort(selected_indices)][1:]
         else:
             angles_sorted = start_angles[np.sort(selected_indices)]
+
+        if number_of_systems == 1:
+            angles_sorted = np.array([[np.deg2rad(15)]])
+            longitude_list = [longitude_list[0] - 5 / np.cos(np.pi / 4)]
 
         return angles_sorted[:, 0].tolist(), longitude_list * number_of_systems
 
@@ -60,6 +64,11 @@ def generate_anomalies_and_longitudes(number_of_dropouts: int, longitude_list: l
 
         longitudes = np.tile(np.array(longitude_list).reshape((-1, 1)), satellites_per_plane_start).flatten()
         longitudes_selected = longitudes[np.sort(selected_indices)]
+
+        if number_of_systems == 1:
+            angles_sorted = np.array([[np.deg2rad(10)]])
+            longitudes_selected = np.deg2rad([5])
+
         return angles_sorted[:, 0].tolist(), longitudes_selected.tolist()
 
 
@@ -80,14 +89,19 @@ def generate_reference(number_of_systems: int, anomaly_list: list[float],
         longitude_list = [longitude_list]
         number_of_planes = 1
 
+    # if number_of_systems > 1:
     satellites_per_plane = number_of_systems // number_of_planes
     reference = np.tile(np.linspace(0, 2 * np.pi, satellites_per_plane, endpoint=False), number_of_planes)
+    # else:
+    #     reference = np.linspace(0, 2 * np.pi, 1, endpoint=False)
+
 
     anomalies_rad = np.deg2rad(anomaly_list)
 
     reference[reference - anomalies_rad > np.pi] -= 2 * np.pi
     reference[reference - anomalies_rad < -np.pi] += 2 * np.pi
 
-    reference -= np.mean(reference - anomalies_rad)
+    if number_of_systems > 1:
+        reference -= np.mean(reference - anomalies_rad)
 
     return reference.reshape((-1, 1))

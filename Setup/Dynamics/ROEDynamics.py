@@ -19,6 +19,7 @@ class ROE(TranslationalDynamics):
         super().__init__(scenario)
         self.is_LTI = False
         self.e_c = scenario.orbital.eccentricity
+        self.use_j2_term_model = scenario.use_j2_term_model
 
         if self.is_scaled and not self.J2_active:
             self.param = DynamicParameters(state_limit=[0.01, 10, 0.1, 0.1, 0.1, 0.1],
@@ -66,7 +67,7 @@ class ROE(TranslationalDynamics):
                              [0, 0, 0, 0, 0, 0],
                              [0, 0, 0, 0, 0, 0]])
 
-        if self.J2_active:
+        if self.J2_active and self.use_j2_term_model:
             P = 3 * np.cos(self.inclination) ** 2 - 1
             Q = 5 * np.cos(self.inclination) ** 2 - 1
             R = np.cos(self.inclination)
@@ -229,6 +230,8 @@ class QuasiROE(TranslationalDynamics):
         super().__init__(scenario)
         self.is_LTI = False
 
+        self.use_j2_term_model = scenario.use_j2_term_model
+
         if self.is_scaled and not self.J2_active:
             self.param = DynamicParameters(state_limit=[0.1 / self.orbit_radius, 100, 0.002, 0.002, 0.05, 1],
                                            input_limit=[0.1, 0.1, 0.1],
@@ -270,11 +273,11 @@ class QuasiROE(TranslationalDynamics):
                              [0, 0, 0, 0, 0, 0],
                              [0, 0, 0, 0, 0, 0]])
 
-        if self.J2_active:
+        if self.J2_active and self.use_j2_term_model:
             eta = np.sqrt(1 - self.eccentricity ** 2)
             A_10 = -21 * (eta * (3 * np.cos(self.inclination)**2 - 1) + 5 * np.cos(self.inclination)**2 - 1)
 
-            gamma = 1 / 8 * self.J2_scaling_factor * self.orbit_radius ** 2 * self.mean_motion / self.orbit_radius ** 2 / eta**4
+            gamma = 1 / 8 * self.J2_value * self.earth_radius ** 2 * self.mean_motion / self.orbit_radius ** 2 / eta**4
             A_J2 = gamma * np.array([np.zeros(6),
                                      [A_10, 0, 0, 0, -6 * np.sin(2 * self.inclination) * (3 * eta + 5), 0],
                                      [0, 0, 0, -6 * (5 * np.cos(self.inclination)**2 - 1), 0, 0],

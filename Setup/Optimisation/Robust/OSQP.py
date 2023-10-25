@@ -21,6 +21,11 @@ def time_optimisation_2(number_of_satellites: int, prediction_horizon: int = Non
 
     problem = create_sparse_problem(number_of_satellites, prediction_horizon, scenario)
 
+    mask_A, mask_B = get_masks(problem['A'], problem['B'])
+    x_vars = np.sum(mask_A)
+    u_vars = np.sum(mask_B)
+    number_of_blocks = int((problem['N'] + 1) / 2 * problem['N'] + 0.001)
+
     # Constraints
     leq = np.hstack([-problem['x0'], np.zeros(problem['N'] * problem['nx'])])
     ueq = leq
@@ -38,6 +43,27 @@ def time_optimisation_2(number_of_satellites: int, prediction_horizon: int = Non
     Bu = sparse.kron(sparse.vstack([sparse.csc_matrix((1, problem['N'])), sparse.eye(problem['N'])]), problem['B'])
     Aeq = sparse.hstack([Ax, Bu])
 
+    A_f, B_f = sparse_state_matrix_replacement(problem['A'], problem['B'], mask_A, mask_B)
+    # Ax = sparse.kron(sparse.eye(problem['N']), -sparse.eye(problem['nx'])) + \
+    #      sparse.kron(sparse.eye(problem['N'], k=-1), problem['A'])
+    # Bu = sparse.kron(sparse.eye(problem['N']), problem['B'])
+    # Aeq_dynamics = sparse.hstack([Ax, Bu, sparse.csc_matrix((problem['N'] * problem['nx'],
+    #                                                          total_vars - indices_dict['u'][-1] - 1))])
+    sigma_matrix = get_sigma_matrix(mask_A)
+    A_f_extended = sparse.vstack([A_f, np.zeros(((prediction_horizon - 1) * x_vars, A_f.shape[1]))])
+    rhs_base = A_f_extended @ sigma_matrix
+
+    A_list = [sparse.csc_matrix((problem['N'] * x_vars))]
+    B_list = []
+
+    for n in range(1, problem['N']):
+        A_list.append(-sparse.eye((problem['N'] - n) * x_vars) + sparse.kron(sparse.eye((problem['N'] - n), k=-1), A_f))
+        B_list.append(sparse.kron(sparse.eye(problem['N'] - n), B_f))
+
+    A_dyn = sparse.block_diag(A_list)
+    B_dyn = sparse.block_diag(B_list)
+    Aeq_dynamics = sparse.hstack([Aeq, A_dyn, B_dyn])
+
     # - input and state constraints
     # Skip first state
     Aineq = sparse.hstack([sparse.csc_matrix(((problem['N']) * problem['nx'] + problem['N'] * problem['nu'],
@@ -49,7 +75,7 @@ def time_optimisation_2(number_of_satellites: int, prediction_horizon: int = Non
 
     # Define problem
     # - quadratic objective
-    P = sparse.block_diag([sparse.kron(sparse.eye(problem['N']), problem['Q']), problem['QN'],
+    P = sparse.block_diag([sparse.kron(sparse.eye(problem['N']), problem['Q']), 5 * problem['QN'],
                            sparse.kron(sparse.eye(problem['N']), problem['R'])], format='csc')
     # - linear objective
     q = np.hstack([np.zeros((problem['N'] + 1) * problem['nx']),
@@ -59,11 +85,11 @@ def time_optimisation_2(number_of_satellites: int, prediction_horizon: int = Non
     prob = osqp.OSQP()
 
     # Setup workspace
-    prob.setup(P, q, A, lb, ub, warm_start=True, verbose=False)
+    prob.setup(P, q, A, lb, ub, warm_start=True, verbose=False, eps_abs=1e-5, eps_rel=1e-5)
                # , check_termination=50, eps_abs=1e-4, eps_rel=1e-4, max_iter=45000)
 
     t_0 = 0
-    nsim = 11
+    nsim = 31
     x = np.zeros((problem['nx'], nsim + 1))
     x[:, 0] = problem['x0']
     input = np.zeros((problem['nu'], nsim))
@@ -95,14 +121,31 @@ def time_optimisation_2(number_of_satellites: int, prediction_horizon: int = Non
 
     if plot_results:
         plt.figure()
-        plt.plot(x[1::6].T)
+        plt.plot(np.rad2deg(x[1::6].T ))
+        plt.ylabel('Angle')
+        plt.grid(True)
+
+        plt.figure()
+        plt.plot(x[0::6].T)
+        plt.ylabel('Radius')
+        plt.grid(True)
+
+        plt.figure()
+        plt.plot(input[0::3].T)
+        plt.ylabel('u_r')
+        plt.grid(True)
+
+        plt.figure()
+        plt.plot(input[1::3].T)
+        plt.ylabel('u_t')
+        plt.grid(True)
         plt.show()
 
     return average_time
 
 
 def time_optimisation(number_of_satellites: int, prediction_horizon: int = None, plot_results: bool = False,
-                        scenario: Scenario = ScenarioEnum.simple_scenario_translation_HCW_scaled.value) -> float:
+                        scenario: Scenario = ScenarioEnum.simple_scenario_translation_blend_scaled.value) -> float:
     """
     Measure the time it takes to optimise the controller.
 
@@ -141,10 +184,10 @@ def time_optimisation(number_of_satellites: int, prediction_horizon: int = None,
 
     # Define problem
     # - quadratic objective
-    P = sparse.block_diag([sparse.kron(sparse.eye(problem['N']), problem['Q']), # problem['QN'],
+    P = sparse.block_diag([sparse.kron(sparse.eye(problem['N'] - 1), problem['Q']),5* problem['QN'],
                            sparse.kron(sparse.eye(problem['N']), problem['R'])], format='csc')
     # - linear objective
-    q = np.hstack([np.kron(np.ones(problem['N']), -problem['Q']@problem['x_ref']),
+    q = np.hstack([np.kron(np.ones(problem['N']-1), -problem['Q']@problem['x_ref']), -5*problem['Q']@problem['x_ref'],
                   # -problem['QN']@problem['x_ref'],
                    np.zeros(problem['N'] * problem['nu'])])
 
@@ -152,10 +195,10 @@ def time_optimisation(number_of_satellites: int, prediction_horizon: int = None,
     prob = osqp.OSQP()
 
     # Setup workspace
-    prob.setup(P, q, A, lb, ub, warm_start=True, verbose=False, eps_abs=1e-3, eps_rel=1e-3)
+    prob.setup(P, q, A, lb, ub, warm_start=True, verbose=False, eps_abs=1e-7, eps_rel=1e-7)
 
     t_0 = 0
-    nsim = 11
+    nsim = 31
     x = np.zeros((problem['nx'], nsim + 1))
     x[:, 0] = problem['x0_abs']
     input = np.zeros((problem['nu'], nsim))
@@ -187,12 +230,29 @@ def time_optimisation(number_of_satellites: int, prediction_horizon: int = None,
 
     if plot_results:
         plt.figure()
-        plt.plot(x[1::6].T - problem['x_ref'][1::6].T)
+        plt.plot(np.rad2deg(x[1::6].T - problem['x_ref'][1::6].T))
+        plt.ylabel('Angle')
+        plt.grid(True)
+
+        plt.figure()
+        plt.plot(x[0::6].T)
+        plt.ylabel('Radius')
+        plt.grid(True)
+
+        plt.figure()
+        plt.plot(input[0::3].T)
+        plt.ylabel('u_r')
+        plt.grid(True)
+
+        plt.figure()
+        plt.plot(input[1::3].T)
+        plt.ylabel('u_t')
+        plt.grid(True)
         plt.show()
 
     return average_time
 
 
 if __name__ == '__main__':
-    time_optimisation(5000, plot_results=True)
-    time_optimisation_2(100, plot_results=False)
+    # time_optimisation(3,prediction_horizon=6, plot_results=True)
+    time_optimisation_2(3, prediction_horizon=6, plot_results=True)

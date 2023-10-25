@@ -2,8 +2,6 @@ from typing import Callable
 import control as ct
 import numpy as np
 from matplotlib import pyplot as plt
-from tudatpy.kernel.astro import element_conversion
-
 from Dynamics.DynamicsParameters import DynamicParameters
 from Dynamics.SystemDynamics import TranslationalDynamics
 import Visualisation.Plotting as Plot
@@ -23,12 +21,13 @@ class Blend(TranslationalDynamics):
 
         self.theta2ex = 2 / self.mean_motion
         self.r2ey = 1 / (self.mean_motion * self.orbit_radius)
+        self.use_j2_term_model = scenario.use_j2_term_model
 
-        print(self.r2ey)
+        # print(self.r2ey)
 
         self.state_size = 6
-        if not self.J2_active:
-            self.param = DynamicParameters(state_limit=[0.1, 10, self.mean_motion / 10 * self.theta2ex, 0.1 * self.r2ey, 1, 1],
+        if not scenario.j2_comparison:
+            self.param = DynamicParameters(state_limit=[0.1, 10, self.mean_motion / 100 * self.theta2ex, 0.01 * self.r2ey, 0.15, 0.15],
                                            input_limit=[0.1, 0.1, 0.1],
                                            q_sqrt=np.diag(np.array([5, 50, 100 / self.theta2ex, 50 / self.r2ey, 10, 10])),
                                            r_sqrt_scalar=1e-2,
@@ -36,24 +35,16 @@ class Blend(TranslationalDynamics):
                                            slack_variable_costs=[1000000, 0, 0, 0, 0, 0],
                                            planetary_distance=np.deg2rad(5)
                                            )
-        elif not isinstance(scenario.orbital.longitude, list):  # Single orbit
-            self.param = DynamicParameters(state_limit=[0.1, 10, self.mean_motion / 10 * self.theta2ex, 0.1 * self.r2ey, 1, 1],
-                                           input_limit=[0.1, 0.1, 0.1],
-                                           q_sqrt=np.diag(np.array([5, 50, 100 / self.theta2ex**2, 50 / self.r2ey**2, 10, 10])),
-                                           r_sqrt_scalar=1e-2,
-                                           slack_variable_length=0,
-                                           slack_variable_costs=[1000000, 0, 0, 0, 0, 0],
-                                           planetary_distance=np.deg2rad(5))
         else:
-            self.param = DynamicParameters(state_limit=[0.1, 10, self.mean_motion / 10 * self.theta2ex, 0.1 * self.r2ey, 1, 1],
-                                           input_limit=[0.1, 0.1, 0.1],
-                                           q_sqrt=np.diag(np.array([5, 50, 100 / self.theta2ex**2, 50 / self.r2ey**2, 10, 10])),
-                                           r_sqrt_scalar=1e-2,
-                                           slack_variable_length=0,
-                                           slack_variable_costs=[1000000, 0, 0, 0, 0, 0],
-                                           planetary_distance=np.deg2rad(5),
-                                           inter_planetary_distance=np.deg2rad(5),
-                                           radial_distance=-1)
+            self.param = DynamicParameters(
+                state_limit=[0.1, 10, self.mean_motion / 10 * self.theta2ex, 0.1 * self.r2ey, 1, 1],
+                input_limit=[0.0001, 0.0001, 0.001],
+                q_sqrt=np.diag(np.array([5, 50, 100 / self.theta2ex, 50 / self.r2ey, 10, 10])),
+                r_sqrt_scalar=1e-2,
+                slack_variable_length=0,
+                slack_variable_costs=[1000000, 0, 0, 0, 0, 0],
+                planetary_distance=np.deg2rad(5)
+                )
 
     def create_model(self, sampling_time: float, argument_of_latitude: float = 0,
                      true_anomaly: float = 0) -> ct.LinearIOSystem:
@@ -80,9 +71,9 @@ class Blend(TranslationalDynamics):
                              [0, 0, 0, 0, 0, -1],
                              [0, 0, 0, 0, 1, 0]]) * self.mean_motion
 
-        if self.J2_active:
+        if self.J2_active and self.use_j2_term_model:
             M_base = 3 * np.cos(self.inclination) ** 2 - 1
-            Lat_base = -7 / 2 * (9 * np.cos(self.inclination) ** 2 - 2)
+            Lat_base = -7 / 2 * (6 * np.cos(self.inclination) ** 2 - 2)
             xi_base = 8 * np.cos(self.inclination) ** 2 - 2
 
             # M_dot = np.array([-7/2 * M_base, 0, -7/2 * M_base * np.cos(true_anomaly), -3 * eta * np.sin(self.inclination * 2), 0])
@@ -92,7 +83,7 @@ class Blend(TranslationalDynamics):
             # M_dot = np.array([-7 / 2 * M_base * 0, 0, 0, 0, -3 * np.sin(self.inclination * 2), 0])
             # omega_dot = np.array([-7 / 2 * omega_base * 0, 0, 0, 0, -5 * np.sin(self.inclination * 2), 0])
             # Omega_dot = np.array([-7 / 2 * Omega_base * 0, 0, 0, 0, 2 * np.sin(self.inclination), 0])
-            gamma = 3 / 4 * self.J2_scaling_factor * self.earth_radius * np.sqrt(self.earth_gravitational_parameter) * self.orbit_radius**(-4.5)
+            gamma = 3 / 4 * self.J2_value * self.earth_radius**2 * np.sqrt(self.earth_gravitational_parameter) * self.orbit_radius**(-4.5)
             A_J2 = gamma * np.array([[0, 0, 0, self.orbit_radius ** 2 * M_base, 0, 0],
                                      [Lat_base, 0, self.orbit_radius * Lat_base, 0, 0, 0],
                                      [0, 0, 0, -self.orbit_radius * M_base, 0, 0],

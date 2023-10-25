@@ -56,6 +56,8 @@ class ScenarioHandler:
             self.number_of_planes = 1
 
         self.reference_satellites_added = False
+        self.sigma_A = None
+        self.sigma_B = None
 
     def create_sls_system(self) -> None:
         """
@@ -85,7 +87,8 @@ class ScenarioHandler:
 
         self.controller = control_method(sampling_time=self.scenario.control.control_timestep,
                                          system_dynamics=control_model,
-                                         prediction_horizon=self.scenario.control.tFIR)
+                                         prediction_horizon=self.scenario.control.tFIR,
+                                         robustness=self.scenario.robustness)
         self.controller.create_system(number_of_systems=self.scenario.number_of_satellites)
 
         # Add cost matrices
@@ -118,6 +121,9 @@ class ScenarioHandler:
                     self.scenario.number_of_satellites + self.number_of_planes * self.reference_satellites_added) * 7))
 
         self.control_inputs = np.zeros((self.t_horizon_simulation + 1, len(self.controller.x0) // 2))
+
+        self.sigma_A = np.zeros((self.t_horizon_control, self.scenario.control.tFIR, len(self.controller.x0)))
+        self.sigma_B = np.zeros_like(self.sigma_A)
 
     def __create_simulation(self) -> None:
         """
@@ -157,6 +163,9 @@ class ScenarioHandler:
                                                               add_rsw_rotation_matrix=False,
                                                               add_thrust_accel=True)
         # self.orbital_mech.set_dependent_variables_rotation(add_control_torque=True, add_torque_norm=False)
+
+        # if self.orbital_element_offsets is not None:
+        #     self.orbital_mech.initial_state_oe += self.orbital_element_offsets.flatten()
 
     def __initialise_simulation(self) -> None:
         """
@@ -216,7 +225,7 @@ class ScenarioHandler:
                                                       simulation_step_size=self.scenario.simulation.simulation_timestep)
 
         # Simulate system
-        self.orbital_mech.simulate_system()
+        self.orbital_mech.simulate_system(disturbance_free=True)
         indices = np.array(list(self.orbital_mech.dependent_variables_dict["keplerian state"].values())).reshape((-1,))
         kep_var = self.orbital_mech.dep_vars[:, indices]
 
@@ -304,7 +313,6 @@ class ScenarioHandler:
         self.orbital_mech.create_propagation_settings(start_epoch=start_epoch,
                                                       end_epoch=end_epoch,
                                                       simulation_step_size=self.scenario.simulation.simulation_timestep)
-
         # Simulate system
         self.orbital_mech.simulate_system()
         dep_vars_array = self.orbital_mech.dep_vars
@@ -371,6 +379,10 @@ class ScenarioHandler:
                                                                              :, 4],
                                                                              np.ones((1, self.number_of_planes))),
                                                                          current_true_anomalies=self.orbital_mech.true_anomalies)
+        # self.sigma_A[time] = np.array(sigma_A)
+        # self.sigma_B[time] = np.array(sigma_B)
+
+
 
         if isinstance(self.controller.dynamics, LinAttModel):
             self.control_inputs_torque = control_inputs.reshape((self.scenario.number_of_satellites,
@@ -431,6 +443,8 @@ class ScenarioHandler:
         self.__run_simulation_timestep(0, initial_setup=True)
 
         self.__synthesise_controller(0, self.scenario.control.tFIR)
+
+        self.scenario.simulation.simulation_duration = self.scenario.control.tFIR * self.scenario.control.control_timestep
         self.__run_simulation_timestep(0, full_simulation=True)
 
     def simulate_system_no_control(self) -> None:
@@ -456,6 +470,27 @@ class ScenarioHandler:
         self.controller.set_initial_conditions(self.sls_states[0:1].T)
         self.controller.simulate_system(t_horizon=self.t_horizon_control, noise=None, progress=True,
                                         fast_computation=True)
+
+    def simulate_system_controller_sim_no_control(self, initial_state: np.ndarray) -> None:
+        """
+        Run a simulation with the controller model as simulator and without any control inputs.
+
+        :param initial_state: Initial state for the simulation in as OE.
+        """
+        # # For initial value
+        self.__find_osculation_offsets()
+        self.orbital_element_offsets = initial_state
+        self.__run_simulation_timestep(0, initial_setup=True)
+
+        self.controller.set_initial_conditions(self.sls_states[0:1].T)
+        # print(self.sls_states[0:1])
+        states, inputs = self.controller.simulate_system(t_horizon=self.t_horizon_control, noise=None, progress=True,
+                                                         fast_computation=True, with_control=False)
+
+        self.control_inputs_thrust = inputs.reshape((self.scenario.number_of_satellites,
+                                                     self.controller.dynamics.input_size, -1))
+        self.control_inputs_torque = 0 * self.control_inputs_thrust
+        self.__run_simulation_timestep(0, full_simulation=True)
 
     def simulate_system_controller_then_full_sim(self) -> None:
         """
@@ -515,6 +550,9 @@ class ScenarioHandler:
 
         orbital_sim.thrust_forces = self.control_inputs
         orbital_sim.solver_time = self.controller.total_solver_time
+        orbital_sim.number_of_simulation_steps = self.orbital_mech.number_of_simulation_steps
+        orbital_sim.sigma_A = self.sigma_A
+        orbital_sim.sigma_B = self.sigma_B
         # print(orbital_sim.solver_time)
         # print(self.orbital_mech.thrust_forces)
 

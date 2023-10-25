@@ -128,80 +128,112 @@ def oe2blend(oe: np.ndarray, reference_oe: np.ndarray, reference_angle_offsets: 
     number_of_ref = reference_oe.shape[0]
     satellites_per_ref = number_of_satellites // number_of_ref
 
-    # Reference variables
-    rho_ref = reference_oe[:, :, 0::6] * (1 - reference_oe[:, :, 1::6] ** 2) / (1 + reference_oe[:, :, 1::6] * np.cos(reference_oe[:, :, 5::6]))
-    theta_ref = np.unwrap(reference_oe[:, :, 3::6] + reference_oe[:, :, 5::6], axis=0)
-    inclination_ref = reference_oe[:, :, 2::6]
-    Omega_ref = reference_oe[:, :, 4::6]
-
     blend_states = np.zeros_like(oe)
 
-    for ref in range(number_of_ref):
-        for idx in range(satellites_per_ref):
-            oe_sat = oe[:, (ref * satellites_per_ref + idx) * 6: (ref * satellites_per_ref + idx + 1) * 6]
-
-            rho = oe_sat[:, 0:1] * (1 - oe_sat[:, 1:2] ** 2) / (1 + oe_sat[:, 1:2] * np.cos(oe_sat[:, 5:6])) - rho_ref[ref]
-            theta_ref_sat = theta_ref[ref] + reference_angle_offsets[ref * satellites_per_ref + idx]
-            theta = np.unwrap(oe_sat[:, 3:4] + oe_sat[:, 5:6] - theta_ref_sat, axis=0)
-
-            # delta_i = oe_sat[:, 2:3] - inclination_ref[ref]
-            delta_Omega = oe_sat[:, 4:5] - Omega_ref[ref]
-
-            e_x = oe_sat[:, 1:2] * np.cos(oe_sat[:, 5:6])
-            e_y = oe_sat[:, 1:2] * np.sin(oe_sat[:, 5:6])
-
-            # i_x = np.cos(oe_sat[:, 3:4] + oe_sat[:, 5:6]) * np.sin(oe_sat[:, 2:3]) - np.cos(theta_ref_sat) * np.sin(inclination_ref[ref])
-            # i_y = np.sin(oe_sat[:, 3:4] + oe_sat[:, 5:6]) * np.sin(oe_sat[:, 2:3]) - np.sin(theta_ref_sat) * np.sin(inclination_ref[ref])
-
-            i_x = np.cos(oe_sat[:, 3:4] + oe_sat[:, 5:6]) * np.tan(oe_sat[:, 2:3] / 2) - \
-                  np.cos(oe_sat[:, 4:5] - Omega_ref[ref] + oe_sat[:, 3:4] + oe_sat[:, 5:6]) * \
-                  np.tan(inclination_ref[ref] / 2)
-
-            i_y = np.sin(oe_sat[:, 3:4] + oe_sat[:, 5:6]) * np.tan(oe_sat[:, 2:3] / 2) - \
-                  np.sin(oe_sat[:, 4:5] - Omega_ref[ref] + oe_sat[:, 3:4] + oe_sat[:, 5:6]) * \
-                  np.tan(inclination_ref[ref] / 2)
+    # Reshape reference into (time, ref, 1, states)
+    reference_oe_reshaped = reference_oe.transpose((1, 0, 2)).reshape(((reference_oe.shape[1], reference_oe.shape[0], 1, 6)))
+    rho_ref = reference_oe_reshaped[:, :, :, 0:1] * (1 - reference_oe_reshaped[:, :, :, 1:2] ** 2) / (
+                1 + reference_oe_reshaped[:, :, :, 1:2] * np.cos(reference_oe_reshaped[:, :, :, 5:6]))
+    theta_ref = np.unwrap(reference_oe_reshaped[:, :, :, 3:4] + reference_oe_reshaped[:, :, :, 5:6], axis=0)
+    inclination_ref = reference_oe_reshaped[:, :, :, 2:3]
+    Omega_ref = reference_oe_reshaped[:, :, :, 4:5]
 
 
-            # if oe_sat.shape[0] > 2:
-            #     plt.figure()
-            #
-            #     a = oe_sat[:, 0:1]
-            #     e = oe_sat[:, 1:2]
-            #     theta_t = oe_sat[:, 5:6]
-            #
-            #     eta = 1 - e**2
-            #     kappa = 1 + e * np.cos(theta_t)
-            #
-            #     a_dot = np.gradient(a, axis=0, edge_order=edge_order)
-            #     e_dot = np.gradient(e, axis=0, edge_order=edge_order)
-            #     theta_dot_t = np.gradient(theta_t, axis=0, edge_order=edge_order)
-            #     rho_dot_test = a_dot * eta / kappa - 2 * e * e_dot * a / kappa - e_dot * np.cos(theta_t) * a * eta / kappa**2 + theta_dot_t * np.sin(theta_t) * eta * e * a / kappa**2
-            #     plt.plot(rho_dot)
-            #     plt.plot(rho_dot_test, '--')
-            #     plt.plot(a_dot * eta / kappa- e_dot * np.cos(theta_t) * a * eta / kappa**2, '.-')
-            #     plt.plot(a_dot - e_dot * np.cos(theta_t) * a, 'o-')
-            #     plt.show()
-            # delta_lambda = kepler_sat[:, 3:4] + kepler_sat[:, 5:6] - kepler_ref[:, 3:4] - kepler_ref[:, 5:6]
-            #
-            # delta_r = (np.sqrt(states_satellite[:, 0:1] ** 2 + states_satellite[:, 1:2] ** 2) - ref_rho) / ref_rho
-            # delta_theta = np.unwrap(np.arctan2(states_satellite[:, 1:2], states_satellite[:, 0:1]), axis=0) - ref_theta
-            # rho_dot = np.cos(delta_theta) * states_satellite[:, 3:4] + np.sin(delta_theta) * states_satellite[:,
-            #                                                                                  4:5] - ref_rho_dot
-            # theta_dot = (-np.sin(delta_theta) * states_satellite[:, 3:4] +
-            #              np.cos(delta_theta) * states_satellite[:, 4:5]) / (delta_r * ref_rho + ref_rho) - ref_theta_dot
-            # delta_i = kepler_sat[:, 2:3] - kepler_ref[:, 2:3]
-            # delta_Omega = kepler_sat[:, 4:5] - kepler_ref[:, 4:5]
+    # Reshape into (time, ref, sat, states)
+    oe_reshape = oe.reshape((oe.shape[0], number_of_ref, -1, 6))
 
-            # Convert to range [0, 2 * pi]
-            if theta[0] + delta_Omega[0] > np.pi:
-                theta -= 2 * np.pi
-            elif theta[0] + delta_Omega[0] < -np.pi:
-                theta += 2 * np.pi
-            # if delta_lambda[0] > np.pi:
-            #     delta_lambda -= 2 * np.pi
+    rho = oe_reshape[:, :, :, 0:1] * (1 - oe_reshape[:, :, :, 1:2] ** 2) / \
+              (1 + oe_reshape[:, :, :, 1:2] * np.cos(oe_reshape[:, :, :, 5:6])) - rho_ref
 
-            blend_states[:, (ref * satellites_per_ref + idx) * 6: (ref * satellites_per_ref + idx + 1) * 6] = \
-                np.concatenate((rho, theta + delta_Omega, e_x, e_y, i_x, i_y), axis=1)
+    theta_ref_sat = theta_ref + reference_angle_offsets.reshape((1, number_of_ref, -1, 1))
+    theta = np.unwrap(oe_reshape[:, :, :, 3:4] + oe_reshape[:, :, :, 5:6] - theta_ref_sat, axis=0)
+
+    delta_Omega = oe_reshape[:, :, :, 4:5] - Omega_ref
+
+    e_x = oe_reshape[:, :, :, 1:2] * np.cos(oe_reshape[:, :, :, 5:6])
+    e_y = oe_reshape[:, :, :, 1:2] * np.sin(oe_reshape[:, :, :, 5:6])
+
+    i_x = np.cos(oe_reshape[:, :, :, 3:4] + oe_reshape[:, :, :, 5:6]) * np.tan(oe_reshape[:, :, :, 2:3] / 2) - \
+          np.cos(oe_reshape[:, :, :, 4:5] - Omega_ref + oe_reshape[:, :, :, 3:4] + oe_reshape[:, :, :, 5:6]) * \
+          np.tan(inclination_ref / 2)
+
+    i_y = np.sin(oe_reshape[:, :, :, 3:4] + oe_reshape[:, :, :, 5:6]) * np.tan(oe_reshape[:, :, :, 2:3] / 2) - \
+          np.sin(oe_reshape[:, :, :, 4:5] - Omega_ref + oe_reshape[:, :, :, 3:4] + oe_reshape[:, :, :, 5:6]) * \
+          np.tan(inclination_ref / 2)
+
+    # Convert to range [0, 2 * pi]
+    lambda_f = theta + delta_Omega * np.cos(inclination_ref)
+    lambda_f += (lambda_f[0:1] < -np.pi) * 2 * np.pi - (lambda_f[0:1] > np.pi) * 2 * np.pi
+
+    # Reshape results for end result
+    blend_states = np.concatenate((rho, lambda_f, e_x, e_y, i_x, i_y), axis=3).reshape((oe.shape[0], -1))
+
+    # for ref in range(number_of_ref):
+    #     for idx in range(satellites_per_ref):
+    #         oe_sat = oe[:, (ref * satellites_per_ref + idx) * 6: (ref * satellites_per_ref + idx + 1) * 6]
+    #
+    #         rho = oe_sat[:, 0:1] * (1 - oe_sat[:, 1:2] ** 2) / (1 + oe_sat[:, 1:2] * np.cos(oe_sat[:, 5:6])) - rho_ref[ref]
+    #         theta_ref_sat = theta_ref[ref] + reference_angle_offsets[ref * satellites_per_ref + idx]
+    #         theta = np.unwrap(oe_sat[:, 3:4] + oe_sat[:, 5:6] - theta_ref_sat, axis=0)
+    #
+    #         # delta_i = oe_sat[:, 2:3] - inclination_ref[ref]
+    #         delta_Omega = oe_sat[:, 4:5] - Omega_ref[ref]
+    #
+    #         e_x = oe_sat[:, 1:2] * np.cos(oe_sat[:, 5:6])
+    #         e_y = oe_sat[:, 1:2] * np.sin(oe_sat[:, 5:6])
+    #
+    #         # i_x = np.cos(oe_sat[:, 3:4] + oe_sat[:, 5:6]) * np.sin(oe_sat[:, 2:3]) - np.cos(theta_ref_sat) * np.sin(inclination_ref[ref])
+    #         # i_y = np.sin(oe_sat[:, 3:4] + oe_sat[:, 5:6]) * np.sin(oe_sat[:, 2:3]) - np.sin(theta_ref_sat) * np.sin(inclination_ref[ref])
+    #
+    #         i_x = np.cos(oe_sat[:, 3:4] + oe_sat[:, 5:6]) * np.tan(oe_sat[:, 2:3] / 2) - \
+    #               np.cos(oe_sat[:, 4:5] - Omega_ref[ref] + oe_sat[:, 3:4] + oe_sat[:, 5:6]) * \
+    #               np.tan(inclination_ref[ref] / 2)
+    #
+    #         i_y = np.sin(oe_sat[:, 3:4] + oe_sat[:, 5:6]) * np.tan(oe_sat[:, 2:3] / 2) - \
+    #               np.sin(oe_sat[:, 4:5] - Omega_ref[ref] + oe_sat[:, 3:4] + oe_sat[:, 5:6]) * \
+    #               np.tan(inclination_ref[ref] / 2)
+    #
+    #
+    #         # if oe_sat.shape[0] > 2:
+    #         #     plt.figure()
+    #         #
+    #         #     a = oe_sat[:, 0:1]
+    #         #     e = oe_sat[:, 1:2]
+    #         #     theta_t = oe_sat[:, 5:6]
+    #         #
+    #         #     eta = 1 - e**2
+    #         #     kappa = 1 + e * np.cos(theta_t)
+    #         #
+    #         #     a_dot = np.gradient(a, axis=0, edge_order=edge_order)
+    #         #     e_dot = np.gradient(e, axis=0, edge_order=edge_order)
+    #         #     theta_dot_t = np.gradient(theta_t, axis=0, edge_order=edge_order)
+    #         #     rho_dot_test = a_dot * eta / kappa - 2 * e * e_dot * a / kappa - e_dot * np.cos(theta_t) * a * eta / kappa**2 + theta_dot_t * np.sin(theta_t) * eta * e * a / kappa**2
+    #         #     plt.plot(rho_dot)
+    #         #     plt.plot(rho_dot_test, '--')
+    #         #     plt.plot(a_dot * eta / kappa- e_dot * np.cos(theta_t) * a * eta / kappa**2, '.-')
+    #         #     plt.plot(a_dot - e_dot * np.cos(theta_t) * a, 'o-')
+    #         #     plt.show()
+    #         # delta_lambda = kepler_sat[:, 3:4] + kepler_sat[:, 5:6] - kepler_ref[:, 3:4] - kepler_ref[:, 5:6]
+    #         #
+    #         # delta_r = (np.sqrt(states_satellite[:, 0:1] ** 2 + states_satellite[:, 1:2] ** 2) - ref_rho) / ref_rho
+    #         # delta_theta = np.unwrap(np.arctan2(states_satellite[:, 1:2], states_satellite[:, 0:1]), axis=0) - ref_theta
+    #         # rho_dot = np.cos(delta_theta) * states_satellite[:, 3:4] + np.sin(delta_theta) * states_satellite[:,
+    #         #                                                                                  4:5] - ref_rho_dot
+    #         # theta_dot = (-np.sin(delta_theta) * states_satellite[:, 3:4] +
+    #         #              np.cos(delta_theta) * states_satellite[:, 4:5]) / (delta_r * ref_rho + ref_rho) - ref_theta_dot
+    #         # delta_i = kepler_sat[:, 2:3] - kepler_ref[:, 2:3]
+    #         # delta_Omega = kepler_sat[:, 4:5] - kepler_ref[:, 4:5]
+    #
+    #         # Convert to range [0, 2 * pi]
+    #         if theta[0] + delta_Omega[0] > np.pi:
+    #             theta -= 2 * np.pi
+    #         elif theta[0] + delta_Omega[0] < -np.pi:
+    #             theta += 2 * np.pi
+    #         # if delta_lambda[0] > np.pi:
+    #         #     delta_lambda -= 2 * np.pi
+    #
+    #         blend_states[:, (ref * satellites_per_ref + idx) * 6: (ref * satellites_per_ref + idx + 1) * 6] = \
+    #             np.concatenate((rho, theta + delta_Omega * np.cos(inclination_ref[ref]), e_x, e_y, i_x, i_y), axis=1)
 
     return blend_states
 
@@ -387,3 +419,52 @@ def oe2quasi_roe(oe: np.ndarray, reference_oe: np.ndarray, reference_angle_offse
                 np.concatenate((a, theta, ex, ey, ix, iy), axis=1)
 
     return main_states
+
+
+def blend2main(blend_states: np.ndarray) -> np.ndarray:
+    """
+    Convert blend states to main states.
+
+    :param blend_states: Blend states over time in shape (t, 6 * number_of_satellites)
+    :return: Main states in shape (t, 3 * number_of_satellites)
+    """
+    radius_main = blend_states[:, 0::6]
+    eq_1 = blend_states[:, 4::6] / np.tan(np.deg2rad(45)/2)
+    eq_2 = blend_states[:, 5::6] / np.tan(np.deg2rad(45)/2)
+    Omega_main = np.arccos((eq_1**2 + eq_2**2 - 2) / -2)
+
+    if eq_2[0] > 0:
+        Omega_main *= -1
+    theta_main = blend_states[:, 1::6] - np.cos(np.deg2rad(45)) * Omega_main
+
+    return np.concatenate((radius_main, theta_main, Omega_main), axis=1)
+
+
+def hcw2main(hcw_states: np.ndarray) -> np.ndarray:
+    """
+    Convert hcw states to main states.
+
+    :param hcw_states: HCW states over time in shape (t, 6 * number_of_satellites)
+    :return: Main states in shape (t, 3 * number_of_satellites)
+    """
+    radius_main = hcw_states[:, 0::6]
+    Omega_main = 0 * hcw_states[:, 1::6]
+    theta_main = hcw_states[:, 1::6]
+
+    return np.concatenate((radius_main, theta_main, Omega_main), axis=1)
+
+
+def roe2main(roe_states: np.ndarray) -> np.ndarray:
+    """
+    Convert roe states to main states.
+
+    :param roe_states: ROE states over time in shape (t, 6 * number_of_satellites)
+    :return: Main states in shape (t, 3 * number_of_satellites)
+    """
+    e = np.sqrt(roe_states[:, 2::6]**2 + roe_states[:, 3::6]**2)
+    f = np.arctan2(roe_states[:, 3::6] , roe_states[:, 2::6])
+    radius_main = (roe_states[:, 0::6] * 55 + 55) * (1-e**2) / (1 + e * np.cos(f)) - 55
+    Omega_main = roe_states[:, 5::6] / np.sin(np.deg2rad(45))
+    theta_main = roe_states[:, 1::6] - np.cos(np.deg2rad(45)) * Omega_main
+
+    return np.concatenate((radius_main, theta_main, Omega_main), axis=1)

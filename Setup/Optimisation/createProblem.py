@@ -10,7 +10,7 @@ from Scenarios.ControlScenarios import Model
 
 def create_sparse_problem(number_of_satellites: int,
                           prediction_horizon: int = None,
-                          scenario: Scenario = ScenarioEnum.simple_scenario_translation_HCW_scaled.value) -> dict:
+                          scenario: Scenario = ScenarioEnum.simple_scenario_translation_blend_scaled.value) -> dict:
     """
     Create a sparse optimisation problem.
 
@@ -75,8 +75,32 @@ def create_sparse_problem(number_of_satellites: int,
     problem['x_ref'] = xr
     problem['N'] = scenario.control.tFIR
 
-    problem['e_A'] = 0.000001
-    problem['e_B'] = 0.000001
-    problem['sigma_w'] = 0.0001
+    # problem['e_A'] = 0.0079
+    # problem['e_B'] = 0.00097
+    problem['e_A'] = scenario.robustness.e_A
+    problem['e_B'] = scenario.robustness.e_B
+    problem['sigma_w'] = scenario.robustness.sigma_w
+
+    problem['e_A0'] = scenario.robustness.e_A0
+    problem['e_A1'] = scenario.robustness.e_A1
+    problem['e_A2'] = scenario.robustness.e_A2
+    problem['e_A3'] = scenario.robustness.e_A3
+    problem['e_A4'] = scenario.robustness.e_A4
+    problem['e_A5'] = scenario.robustness.e_A5
+
+    problem['e_B0'] = scenario.robustness.e_B0
+    problem['e_B1'] = scenario.robustness.e_B1
+    problem['e_B2'] = scenario.robustness.e_B2
+    problem['e_B3'] = scenario.robustness.e_B3
+    problem['e_B4'] = scenario.robustness.e_B4
+    problem['e_B5'] = scenario.robustness.e_B5
+
+    problem['sigma_w0'] = scenario.robustness.sigma_w0
+    problem['sigma_w1'] = scenario.robustness.sigma_w1
+    problem['sigma_w2'] = scenario.robustness.sigma_w2
+    problem['sigma_w3'] = scenario.robustness.sigma_w3
+    problem['sigma_w4'] = scenario.robustness.sigma_w4
+    problem['sigma_w5'] = scenario.robustness.sigma_w5
+
 
     return problem

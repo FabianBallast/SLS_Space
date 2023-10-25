@@ -17,6 +17,21 @@ def get_masks(A_matrix: sparse.coo_matrix, B_matrix: sparse.coo_matrix) -> (np.n
     return mask_A, mask_B
 
 
+def get_sigma_matrix(mask_A: np.ndarray) -> np.ndarray:
+    """
+    Find the sigma matrix such that phi_x = sigma_matrix @ sigma <=> Phi_x = Sigma
+
+    :param mask_A: Mask of the A matrix
+    :return: sigma matrix
+    """
+    mask_sparse = sparse.coo_matrix(mask_A)
+    mask_sparse.data = np.arange(0, np.sum(mask_A))
+    sigma_indices = np.array(mask_sparse.todense().T, dtype=int)[np.eye(mask_A.shape[0]) > 0]
+    sigma_sparse = sparse.coo_matrix((np.ones(mask_A.shape[0]), (sigma_indices, np.arange(mask_A.shape[0], dtype=int))))
+
+    return np.array(sigma_sparse.todense())
+
+
 def sparse_state_matrix_replacement(A_matrix: sparse.coo_matrix, B_matrix: sparse.coo_matrix, mask_A: np.ndarray,
                                     mask_B: np.ndarray) -> (sparse.coo_matrix, sparse.coo_matrix):
     """
@@ -69,6 +84,8 @@ def find_fx_and_fu(mask_A: np.ndarray, mask_B: np.ndarray, x0: np.ndarray) -> (s
     order_matrix_B = sparse.coo_matrix(mask_B.T)
     order_matrix_B.data = np.arange(np.sum(mask_B))
     order_matrix_B = np.array(order_matrix_B.todense()).T
+
+    # print(order_matrix_A, order_matrix_B)
 
     F_x = np.zeros((mask_A.shape[0], np.sum(mask_A)))
     F_u = np.zeros((mask_B.shape[0], np.sum(mask_B)))
@@ -140,7 +157,7 @@ def find_indices(problem: dict, number_of_blocks: int, x_vars: int, u_vars: int)
     indices_dict['phi_u'] = np.arange(indices_dict['phi_x'][-1] + 1,
                                       indices_dict['phi_x'][-1] + 1 + u_vars * number_of_blocks)
     indices_dict['sigma'] = np.arange(indices_dict['phi_u'][-1] + 1,
-                                      indices_dict['phi_u'][-1] + 1 + problem['N'])
+                                      indices_dict['phi_u'][-1] + 1 + problem['N'] * problem['nx'])
 
     indices_dict['phi_x_pos'] = np.arange(indices_dict['sigma'][-1] + 1,
                                           indices_dict['sigma'][-1] + 1 + x_vars * number_of_blocks)

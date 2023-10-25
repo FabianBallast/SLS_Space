@@ -5,15 +5,21 @@ import pickle
 
 linestyle_dict = {'HCW': {'color': 'red', 'linestyle': 'dashed', 'marker': 'None'},
                   'ROE': {'color': 'green', 'linestyle': 'dotted', 'marker': 'None'},
-                  'BLEND': {'color': 'blue', 'linestyle': 'solid', 'marker': 'None'}}
+                  'ROE(NO J2)': {'color': 'green', 'linestyle': 'dotted', 'marker': 'None'},
+                  'ROE(J2)': {'color': 'green', 'linestyle': 'dashed', 'marker': 'None'},
+                  'BLEND': {'color': 'blue', 'linestyle': 'solid', 'marker': 'None'},
+                  'BLEND(NO J2)': {'color': 'blue', 'linestyle': 'dotted', 'marker': 'None'},
+                  'BLEND(J2)': {'color': 'blue', 'linestyle': 'dashed', 'marker': 'None'}}
 
 satellite_dict = {'single_plane': [1, 3, 9],
                   'double_plane': [4, 6, 8],
-                  'hex_plane': [5, 9, 12]}
+                  'hex_plane': [5, 9, 12],
+                  'j2_comparison': [0,1,2,3]}
 
 plot_duration = {'single_plane': 45,
                  'double_plane': 70,
-                 'hex_plane': 60}
+                 'hex_plane': 60,
+                 'j2_comparison': 24*60}
 
 
 def plot_data_comparison(plot_name: str) -> None:
@@ -37,6 +43,8 @@ def plot_data_comparison(plot_name: str) -> None:
                 fig_list[1] = orbital_sim.plot_side_states(figure=fig_list[1], satellite_indices=satellite_dict[type],
                                                            **linestyle_dict[method], legend_name=method,
                                                            plot_duration=plot_duration[type])
+                # if method == 'HCW':
+                #     continue
                 fig_list[2] = orbital_sim.plot_inputs(figure=fig_list[2], satellite_indices=satellite_dict[type],
                                                       **linestyle_dict[method], legend_name=method,
                                                       plot_duration=plot_duration[type])
@@ -80,6 +88,23 @@ def plot_projection_comparison() -> None:
                 fig2.savefig(f'../Figures/projection_comparison_states.eps')
 
 
+def plot_j2_comparison() -> None:
+    """
+    Plot the j2 comparison plot.
+    """
+    fig = None
+    for file in os.listdir("../Data"):
+        if file.startswith('j2_comparison'):
+            method = file.removeprefix("j2_comparison_")
+            with open(os.path.join("../Data", file), 'rb') as f:
+                orbital_sim = pickle.load(f)
+                x_states = pickle.load(f)
+
+                fig = orbital_sim.plot_model_errors(x_states, figure=fig, legend_name=method, **linestyle_dict[method])
+
+    fig.savefig(f'../Figures/j2_comparison.eps')
+
+
 def plot_all() -> None:
     """
     Plot and save all plots.
@@ -93,8 +118,9 @@ def plot_all() -> None:
 
 
 if __name__ == '__main__':
-    # plot_data_comparison('double_plane_kepler')
+    plot_data_comparison('double_plane_j2')
     # plot_individual_results('single_plane_kepler')
     # plot_projection_comparison()
-    plot_all()
-    # plt.show()
+    # plot_j2_comparison()
+    # plot_all()
+    plt.show()

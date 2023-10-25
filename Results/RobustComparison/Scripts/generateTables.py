@@ -2,14 +2,9 @@ import os
 import pickle
 import numpy as np
 
-table_name_legend = {'BLEND': 'Blend',
-              'HCW': 'HCW',
-              'ROE': 'ROE',
-                     "BLEND(J2)": 'Blend(J2)',
-                     'BLEND(NO J2)': 'Blend(No J2)',
-                     'ROE(J2)': "ROE(J2)",
-                     "ROE(NO J2)": "ROE(No J2)"}
-
+legend_dict = {'NO': 'SLS',
+               'SIMPLE': 'Old LSLS',
+               'ADVANCED': "New LSLS"}
 def generate_table(table_name: str) -> None:
     """
     Generate table for a given table name.
@@ -18,8 +13,8 @@ def generate_table(table_name: str) -> None:
     table_data = {}
 
     for file in os.listdir("../Data"):
-        if file.startswith(table_name):
-            method = file.removeprefix(table_name + "_")
+        if file.startswith(table_name) and file.removeprefix(table_name+ "_") in legend_dict:
+            method = legend_dict[file.removeprefix(table_name + "_")]
             with open(os.path.join("../Data", file), 'rb') as f:
                 orbital_sim = pickle.load(f)
                 table_data[method] = orbital_sim.find_metric_values()
@@ -28,12 +23,14 @@ def generate_table(table_name: str) -> None:
 
     with open(f"..\\Tables\\{table_name}.txt", "w") as text_file:
         print("\\begin{table}[!hbt]\n\\centering", file=text_file)
-        print(f"\\caption{{Metric during}}\n\\label{{tab: met_{table_name}_orbit_mech}}", file=text_file)
-        print("\\begin{tabular}{c| c c c c c c c c} \n Model & $\\Bar{|r|}$ [m] & $\\Bar{|\\theta|}$ [deg] & $\\Bar{|\\Omega|}$ [deg] & "
-              "$\\Bar{|u_r|}$ [N]& $\\Bar{|u_t|}$ [N]& $\\Bar{|u_n|}$ [N]& $\\Bar{\\norm{\\mathbf{u}}}_2$ [N] & $T_\\mathrm{sol}$ [s]\\\\ \\hline", file=text_file)
+        print(f"\\caption{{Metric during}}\n\\label{{tab: met_{table_name}_robust}}", file=text_file)
+        print(
+            "\\begin{tabular}{c| c c c c c c c c} \n Model & $\\Bar{|r|}$ [m] & $\\Bar{|\\theta|}$ [deg] & $\\Bar{|\\Omega|}$ [deg] & "
+            "$\\Bar{|u_r|}$ [N]& $\\Bar{|u_t|}$ [N]& $\\Bar{|u_n|}$ [N]& $\\Bar{\\norm{\\mathbf{u}}}_2$ [N] & $T_\\mathrm{sol}$ [s]\\\\ \\hline",
+            file=text_file)
 
         for method in table_data:
-            print(f"{table_name_legend[method]} & {'&'.join(f'{x:.2g}' for x in table_data[method])} \\\\", file=text_file)
+            print(f"{method} & {'&'.join(f'{x:.2g}' for x in table_data[method])} \\\\", file=text_file)
 
         print("\\end{tabular}\n\\end{table}", file=text_file)
 

@@ -16,7 +16,7 @@ class Physics:
     def __init__(self, radius_earth=body_settings.get('Earth').shape_settings.radius,
                  grav_param_earth=body_settings.get('Earth').gravity_field_settings.gravitational_parameter,
                  orbital_height=750e3, atmosphere_density=1e-13, mass=400, inertia_tensor=np.array([[10, 1, -1], [1, 10, 1], [-1, 1, 10]]),
-                 specific_impulse=1e10, j2_perturbation=False, j2_value = 1.08262668e-3, aerodynamic_forces=False,
+                 specific_impulse=1e10, j2_perturbation=False, j2_value=1.08262668e-3, aerodynamic_forces=False,
                  third_bodies=False, second_order_grav_torques=False):
         """
         :param radius_earth: Radius of the Earth in m.
@@ -58,7 +58,7 @@ class ScaledPhysics(Physics):
     Create the parameters related to the scaled physics.
     """
 
-    def __init__(self, radius_earth=40, grav_param_earth=100, orbital_height=15, atmosphere_density=1e-6, **kwargs):
+    def __init__(self, radius_earth=50, grav_param_earth=100, orbital_height=5, atmosphere_density=1e-6, **kwargs):
         super().__init__(radius_earth, grav_param_earth, orbital_height, atmosphere_density, **kwargs)
 
 

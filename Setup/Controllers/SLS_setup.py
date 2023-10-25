@@ -2,30 +2,38 @@ from tudatpy.kernel.astro import element_conversion
 from Dynamics import SystemDynamics as SysDyn
 from Dynamics.BlendDynamics import BlendSmall
 import numpy as np
-from slspy import SLS, SLS_Obj_H2, LTV_System, SLS_Cons_Input, SLS_Cons_State
+from slspy import SLS, SLS_Obj_H2, LTV_System, SLS_Cons_Input, SLS_Cons_State, SLS_StateFeedback_FIR_Controller
 from Visualisation import Plotting as Plot
 import matplotlib.pyplot as plt
 from Controllers.Controller import Controller
 from Optimisation.OSQP_Solver import OSQP_Synthesiser
 from Optimisation.Gurobi_Solver import Gurobi_Synthesiser
+from Optimisation.Gurobi_Solver_Robust_Simple import Gurobi_Synthesiser_Robust_Simple
+from Optimisation.Gurobi_Solver_Robust_Advanced import Gurobi_Synthesiser_Robust_Advanced
+from Optimisation.Gurobi_Solver_Robust_Advanced_Fast import Gurobi_Synthesiser_Robust_Advanced as Gurobi_Synthesiser_Robust_Advanced_2
+from Scenarios.RobustScenarios import Robustness, RobustnessType
 
 class SLSSetup(Controller):
     """
     Class to use the SLS framework.
     """
 
-    def __init__(self, sampling_time: int, system_dynamics: SysDyn.GeneralDynamics, prediction_horizon: int):
+    def __init__(self, sampling_time: int, system_dynamics: SysDyn.GeneralDynamics, prediction_horizon: int,
+                 robustness: Robustness):
         """
         Initialise the class to deal with the SLS framework.
 
         :param sampling_time: The sampling time used for control purposes.
         :param system_dynamics: Dynamics used for control design
         :param prediction_horizon: FIR length of SLS algorithm.
+        :param robustness_type: Robustness type for the controller.
         """
         super().__init__(sampling_time, system_dynamics, prediction_horizon)
 
         self.arguments_of_latitude = None
         self.arguments_of_periapsis = None
+        self.robustness = robustness
+        self.robustness_type = robustness.robustness_type
 
     def create_system(self, number_of_systems: int) -> None:
         """
@@ -131,7 +139,7 @@ class SLSSetup(Controller):
     def simulate_system(self, t_horizon: int, noise=None, progress: bool = False, inputs_to_store: int = 1,
                         fast_computation: bool = False, time_since_start: int = 0,
                         add_collision_avoidance: bool = False, absolute_longitude_refs: list[float | int] = None,
-                        current_true_anomalies: list[float | int] = None) -> (np.ndarray, np.ndarray):
+                        current_true_anomalies: list[float | int] = None, with_control: bool = True) -> (np.ndarray, np.ndarray):
         """
         Simulate the system assuming a perfect model is known.
 
@@ -145,6 +153,7 @@ class SLSSetup(Controller):
         :param add_collision_avoidance: Whether to add collision avoidance constraints.
         :param absolute_longitude_refs: List with the absolute RAAN refs
         :param current_true_anomalies: List of current true anomalies. Only needed for Small blend
+        :param with_control: Whether to find the optimal control inputs
         :return: Tuple with (x_states, u_inputs)
         """
         if self.synthesizer is None:
@@ -164,13 +173,32 @@ class SLSSetup(Controller):
                                                    maximum_state=state_constraint)
                 # Make it distributed
                 # self.synthesizer << SLS_Cons_dLocalized(d=4)
-            elif noise is None and not add_collision_avoidance:
+            elif noise is None and not add_collision_avoidance and self.robustness_type == RobustnessType.NO_ROBUSTNESS:
                 # self.synthesizer = OSQP_Synthesiser(self.number_of_systems, self.prediction_horizon, self.sys,
                 #                                     0*self.x_ref, self.dynamics.get_slack_variable_length(),
                 #                                     self.dynamics.get_slack_costs())
                 self.synthesizer = Gurobi_Synthesiser(self.number_of_systems, self.prediction_horizon, self.sys,
                                                      0 * self.x_ref, self.dynamics.get_state_constraint(),
                                                      self.dynamics.get_input_constraint())
+                self.synthesizer.create_optimisation_problem(self.dynamics.get_state_cost_matrix_sqrt(),
+                                                             self.dynamics.get_input_cost_matrix_sqrt()[3:],
+                                                             self.dynamics.get_state_constraint(),
+                                                             self.dynamics.get_input_constraint())
+            elif noise is None and not add_collision_avoidance and self.robustness_type == RobustnessType.SIMPLE_ROBUSTNESS:
+                self.synthesizer = Gurobi_Synthesiser_Robust_Simple(self.number_of_systems, self.prediction_horizon, self.sys,
+                                                                    0 * self.x_ref, self.dynamics.get_state_constraint(),
+                                                                    self.dynamics.get_input_constraint(), self.robustness)
+                self.synthesizer.create_optimisation_problem(self.dynamics.get_state_cost_matrix_sqrt(),
+                                                             self.dynamics.get_input_cost_matrix_sqrt()[3:],
+                                                             self.dynamics.get_state_constraint(),
+                                                             self.dynamics.get_input_constraint())
+            elif noise is None and not add_collision_avoidance and self.robustness_type == RobustnessType.ADVANCED_ROBUSTNESS:
+                self.synthesizer = Gurobi_Synthesiser_Robust_Advanced_2(self.number_of_systems, self.prediction_horizon,
+                                                                    self.sys,
+                                                                    0 * self.x_ref,
+                                                                    self.dynamics.get_state_constraint(),
+                                                                    self.dynamics.get_input_constraint(),
+                                                                    self.robustness)
                 self.synthesizer.create_optimisation_problem(self.dynamics.get_state_cost_matrix_sqrt(),
                                                              self.dynamics.get_input_cost_matrix_sqrt()[3:],
                                                              self.dynamics.get_state_constraint(),
@@ -232,8 +260,19 @@ class SLSSetup(Controller):
             # print(np.max(np.abs(self.x0.reshape((6, -1))), axis=1))
 
             # Synthesise controller
-            solver_time, self.controller = self.synthesizer.synthesizeControllerModel(self.x_ref, time_since_start + t * self.sampling_time)
-            self.total_solver_time += solver_time
+            if with_control:
+                solver_time, self.controller = self.synthesizer.synthesizeControllerModel(self.x_ref, time_since_start + t * self.sampling_time)
+                self.total_solver_time += solver_time
+            else:
+                self.controller = SLS_StateFeedback_FIR_Controller(Nx=self.synthesizer._solver._nx, Nu=self.synthesizer._solver._nu,
+                                                                   FIR_horizon=self.prediction_horizon)
+
+                self.controller._Phi_x = [None] * (self.prediction_horizon + 2)
+                self.controller._Phi_u = [None] * (self.prediction_horizon + 1)
+
+                self.controller._Phi_u[1] = np.zeros((self.synthesizer._solver._nu, 1))
+                self.controller._Phi_x[2] = self.sys._A[0] @ self.x0
+
 
             # print(f"Predicted next state: {(self.controller._Phi_x[2] + self.x_ref).T}")
             # Update state and input
@@ -251,7 +290,7 @@ class SLSSetup(Controller):
                 if inputs_to_store != t_horizon and inputs_to_store > 1:
                     self.u_inputs[:, t + 1] = self.controller._Phi_u[2] @ self.x_states[:, t]
 
-        return self.x_states, self.u_inputs
+        return self.x_states, self.u_inputs #, self.controller.sigma_A, self.controller.sigma_B
 
     def find_latest_objective_value(self) -> float:
         """

@@ -97,6 +97,8 @@ class OrbitalMechSimulator:
         self.solver_time = 0
 
         self.update_translation_states = False
+        self.sigma_A = None
+        self.sigma_B = None
 
     def create_bodies(self, number_of_satellites: int, satellite_mass: float, satellite_inertia: np.ndarray[3, 3],
                       add_reference_satellite: bool = False, use_parameters_from_scenario: Scenario = None) -> None:
@@ -351,9 +353,13 @@ class OrbitalMechSimulator:
         for idx, anomaly in enumerate(orbit_anomalies):
             self.kalman_state[idx * 4:(idx + 1) * 4] = np.array([orbit_semi_major_axis, orbit_eccentricity,
                                                                  orbit_inclination, orbit_longitude[idx]])
-            self.initial_state_oe[idx * 6:(idx + 1) * 6] = np.array([orbit_semi_major_axis, orbit_eccentricity,
-                                                                     orbit_inclination, orbit_argument_of_periapsis,
-                                                                     orbit_longitude[idx], anomaly])
+            self.initial_state_oe[idx * 6:(idx + 1) * 6] = np.array([orbit_semi_major_axis + orbital_element_offsets[0, idx],
+                                                                     orbit_eccentricity + orbital_element_offsets[1, idx],
+                                                                     orbit_inclination + orbital_element_offsets[2, idx],
+                                                                     orbit_argument_of_periapsis+ orbital_element_offsets[3, idx],
+                                                                     orbit_longitude[idx] + orbital_element_offsets[4, idx],
+                                                                     anomaly + orbital_element_offsets[5, idx]])
+
             initial_states = np.append(initial_states,
                                        element_conversion.keplerian_to_cartesian_elementwise(
                                            gravitational_parameter=earth_gravitational_parameter,
@@ -659,19 +665,24 @@ class OrbitalMechSimulator:
                 output_variables=dependent_variables_list
             )
 
-    def simulate_system(self) -> (np.ndarray, np.ndarray):
+    def simulate_system(self, disturbance_free: bool = False) -> (np.ndarray, np.ndarray):
         """
         Run a simulation of the system
 
         :return: Either a tuple of two Numpy arrays (if at least one dependent variable has been added) with the states
                  and the dependent variables, or only the states.
         """
+        if disturbance_free:
+            disturbance_to_use = None
+        else:
+            disturbance_to_use = self.scenario.disturbance
         # Create simulation object and propagate the dynamics
         if self.scenario.use_mean_simulator:
             # print(self.initial_state_oe)
             dynamics_simulator = mean_simulator.create_dynamics_simulator(self.initial_state_oe, self.thrust_inputs,
                                                                           self.scenario,
-                                                                          self.number_of_simulation_steps)
+                                                                          self.number_of_simulation_steps,
+                                                                          disturbance_to_use)
             self.thrust_forces = self.thrust_inputs.T
             self.update_translation_states = False
             # self.initial_state_oe = dynamics_simulator.dependent_variable_history[self.number_of_simulation_steps]
@@ -1740,6 +1751,135 @@ class OrbitalMechSimulator:
 
         return figure
 
+    def plot_model_errors(self, model_values: np.ndarray, satellite_indices: list[int] = None, figure: plt.figure = None,
+                          legend_name: str = '', plot_duration: int = None, **kwargs) -> plt.figure:
+        """
+        Create a plot with the model errors for the report.
+
+        :param model_values: The values obtained from the model.
+        :param satellite_indices: Indices the satellites to plot. If none, all are plotted.
+        :param figure: Figure to plot the results onto.
+        :param legend_name: Name for the legend
+        :param plot_duration: Length of the plot in min.
+
+        :return: Figure with the results.
+        """
+        oe_filtered, oe_ref = self.filter_oe()
+        main_states = Conversion.oe2main(oe_filtered, oe_ref, self.reference_angle_offsets)
+
+        if plot_duration is not None:
+            main_states = main_states[:plot_duration * 60 + 1, :]
+
+        radius = main_states[:, 0::3]
+        theta = main_states[:, 1::3]
+        Omega = main_states[:, 2::3]
+
+        # satellite_names, satellite_indices = self.find_satellite_names_and_indices(satellite_names, state_length=1)
+
+        if np.max(Omega) - np.min(Omega) < 1e-6:
+            Omega *= 0
+
+        if self.scenario.model == Model.BLEND:
+            main_states_model = Conversion.blend2main(model_values.T)
+        elif self.scenario.model == Model.HCW:
+            main_states_model = Conversion.hcw2main(model_values.T)
+        elif self.scenario.model == Model.ROE:
+            main_states_model = Conversion.roe2main(model_values.T)
+        else:
+            main_states_model = None
+
+        radius_error = main_states_model[:-1, 0::3] - radius
+        theta_error = main_states_model[:-1, 1::3] - theta
+        Omega_error = main_states_model[:-1, 2::3] - Omega
+
+        if satellite_indices is None:
+            satellite_indices = np.arange(self.number_of_controlled_satellites)
+
+        for idx in satellite_indices:
+            # satellite_idx = satellite_indices[idx]
+            states = np.concatenate((radius_error[:, idx:idx + 1],
+                                     theta_error[:, idx:idx + 1],
+                                     Omega_error[:, idx:idx + 1]), axis=1)
+            figure = PlotRes.plot_main_states_report(states=states, timestep=self.scenario.control.control_timestep,
+                                                     figure=figure, legend_name=legend_name, **kwargs)
+
+            if idx == satellite_indices[0]:
+                legend_name = None
+
+        return figure
+
+    def plot_radius_zoomed(self, satellite_indices: list[int] = None, figure: plt.figure = None, legend_name: str = '',
+                           plot_duration: int = None, **kwargs) -> plt.figure:
+        """
+        Create a plot with the radius for the report.
+
+        :param satellite_indices: Indices the satellites to plot. If none, all are plotted.
+        :param figure: Figure to plot the results onto.
+        :param legend_name: Name for the legend
+        :param plot_duration: Length of the plot in min.
+
+        :return: Figure with the results.
+        """
+        oe_filtered, oe_ref = self.filter_oe()
+        main_states = Conversion.oe2main(oe_filtered, oe_ref, self.reference_angle_offsets)
+
+        if plot_duration is not None:
+            main_states = main_states[:plot_duration * 60 + 1, :]
+
+        radius = main_states[:, 0::3]
+
+        # satellite_names, satellite_indices = self.find_satellite_names_and_indices(satellite_names, state_length=1)
+
+        if satellite_indices is None:
+            satellite_indices = np.arange(self.number_of_controlled_satellites)
+
+        for idx in satellite_indices:
+            # satellite_idx = satellite_indices[idx]
+            states = radius[:, idx:idx + 1]
+            figure = PlotRes.plot_radius_report(states=states, timestep=self.simulation_timestep, figure=figure,
+                                                     legend_name=legend_name, **kwargs)
+
+            if idx == satellite_indices[0]:
+                legend_name = None
+
+        return figure
+
+    def plot_ex(self, satellite_indices: list[int] = None, figure: plt.figure = None, legend_name: str = '',
+                           plot_duration: int = None, **kwargs) -> plt.figure:
+        """
+        Create a plot with the radius for the report.
+
+        :param satellite_indices: Indices the satellites to plot. If none, all are plotted.
+        :param figure: Figure to plot the results onto.
+        :param legend_name: Name for the legend
+        :param plot_duration: Length of the plot in min.
+
+        :return: Figure with the results.
+        """
+        if self.blend_states is None:
+            self.convert_to_blend_states()
+
+        if plot_duration is not None:
+            self.blend_states = self.blend_states[:plot_duration * 60 + 1, :]
+
+        ex = self.blend_states[:, 2::6]
+
+        # satellite_names, satellite_indices = self.find_satellite_names_and_indices(satellite_names, state_length=1)
+
+        if satellite_indices is None:
+            satellite_indices = np.arange(self.number_of_controlled_satellites)
+
+        for idx in satellite_indices:
+            # satellite_idx = satellite_indices[idx]
+            states = ex[:, idx:idx + 1]
+            figure = PlotRes.plot_ex(states=states, timestep=self.simulation_timestep, figure=figure,
+                                                     legend_name=legend_name, **kwargs)
+
+            if idx == satellite_indices[0]:
+                legend_name = None
+
+        return figure
+
     def print_metrics(self) -> str:
         """
         Print metrics to score approaches
@@ -1767,9 +1907,11 @@ class OrbitalMechSimulator:
             self.get_thrust_forces_from_acceleration()
 
         mean_radius = np.mean(np.abs(radius))
-        mean_theta = np.mean(np.abs(theta))
-        mean_Omega = np.mean(np.abs(Omega))
+        mean_theta = np.rad2deg(np.mean(np.abs(theta)))
+        mean_Omega = np.rad2deg(np.mean(np.abs(Omega)))
 
+        if len(self.thrust_forces.shape) == 1:
+            self.thrust_forces = self.thrust_forces.reshape((-1, 3))
         inputs_r = self.thrust_forces[1:, 0::3]
         inputs_t = self.thrust_forces[1:, 1::3]
         inputs_n = self.thrust_forces[1:, 2::3]

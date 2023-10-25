@@ -10,7 +10,8 @@ mpl.rcParams["mathtext.fontset"] = 'cm'  # Better font for LaTex
 
 def plot_onto_axes(states: np.ndarray, time: np.ndarray, axes_list: list[plt.axes], is_angle: list[bool],
                    y_label_names: list[str], legend_names: list[str | None], unwrap_angles: bool = True,
-                   states2plot: list[int] = None, xlabel_plot: list[int] = None, **kwargs) -> None:
+                   states2plot: list[int] = None, xlabel_plot: list[int] = None, y_lim: list[float] = None,
+                   **kwargs) -> None:
     """
     Plot states on the provided axes with a given label and legend label name.
     :param states: The states (y-component) to be plotted.
@@ -21,6 +22,8 @@ def plot_onto_axes(states: np.ndarray, time: np.ndarray, axes_list: list[plt.axe
     :param legend_names: Name for the legend.
     :param unwrap_angles: Whether to unwrap angles. Default is True.
     :param states2plot: Indices of states to plot.
+    :param xlabel_plot: Which axes to plot the x label on.
+    :param y_lim: Enforce a limit for the y-axis. If none, automode of the plotter.
     :param kwargs: Kwargs for plotting purposes.
     :return: Nothing.
     """
@@ -41,10 +44,14 @@ def plot_onto_axes(states: np.ndarray, time: np.ndarray, axes_list: list[plt.axe
             axes.set_xlabel(r'$\mathrm{Time\;[min]}$', fontsize=14)
         axes.set_ylabel(y_label_names[state_idx], fontsize=14)
         axes.set_xlim([min(time), max(time)])
+
+        if y_lim is not None:
+            axes.set_ylim(y_lim)
+
         axes.grid(True)
 
         if legend_names[state_idx] is not None:
-            axes.legend(fontsize=12)
+            axes.legend(fontsize=12, loc='upper right')
 
     plt.tight_layout()
 
@@ -141,5 +148,68 @@ def plot_inputs_report(inputs: np.ndarray, timestep: float, legend_name: str = N
 
     plot_onto_axes(inputs, time_hours, list(axes), is_angle_list, y_label_list, legend_names,
                    states2plot=states2plot, xlabel_plot=[2], **kwargs)
+
+    return fig
+
+def plot_radius_report(states: np.ndarray, timestep: float, legend_name: str = None,
+                       figure: plt.figure = None, states2plot: list[int] = None, **kwargs) -> plt.figure:
+    """
+    Method to plot the radius over time.
+
+    :param states: 2D-array with the quasi ROE states over time with shape (t, 3).
+    :param timestep: Amount of time between each state in s.
+    :param legend_name: Name to place as a label for the legend.
+    :param figure: Figure to plot the states into. If not provided, a new one is created.
+    :param kwargs: Kwargs for plotting purposes.
+    :return: Figure with the added blend states.
+    """
+    time_hours = get_time_axis(states, timestep)
+
+    if states2plot is None:
+        fig, axes = get_figure_and_axes(figure, (1, 1), sharex=True)
+        states2plot = [0]
+    else:
+        fig, axes = get_figure_and_axes(figure, (1, len(states2plot)))
+
+    # fig.suptitle('Evolution of states.')
+
+    is_angle_list = [False]
+    y_label_list = [r'$\delta r\mathrm{\;[m]}$']
+    legend_names = [legend_name] + [None] * 2
+    # print(legend_names)
+    plot_onto_axes(states, time_hours, list(axes), is_angle_list, y_label_list, legend_names,
+                   states2plot=states2plot, xlabel_plot=[0], y_lim=[0.0984, 0.1005], **kwargs)
+
+    return fig
+
+
+def plot_ex(states: np.ndarray, timestep: float, legend_name: str = None,
+                       figure: plt.figure = None, states2plot: list[int] = None, **kwargs) -> plt.figure:
+    """
+    Method to plot the radius over time.
+
+    :param states: 2D-array with the quasi ROE states over time with shape (t, 3).
+    :param timestep: Amount of time between each state in s.
+    :param legend_name: Name to place as a label for the legend.
+    :param figure: Figure to plot the states into. If not provided, a new one is created.
+    :param kwargs: Kwargs for plotting purposes.
+    :return: Figure with the added blend states.
+    """
+    time_hours = get_time_axis(states, timestep)
+
+    if states2plot is None:
+        fig, axes = get_figure_and_axes(figure, (1, 1), sharex=True)
+        states2plot = [0]
+    else:
+        fig, axes = get_figure_and_axes(figure, (1, len(states2plot)))
+
+    # fig.suptitle('Evolution of states.')
+
+    is_angle_list = [False]
+    y_label_list = [r'$\delta e_x^f\mathrm{\;[m]}$']
+    legend_names = [legend_name] + [None] * 2
+    # print(legend_names)
+    plot_onto_axes(states, time_hours, list(axes), is_angle_list, y_label_list, legend_names,
+                   states2plot=states2plot, xlabel_plot=[0], **kwargs)
 
     return fig

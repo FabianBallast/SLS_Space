@@ -41,6 +41,6 @@ def plot_all() -> None:
 
 
 if __name__ == '__main__':
-    plot_data('sparse_SLS')
+    plot_data('transformed_SLS')
     # plot_all()
     plt.show()

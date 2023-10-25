@@ -4,6 +4,7 @@ from slspy import SynthesisAlgorithm, LTV_System, SLS_StateFeedback_FIR_Controll
 from abc import ABC, abstractmethod
 import time
 
+
 class Gurobi_Solver(ABC):
     """
     Class to use OSQP solver for SLS purposes.
@@ -113,6 +114,8 @@ class Gurobi_Solver(ABC):
             controller._Phi_x[t + 1] = self.x.X[t:t+1].T
             controller._Phi_u[t + 1] = self.u.X[t:t+1].T
 
+        # print(controller._Phi_x[1][0][0], controller._Phi_x[2][0][0])
+
         controller._Phi_x[self.prediction_horizon + 1] = self.x.X[self.prediction_horizon:].T
 
         return self._problem.Runtime, controller
@@ -129,7 +132,9 @@ class Gurobi_Solver_Sparse(Gurobi_Solver):
         :param Q_sqrt: Square root of state cost matrix.
         :param R_sqrt: Square root of input cost matrix.
         """
-        obj1 = sum(self.x[k, :] @ np.kron(np.eye(self.number_of_satellites), Q_sqrt**2) @ self.x[k, :] for k in range(self.prediction_horizon + 1))
+        obj1 = sum(self.x[k, :] @ np.kron(np.eye(self.number_of_satellites), Q_sqrt**2) @ self.x[k, :] for k in range(1, self.prediction_horizon + 1))
+        # obj1 += 4 * self.x[-1, :] @ np.kron(np.eye(self.number_of_satellites), Q_sqrt**2) @ self.x[-1, :]
+        # obj1 *= 10
         obj2 = sum(self.u[k, :] @ np.kron(np.eye(self.number_of_satellites), R_sqrt**2) @ self.u[k, :] for k in range(self.prediction_horizon))
         self._problem.setObjective(obj1 + obj2, gp.GRB.MINIMIZE)
 

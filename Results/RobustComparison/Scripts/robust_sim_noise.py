@@ -1,17 +1,19 @@
 import matplotlib.pyplot as plt
 from Scenarios.MainScenarios import ScenarioEnum
 from Scenarios.ScenarioHandler import ScenarioHandler
-from Results.ModelComparison.Scripts.plotFromData import plot_data_comparison
+from Results.RobustComparison.Scripts.plotFromData import *
 import pickle
 
-scenarios_to_run = [#ScenarioEnum.j2_scenario_HCW_6_orbits,
-                    ScenarioEnum.j2_scenario_ROE_6_orbits,
-                    ScenarioEnum.j2_scenario_moving_blend_6_orbits]
+scenarios_to_run = [ScenarioEnum.robustness_comparison_no_robust_noise,
+                    ScenarioEnum.robustness_comparison_simple_robust_noise,
+                    ScenarioEnum.robustness_comparison_advanced_robust_noise
+                    ]
 
-main_naming_identifier = 'hex_plane_j2'
-scenario_name_list = [#'HCW',
-                      'ROE',
-                      'BLEND']
+main_naming_identifier = 'robustness_noise'
+scenario_name_list = ['NO',
+                      'SIMPLE',
+                      'ADVANCED'
+                      ]
 satellites_to_plot = None
 
 print(f"{main_naming_identifier}: starting")
@@ -22,10 +24,7 @@ for idx, scenario in enumerate(scenarios_to_run):
     scenario_handler.create_storage_variables()
 
     # Run simulation
-    if scenario_name_list[idx] == 'HCW':
-        scenario_handler.simulate_system_no_control()
-    else:
-        scenario_handler.simulate_system_closed_loop(print_progress=False)
+    scenario_handler.simulate_system_closed_loop(print_progress=False)
     orbital_sim = scenario_handler.export_results()
 
     # Save orbital sim with all data
@@ -34,8 +33,13 @@ for idx, scenario in enumerate(scenarios_to_run):
         pickle.dump(orbital_sim, file)
 
 plot_data_comparison(main_naming_identifier)
-
+plt.show()
 
 print(f"{main_naming_identifier}: done")
-# plt.show()
+
+
+
+
+
+
 
