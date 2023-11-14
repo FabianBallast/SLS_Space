@@ -55,6 +55,7 @@ def time_optimisation(number_of_satellites: int, prediction_horizon: int = None,
     u_inf = m.addMVar(prediction_horizon, name='u_inf')
     phi_x_inf = m.addMVar(number_of_blocks, name='phi_x_inf')
     phi_u_inf = m.addMVar(number_of_blocks, name='phi_u_inf')
+    sigma_inf = m.addMVar(prediction_horizon, name='sigma_inf')
 
     phi_x_one = m.addMVar(number_of_blocks * problem['nx'], name='phi_x_one')
     phi_u_one = m.addMVar(number_of_blocks * problem['nu'], name='phi_u_one')
@@ -91,6 +92,7 @@ def time_optimisation(number_of_satellites: int, prediction_horizon: int = None,
     for i in range(prediction_horizon):
         m.addConstr(x_inf[i] == gp.norm(x[i * problem['nx']: (i + 1) * problem['nx']], gp.GRB.INFINITY))
         m.addConstr(u_inf[i] == gp.norm(u[i * problem['nu']: (i + 1) * problem['nu']], gp.GRB.INFINITY))
+        m.addConstr(sigma_inf[i] == gp.norm(sigma[i * problem['nx']: (i + 1) * problem['nx']], gp.GRB.INFINITY))
 
     one_norm_matrix_x, one_norm_matrix_u = find_fx_and_fu(mask_A, mask_B, np.ones(problem['nx']))
     # print(one_norm_matrix_x)
@@ -131,14 +133,14 @@ def time_optimisation(number_of_satellites: int, prediction_horizon: int = None,
     sigma_w = np.kron(np.ones(number_of_satellites), sigma_w)
 
     # t = 1
-    m.addConstr(epsilon_matrix_A * (x_inf[0] + sigma[:problem['nx']]) +
+    m.addConstr(epsilon_matrix_A * (x_inf[0] + sigma_inf[0]) +
                             epsilon_matrix_B * (
                                     u_inf[1] + gp.quicksum(phi_u_inf[block_ordering[1, 1:2]])) +
                             sigma_w <= sigma[problem['nx']:2 * problem['nx']])
     for n in range(2, prediction_horizon):
         m.addConstr(
             epsilon_matrix_A * (
-                    x_inf[n - 1] + gp.quicksum(phi_x_inf[block_ordering[n - 1, 1:n]]) + sigma[( n - 1) * problem['nx']: n * problem['nx']]) +
+                    x_inf[n - 1] + gp.quicksum(phi_x_inf[block_ordering[n - 1, 1:n]]) + sigma_inf[n-1]) +
             epsilon_matrix_B * (u_inf[n] + gp.quicksum(phi_u_inf[block_ordering[n, 1:n + 1]])) +
             sigma_w <= sigma[n * problem['nx']: (n + 1) * problem['nx']])
 
@@ -198,14 +200,17 @@ def time_optimisation(number_of_satellites: int, prediction_horizon: int = None,
     inputs = np.zeros((problem['nu'], nsim))
 
     for i in range(nsim):
-        print(i)
+        # print(i)
         # Solve
         m.optimize()
         runtime += m.Runtime
-        print(m.Runtime)
+        # print(m.Runtime)
 
         states[:, i+1] = x.X[:problem['nx']]
-        inputs[:, i] = u.X[:problem['nu']]
+        inputs[:, i] = u.X[:problem['nu']]\
+
+        # print(x.X)
+        # print(u.X)
 
         # print(phi_x.X[:x_vars])
         # print()

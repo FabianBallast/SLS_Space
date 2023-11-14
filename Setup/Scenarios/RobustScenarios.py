@@ -98,9 +98,9 @@ class RobustnessScenarios(Enum):
     #                                           e_B3=0.00040, e_B4=0.0016, e_B5=0.0021, sigma_w=0)
 
     simple_robustness_noise = Robustness(e_A=0.0021, e_B=0.0023, sigma_w=0.0017)
-    advanced_robustness_noise = Robustness(e_A0=0.0020, e_A1=0.0021, e_A2=0.0000286, e_A3=0.000496, e_A4=0.0015,
+    advanced_robustness_noise = Robustness(e_A0=0.0020, e_A1=0.0021, e_A2=0.0000286, e_A3=0.0000496, e_A4=0.0015,
                                            e_A5=0.00086, e_B0=0.00031, e_B1=0.0023, e_B2=0.000081,
-                                           e_B3=0.00013, e_B4=0.00060, e_B5=0.00091, sigma_w0=0.0017, sigma_w1=0.0017,
-                                           sigma_w2=0.00011, sigma_w3=0.00011, sigma_w4=0.00093, sigma_w5=0.00093)
+                                           e_B3=0.00013, e_B4=0.00060, e_B5=0.00091, sigma_w0=0.0016, sigma_w1=0.0017,
+                                           sigma_w2=0.00011, sigma_w3=0.00011, sigma_w4=0.00093, sigma_w5=0.00088)
 
 

@@ -416,7 +416,8 @@ class ScenarioEnum(Enum):
         simulation_scenario=SimulationScenarios.sim_20_minute,
         control_scenario=ControlParameterScenarios.control_robustness,
         orbital_scenario=OrbitalScenarios.tilted_orbit_45deg,
-        robustness=RobustnessScenarios.no_robustness
+        robustness=RobustnessScenarios.no_robustness,
+        collision_avoidance=False
     )
 
     robustness_comparison_simple_robust = TranslationalScenario(
@@ -475,6 +476,70 @@ class ScenarioEnum(Enum):
         orbital_scenario=OrbitalScenarios.tilted_orbit_45deg,
         robustness=RobustnessScenarios.advanced_robustness_noise,
         disturbance=np.array([0.0001, 0.0001, 0.00001, 0.00001, 0.0001, 0.0001])
+    )
+
+    large_scenario_nominal_no_constraint_no_noise = TranslationalScenario(
+        physics_scenario=PhysicsScenarios.advanced_grav_physics_scaled,
+        initial_state_scenario=InitialStateScenarios.small_state_error,
+        model=Model.BLEND,
+        number_of_satellites=15 * 15, #30, #15*15,
+        simulation_scenario=SimulationScenarios.sim_45_minute,
+        control_scenario=ControlParameterScenarios.control_position_fine,
+        orbital_scenario=OrbitalScenarios.large_orbit,
+        robustness=RobustnessScenarios.no_robustness,
+        # disturbance=np.array([0.0001, 0.0001, 0.00001, 0.00001, 0.0001, 0.0001] * (15 * 15)), #15*15),
+        # collision_avoidance=True
+    )
+
+    large_scenario_nominal_constraint_no_noise = TranslationalScenario(
+        physics_scenario=PhysicsScenarios.advanced_grav_physics_scaled,
+        initial_state_scenario=InitialStateScenarios.small_state_error,
+        model=Model.BLEND,
+        number_of_satellites=15 * 15,  # 30, #15*15,
+        simulation_scenario=SimulationScenarios.sim_45_minute,
+        control_scenario=ControlParameterScenarios.control_position_fine,
+        orbital_scenario=OrbitalScenarios.large_orbit,
+        robustness=RobustnessScenarios.no_robustness,
+        # disturbance=np.array([0.0001, 0.0001, 0.00001, 0.00001, 0.0001, 0.0001] * (15 * 15)), #15*15),
+        collision_avoidance=True
+    )
+
+    large_scenario_nominal_constraint_noise = TranslationalScenario(
+        physics_scenario=PhysicsScenarios.advanced_grav_physics_scaled,
+        initial_state_scenario=InitialStateScenarios.small_state_error,
+        model=Model.BLEND,
+        number_of_satellites=15 * 15,  # 30, #15*15,
+        simulation_scenario=SimulationScenarios.sim_45_minute,
+        control_scenario=ControlParameterScenarios.control_position_fine,
+        orbital_scenario=OrbitalScenarios.large_orbit,
+        robustness=RobustnessScenarios.no_robustness,
+        disturbance=np.array([0.0001, 0.0001, 0.00001, 0.00001, 0.0001, 0.0001] * (15 * 15)), #15*15),
+        collision_avoidance=True
+    )
+
+    large_scenario_robust_constraint_noise = TranslationalScenario(
+        physics_scenario=PhysicsScenarios.advanced_grav_physics_scaled,
+        initial_state_scenario=InitialStateScenarios.small_state_error,
+        model=Model.BLEND,
+        number_of_satellites=15 * 15,  # 30, #15*15,
+        simulation_scenario=SimulationScenarios.sim_45_minute,
+        control_scenario=ControlParameterScenarios.control_robustness,
+        orbital_scenario=OrbitalScenarios.large_orbit,
+        robustness=RobustnessScenarios.advanced_robustness_noise,
+        disturbance=np.array([0.0001, 0.0001, 0.00001, 0.00001, 0.0001, 0.0001] * (15 * 15)),  # 15*15),
+        collision_avoidance=True
+    )
+
+    collision_test_out_of_plane = TranslationalScenario(
+        physics_scenario=PhysicsScenarios.advanced_grav_physics_scaled,
+        initial_state_scenario=InitialStateScenarios.small_state_error,
+        model=Model.BLEND,
+        number_of_satellites=12,
+        simulation_scenario=SimulationScenarios.sim_45_minute,
+        control_scenario=ControlParameterScenarios.control_position_fine,
+        orbital_scenario=OrbitalScenarios.collision_orbit,
+        robustness=RobustnessScenarios.no_robustness,
+        collision_avoidance=True
     )
 
 #

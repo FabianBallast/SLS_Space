@@ -6,6 +6,11 @@ from Scenarios.MainScenarios import ScenarioEnum
 from Scenarios.ScenarioHandler import ScenarioHandler
 from tudatpy.kernel.astro import element_conversion
 
+import pandas as pd
+desired_width = 200
+pd.set_option('display.width', desired_width)
+np.set_printoptions(linewidth=desired_width)
+
 states = None
 
 # Select desired scenario
@@ -59,7 +64,14 @@ states = None
 
 # scenario = ScenarioEnum.robustness_comparison_no_robust_noise
 # scenario = ScenarioEnum.robustness_comparison_simple_robust_noise
-scenario = ScenarioEnum.robustness_comparison_advanced_robust_noise
+# scenario = ScenarioEnum.robustness_comparison_advanced_robust_noise
+
+# Large
+# scenario = ScenarioEnum.large_scenario_nominal
+scenario = ScenarioEnum.large_scenario_robust_constraint_noise
+
+# Collisions
+# scenario = ScenarioEnum.collision_test_out_of_plane
 
 # Setup
 scenario_handler = ScenarioHandler(scenario.value)
@@ -104,6 +116,12 @@ orbital_sim.plot_controller_states(figure=states)
 # orbital_sim.plot_model_errors(scenario_handler.controller.x_states)
 
 # orbital_sim.plot_main_states()
+#
+# if scenario_handler.scenario.collision_avoidance is False:
+#     scenario_handler.scenario.collision_avoidance = True
+#     scenario_handler.init_sim()
+orbital_sim.plot_out_of_plane_constraints()
+orbital_sim.plot_in_plane_constraints()
 # orbital_sim.plot_side_states()
 # orbital_sim.plot_inputs()
 

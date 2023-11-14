@@ -11,7 +11,7 @@ mpl.rcParams["mathtext.fontset"] = 'cm'  # Better font for LaTex
 def plot_onto_axes(states: np.ndarray, time: np.ndarray, axes_list: list[plt.axes], is_angle: list[bool],
                    y_label_names: list[str], legend_names: list[str | None], unwrap_angles: bool = True,
                    states2plot: list[int] = None, xlabel_plot: list[int] = None, y_lim: list[float] = None,
-                   **kwargs) -> None:
+                   constraint_value: int | float = None, **kwargs) -> None:
     """
     Plot states on the provided axes with a given label and legend label name.
     :param states: The states (y-component) to be plotted.
@@ -29,7 +29,12 @@ def plot_onto_axes(states: np.ndarray, time: np.ndarray, axes_list: list[plt.axe
     """
     for idx, axes in enumerate(axes_list):
         state_idx = states2plot[idx]
-        state = states[:, state_idx]
+        if constraint_value is None:
+            state = states[:, state_idx]
+        else:
+            state = states
+            axes.plot([min(time), max(time)], [constraint_value, constraint_value], 'r--', label='constraint')
+            axes.legend(fontsize=12, loc='upper right')
 
         # If it is an angle, unwrap and convert to deg
         if is_angle[state_idx] and unwrap_angles:
@@ -52,6 +57,8 @@ def plot_onto_axes(states: np.ndarray, time: np.ndarray, axes_list: list[plt.axe
 
         if legend_names[state_idx] is not None:
             axes.legend(fontsize=12, loc='upper right')
+
+
 
     plt.tight_layout()
 
@@ -152,7 +159,7 @@ def plot_inputs_report(inputs: np.ndarray, timestep: float, legend_name: str = N
     return fig
 
 def plot_radius_report(states: np.ndarray, timestep: float, legend_name: str = None,
-                       figure: plt.figure = None, states2plot: list[int] = None, **kwargs) -> plt.figure:
+                       figure: plt.figure = None, states2plot: list[int] = None, y_lim=None, **kwargs) -> plt.figure:
     """
     Method to plot the radius over time.
 
@@ -178,7 +185,7 @@ def plot_radius_report(states: np.ndarray, timestep: float, legend_name: str = N
     legend_names = [legend_name] + [None] * 2
     # print(legend_names)
     plot_onto_axes(states, time_hours, list(axes), is_angle_list, y_label_list, legend_names,
-                   states2plot=states2plot, xlabel_plot=[0], y_lim=[0.0984, 0.1005], **kwargs)
+                   states2plot=states2plot, xlabel_plot=[0], y_lim=y_lim, **kwargs)
 
     return fig
 
@@ -211,5 +218,210 @@ def plot_ex(states: np.ndarray, timestep: float, legend_name: str = None,
     # print(legend_names)
     plot_onto_axes(states, time_hours, list(axes), is_angle_list, y_label_list, legend_names,
                    states2plot=states2plot, xlabel_plot=[0], **kwargs)
+
+    return fig
+
+
+def plot_theta_Omega(theta: np.ndarray, theta_ref: np.ndarray, Omega: np.ndarray, Omega_ref: np.ndarray,
+                     figure: plt.figure = None) -> plt.figure:
+    """
+    Create the theta_Omega plot.
+
+    :return: Figure with the plot.
+    """
+    theta_offset = -5
+    Omega_offset = 5
+    theta_unwrap = np.rad2deg(np.unwrap(theta - theta_ref, axis=0)) + theta_offset
+    Omega_unwrap = np.rad2deg(np.unwrap(Omega - Omega_ref, axis=0)) + Omega_offset
+
+    theta_wrap = theta_unwrap % 360
+    Omega_wrap = Omega_unwrap % 360
+
+    theta_wrap_true = np.rad2deg(np.unwrap(theta - theta_ref, axis=0)) % 360
+    theta_wrap_true -= (theta_wrap_true > 180) * 360
+    Omega_wrap_true = np.rad2deg(np.unwrap(Omega - Omega_ref, axis=0)) % 360
+
+    theta_wrap -= (theta_wrap > 180) * 360
+    # Omega_wrap -= (Omega_wrap > 180) * 360
+    wrapped_thetas = np.any(np.abs(theta_wrap - theta_unwrap) > 1e-3, axis=0)
+    wrapped_Omegas = np.any(np.abs(Omega_wrap - Omega_unwrap) > 1e-3, axis=0)
+
+    non_wrapped_sats = ~wrapped_thetas & ~wrapped_Omegas
+    wrapped_sats = ~non_wrapped_sats
+
+    wrapped_idx = np.arange(wrapped_sats.shape[0])[wrapped_sats]
+    first_breach_theta = np.argmax(
+        np.abs(theta_wrap_true[:, wrapped_sats] - theta_unwrap[:, wrapped_sats] + theta_offset) > 1e-3, axis=0)
+    first_breach_Omega = np.argmax(
+        np.abs(Omega_wrap_true[:, wrapped_sats] - Omega_unwrap[:, wrapped_sats] + Omega_offset) > 1e-3, axis=0)
+
+    before_breach_data = []
+    after_breach_data = []
+
+    for breach in range(len(first_breach_theta)):
+        breach_idx = np.maximum(first_breach_theta[breach], first_breach_Omega[breach], dtype=int)
+
+        if breach_idx > 0:
+            before_breach_data.append((theta_wrap_true[0:breach_idx, wrapped_idx[breach]],
+                                       Omega_wrap_true[0:breach_idx, wrapped_idx[breach]]))
+        after_breach_data.append((theta_wrap_true[breach_idx:, wrapped_idx[breach]],
+                                  Omega_wrap_true[breach_idx:, wrapped_idx[breach]]))
+
+    if figure is None:
+        figure, _ = plt.subplots(1, 1, figsize=(16, 9))
+
+    ax = figure.get_axes()[0]
+
+    ax.plot(theta_wrap[:, non_wrapped_sats] - theta_offset, Omega_wrap[:, non_wrapped_sats] - Omega_offset, 'b-')
+    ax.plot(theta_wrap[0] - theta_offset, Omega_wrap[0] - Omega_offset, 'o', label='Start')
+    ax.plot(theta_wrap[-1] - theta_offset, Omega_wrap[-1] - Omega_offset, 's', label='End')
+
+    for i, breached_sat in enumerate(before_breach_data):
+        ax.plot(breached_sat[0], breached_sat[1], 'b-')
+
+    for i, breached_sat in enumerate(after_breach_data):
+        ax.plot(breached_sat[0], breached_sat[1], 'b-')
+    ax.set_xlabel(r'$\theta \; \mathrm{[deg]}$', fontsize=14)
+    ax.set_ylabel(r'$\Omega \; \mathrm{[deg]}$', fontsize=14)
+    plt.legend()
+    ax.set_xlim([-190, 190])
+    ax.set_ylim([-10, 390])
+    ax.grid()
+    return figure
+
+
+def plot_theta_Omega_triple(theta: np.ndarray, theta_ref: np.ndarray, Omega: np.ndarray, Omega_ref: np.ndarray,
+                     figure: plt.figure = None) -> plt.figure:
+    """
+    Create the theta_Omega plot.
+
+    :return: Figure with the plot.
+    """
+    theta_offset = -5
+    Omega_offset = 5
+    theta_unwrap = np.rad2deg(np.unwrap(theta - theta_ref, axis=0)) + theta_offset
+    Omega_unwrap = np.rad2deg(np.unwrap(Omega - Omega_ref, axis=0)) + Omega_offset
+
+    theta_wrap = theta_unwrap % 360
+    Omega_wrap = Omega_unwrap % 360
+
+    theta_wrap_true = np.rad2deg(np.unwrap(theta - theta_ref, axis=0)) % 360
+    theta_wrap_true -= (theta_wrap_true > 180) * 360
+    Omega_wrap_true = np.rad2deg(np.unwrap(Omega - Omega_ref, axis=0)) % 360
+
+    theta_wrap -= (theta_wrap > 180) * 360
+    # Omega_wrap -= (Omega_wrap > 180) * 360
+    wrapped_thetas = np.any(np.abs(theta_wrap - theta_unwrap) > 1e-3, axis=0)
+    wrapped_Omegas = np.any(np.abs(Omega_wrap - Omega_unwrap) > 1e-3, axis=0)
+
+    non_wrapped_sats = ~wrapped_thetas & ~wrapped_Omegas
+    wrapped_sats = ~non_wrapped_sats
+
+    wrapped_idx = np.arange(wrapped_sats.shape[0])[wrapped_sats]
+    first_breach_theta = np.argmax(
+        np.abs(theta_wrap_true[:, wrapped_sats] - theta_unwrap[:, wrapped_sats] + theta_offset) > 1e-3, axis=0)
+    first_breach_Omega = np.argmax(
+        np.abs(Omega_wrap_true[:, wrapped_sats] - Omega_unwrap[:, wrapped_sats] + Omega_offset) > 1e-3, axis=0)
+
+    before_breach_data = []
+    after_breach_data = []
+
+    for breach in range(len(first_breach_theta)):
+        breach_idx = np.maximum(first_breach_theta[breach], first_breach_Omega[breach], dtype=int)
+
+        if breach_idx > 0:
+            before_breach_data.append((theta_wrap_true[0:breach_idx, wrapped_idx[breach]],
+                                       Omega_wrap_true[0:breach_idx, wrapped_idx[breach]]))
+        after_breach_data.append((theta_wrap_true[breach_idx:, wrapped_idx[breach]],
+                                  Omega_wrap_true[breach_idx:, wrapped_idx[breach]]))
+
+    if figure is None:
+        figure, _ = plt.subplots(1, 3, figsize=(21, 6), sharey=True)
+
+    ax = figure.get_axes()[0]
+    ax.plot(theta_wrap[0] - theta_offset, Omega_wrap[0] - Omega_offset, 'o')
+    ax.set_xlabel(r'$\theta \; \mathrm{[deg]}$', fontsize=14)
+    ax.set_ylabel(r'$\Omega \; \mathrm{[deg]}$', fontsize=14)
+    ax.set_xlim([-190, 190])
+    ax.set_ylim([-10, 390])
+    ax.grid()
+    ax.title.set_text('Starting Configuration')
+
+
+
+    ax = figure.get_axes()[1]
+
+    ax.plot(theta_wrap[:, non_wrapped_sats] - theta_offset, Omega_wrap[:, non_wrapped_sats] - Omega_offset, 'b-')
+
+
+    for i, breached_sat in enumerate(before_breach_data):
+        ax.plot(breached_sat[0], breached_sat[1], 'b-')
+
+    for i, breached_sat in enumerate(after_breach_data):
+        ax.plot(breached_sat[0], breached_sat[1], 'b-')
+    ax.set_xlabel(r'$\theta \; \mathrm{[deg]}$', fontsize=14)
+    # ax.set_ylabel(r'$\Omega \; \mathrm{[deg]}$', fontsize=14)
+    ax.plot(theta_wrap[0] - theta_offset, Omega_wrap[0] - Omega_offset, 'o', label='Start')
+    ax.plot(theta_wrap[-1] - theta_offset, Omega_wrap[-1] - Omega_offset, 's', label='End')
+    ax.grid()
+    ax.legend(loc='upper right')
+    ax.title.set_text('Movement')
+    ax.set_xlim([-190, 190])
+
+    ax = figure.get_axes()[2]
+    ax.plot(theta_wrap[-1] - theta_offset, Omega_wrap[-1] - Omega_offset, 's', color='#ff7f0e')
+    ax.set_xlabel(r'$\theta \; \mathrm{[deg]}$', fontsize=14)
+    # ax.set_ylabel(r'$\Omega \; \mathrm{[deg]}$', fontsize=14)
+    ax.title.set_text('Ending Configuration')
+    ax.set_xlim([-190, 190])
+    ax.grid()
+
+    plt.tight_layout()
+    return figure
+
+
+def plot_in_plane_constraints(values: np.ndarray, timestep, figure: plt.figure = None, y_lim: list = None, **kwargs) -> plt.figure:
+    """
+    Create a plot for the in-plane constraints.
+
+    :param values: Value of the constraints.
+    :param figure: Figure to plot into.
+    :return: Figure with added data.
+    """
+    time_hours = get_time_axis(values, timestep)
+    fig, axes = get_figure_and_axes(figure, (1, 1), sharex=True)
+    states2plot = [0]
+    # fig.suptitle('Evolution of states.')
+
+    is_angle_list = [False]
+    y_label_list = [r'$\lambda^f_2 - \lambda^f_1\mathrm{\;[deg]}$']
+    legend_names = [None]
+    # print(legend_names)
+    # print(np.arange(269)[np.any(values > 100, axis=0)])
+    plot_onto_axes(values, time_hours, list(axes), is_angle_list, y_label_list, legend_names,
+                   states2plot=states2plot, xlabel_plot=[0], constraint_value=5, y_lim=y_lim, **kwargs)
+
+    return fig
+
+def plot_out_of_plane_constraints(values: np.ndarray, timestep, figure: plt.figure = None, y_lim: list = None, **kwargs) -> plt.figure:
+    """
+    Create a plot for the in-plane constraints.
+
+    :param values: Value of the constraints.
+    :param figure: Figure to plot into.
+    :return: Figure with added data.
+    """
+    time_hours = get_time_axis(values, timestep)
+    fig, axes = get_figure_and_axes(figure, (1, 1), sharex=True)
+    states2plot = [0]
+    # fig.suptitle('Evolution of states.')
+
+    is_angle_list = [False]
+    y_label_list = [r'$|r_2 - r_1| + \alpha_\mathrm{w}|\theta^f_2 - \theta^f_1|\mathrm{\;[m]}$']
+    legend_names = [None]
+    # print(legend_names)
+    # print(np.arange(269)[np.any(values > 100, axis=0)])
+    plot_onto_axes(values, time_hours, list(axes), is_angle_list, y_label_list, legend_names,
+                   states2plot=states2plot, xlabel_plot=[0], constraint_value=0.01, y_lim=y_lim, **kwargs)
 
     return fig

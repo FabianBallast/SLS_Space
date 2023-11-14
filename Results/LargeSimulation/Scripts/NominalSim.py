@@ -1,19 +1,19 @@
-import matplotlib.pyplot as plt
 from Scenarios.MainScenarios import ScenarioEnum
 from Scenarios.ScenarioHandler import ScenarioHandler
-from Results.RobustComparison.Scripts.plotFromData import *
 import pickle
+import matplotlib.pyplot as plt
+from Results.LargeSimulation.Scripts.plotFromData import plot_theta_Omega
 
-scenarios_to_run = [#ScenarioEnum.robustness_comparison_no_robust_noise,
-                    #ScenarioEnum.robustness_comparison_simple_robust_noise,
-                    ScenarioEnum.robustness_comparison_advanced_robust_noise
-                    ]
+scenarios_to_run = [#ScenarioEnum.large_scenario_nominal_no_constraint_no_noise,
+                    # ScenarioEnum.large_scenario_nominal_constraint_no_noise,
+                    # ScenarioEnum.large_scenario_nominal_constraint_noise,
+                    ScenarioEnum.large_scenario_robust_constraint_noise]
 
-main_naming_identifier = 'robustness_noise'
-scenario_name_list = [#'NO',
-                      #'SIMPLE',
-                      'ADVANCED'
-                      ]
+main_naming_identifier = 'large_sim'
+scenario_name_list = [#'nominal_ca_no_noise_no',
+                      # 'nominal_ca_yes_noise_no',
+                      # 'nominal_ca_yes_noise_yes',
+                      'robust']
 satellites_to_plot = None
 
 print(f"{main_naming_identifier}: starting")
@@ -24,7 +24,7 @@ for idx, scenario in enumerate(scenarios_to_run):
     scenario_handler.create_storage_variables()
 
     # Run simulation
-    scenario_handler.simulate_system_closed_loop(print_progress=False)
+    scenario_handler.simulate_system_closed_loop(print_progress=True)
     orbital_sim = scenario_handler.export_results()
 
     # Save orbital sim with all data
@@ -32,7 +32,7 @@ for idx, scenario in enumerate(scenarios_to_run):
     with open(file_name, 'wb') as file:
         pickle.dump(orbital_sim, file)
 
-plot_data_comparison(main_naming_identifier)
+plot_theta_Omega(main_naming_identifier + '_' + scenario_name_list[0])
 plt.show()
 
 print(f"{main_naming_identifier}: done")

@@ -70,6 +70,9 @@ def create_sparse_problem(number_of_satellites: int,
     x0_rel = x0 - xr
     x0_rel[1::6] -= np.mean(x0_rel[1::6])
 
+    if number_of_satellites == 1:
+        x0_rel[1::6] += np.deg2rad(30)
+
     problem['x0'] = x0_rel
     problem['x0_abs'] = x0_rel + xr
     problem['x_ref'] = xr

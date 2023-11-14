@@ -35,6 +35,7 @@ class SimulationScenarios(Enum):
     sim_15_minute = Simulation(simulation_duration=900)
     sim_20_minute = Simulation(simulation_duration=1200)
     sim_30_minute = Simulation(simulation_duration=1800)
+    sim_35_minute = Simulation(simulation_duration=2100)
     sim_45_minute = Simulation(simulation_duration=2700)
     sim_1_hour = Simulation(simulation_duration=3600)
     sim_1_5_hour = Simulation(simulation_duration=5400)

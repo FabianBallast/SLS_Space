@@ -37,12 +37,12 @@ def RK4_integration(x0: np.ndarray, inputs: np.ndarray, scenario: Scenario, simu
             input_val = inputs[-1]
             dis_val = disturbances[t_sim]
 
-        k1 = find_xdot(x[t], input_val, scenario) + dis_val
-        k2 = find_xdot(x[t] + 0.5 * timestep * k1, input_val, scenario) + dis_val
-        k3 = find_xdot(x[t] + 0.5 * timestep * k2, input_val, scenario) + dis_val
-        k4 = find_xdot(x[t] + timestep * k3, input_val, scenario) + dis_val
+        k1 = find_xdot(x[t], input_val, scenario)
+        k2 = find_xdot(x[t] + 0.5 * timestep * k1, input_val, scenario)
+        k3 = find_xdot(x[t] + 0.5 * timestep * k2, input_val, scenario)
+        k4 = find_xdot(x[t] + timestep * k3, input_val, scenario)
 
-        x[t + 1] = x[t] + timestep / 6 * (k1 + 2 * k2 + 2 * k3 + k4)
+        x[t + 1] = x[t] + timestep / 6 * (k1 + 2 * k2 + 2 * k3 + k4) + timestep * dis_val
 
     return x
 

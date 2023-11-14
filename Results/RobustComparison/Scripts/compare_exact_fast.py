@@ -4,15 +4,14 @@ from Scenarios.ScenarioHandler import ScenarioHandler
 from Results.RobustComparison.Scripts.plotFromData import *
 import pickle
 
-scenarios_to_run = [#ScenarioEnum.robustness_comparison_no_robust_noise,
-                    #ScenarioEnum.robustness_comparison_simple_robust_noise,
+scenarios_to_run = [
                     ScenarioEnum.robustness_comparison_advanced_robust_noise
                     ]
 
-main_naming_identifier = 'robustness_noise'
-scenario_name_list = [#'NO',
-                      #'SIMPLE',
-                      'ADVANCED'
+main_naming_identifier = 'exact_fast_comp'
+scenario_name_list = [
+                      'ADVANCED_EXACT',
+                      # 'ADVANCED_FAST'
                       ]
 satellites_to_plot = None
 
@@ -32,8 +31,8 @@ for idx, scenario in enumerate(scenarios_to_run):
     with open(file_name, 'wb') as file:
         pickle.dump(orbital_sim, file)
 
-plot_data_comparison(main_naming_identifier)
-plt.show()
+# plot_data_comparison(main_naming_identifier)
+# plt.show()
 
 print(f"{main_naming_identifier}: done")
 

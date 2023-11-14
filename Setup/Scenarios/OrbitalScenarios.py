@@ -1,5 +1,5 @@
 from enum import Enum
-
+import numpy as np
 
 class Orbit:
     """
@@ -73,6 +73,10 @@ class OrbitalScenarios(Enum):
                                                   longitude_list=[0, 5], eccentricity=0)
 
     projection_comparison = OrbitGroup(inclination=45, longitude_list=[0, 15, 30, 60])
+
+    large_orbit = OrbitGroup(inclination=45, longitude_list=np.linspace(0, 360, num=15, endpoint=False).tolist())
+
+    collision_orbit = OrbitGroup(inclination=45, longitude_list=[0, 15, 30])
 
 
 if __name__ == '__main__':

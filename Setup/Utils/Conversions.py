@@ -148,7 +148,9 @@ def oe2blend(oe: np.ndarray, reference_oe: np.ndarray, reference_angle_offsets: 
     theta_ref_sat = theta_ref + reference_angle_offsets.reshape((1, number_of_ref, -1, 1))
     theta = np.unwrap(oe_reshape[:, :, :, 3:4] + oe_reshape[:, :, :, 5:6] - theta_ref_sat, axis=0)
 
-    delta_Omega = oe_reshape[:, :, :, 4:5] - Omega_ref
+    delta_Omega = (oe_reshape[:, :, :, 4:5] - Omega_ref) % (2 * np.pi)
+    delta_Omega -= (delta_Omega[0:1] > np.pi) * 2 * np.pi
+    delta_Omega = np.unwrap(delta_Omega, axis=0)
 
     e_x = oe_reshape[:, :, :, 1:2] * np.cos(oe_reshape[:, :, :, 5:6])
     e_y = oe_reshape[:, :, :, 1:2] * np.sin(oe_reshape[:, :, :, 5:6])
@@ -162,8 +164,9 @@ def oe2blend(oe: np.ndarray, reference_oe: np.ndarray, reference_angle_offsets: 
           np.tan(inclination_ref / 2)
 
     # Convert to range [0, 2 * pi]
-    lambda_f = theta + delta_Omega * np.cos(inclination_ref)
-    lambda_f += (lambda_f[0:1] < -np.pi) * 2 * np.pi - (lambda_f[0:1] > np.pi) * 2 * np.pi
+    lambda_f = (theta + delta_Omega * np.cos(inclination_ref)) % (2 * np.pi)
+    lambda_f -= (lambda_f[0:1] > np.pi) * 2 * np.pi
+    # lambda_f = np.unwrap(lambda_f, axis=0)
 
     # Reshape results for end result
     blend_states = np.concatenate((rho, lambda_f, e_x, e_y, i_x, i_y), axis=3).reshape((oe.shape[0], -1))
@@ -468,3 +471,22 @@ def roe2main(roe_states: np.ndarray) -> np.ndarray:
     theta_main = roe_states[:, 1::6] - np.cos(np.deg2rad(45)) * Omega_main
 
     return np.concatenate((radius_main, theta_main, Omega_main), axis=1)
+
+
+def find_delta_Omega(state: np.ndarray, delta_Omega_start: np.ndarray) -> np.ndarray:
+    """
+    Find the delta Omegas from the states provided the initial delta Omega value.
+
+    :param state: States in the shape (t, 6 * number_of_satellites).
+    :param delta_Omega_start: delta Omega at t=0 in shape (number_of_satellites, )
+    :return: Array with delta Omegas in shape (t, number_of_satellites).
+    """
+    xi_x = state[:, 4::6] / np.tan(np.pi / 8)
+    xi_y = state[:, 5::6] / np.tan(np.pi / 8)
+
+    delta_Omega_unsigned = np.arccos(1 - 0.5 * (xi_x**2 + xi_y**2))
+
+    delta_Omega_sign = np.zeros_like(delta_Omega_start)
+    entries2check = np.abs(delta_Omega_start) > 0.000001
+    delta_Omega_sign[entries2check] = delta_Omega_start[entries2check] / np.abs(delta_Omega_start[entries2check])
+    return delta_Omega_unsigned * delta_Omega_sign

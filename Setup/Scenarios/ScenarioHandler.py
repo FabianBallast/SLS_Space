@@ -13,8 +13,8 @@ from Scenarios.ControlScenarios import Model
 from Scenarios.InitialStateScenarios import InitialStateScenarios
 from Utils.GenerateInitialPosition import generate_anomalies_and_longitudes, generate_reference
 import numpy as np
-
-
+from Utils.CollisionMatrices import compute_in_plane_collision_matrix, compute_out_plane_collision_matrix
+import pickle
 class ScenarioHandler:
     """
     Create a class to deal with different scenarios and set up everything.
@@ -58,6 +58,9 @@ class ScenarioHandler:
         self.reference_satellites_added = False
         self.sigma_A = None
         self.sigma_B = None
+
+        self.in_plane_collision_setup = None
+        self.out_plane_collision_setup = None
 
     def create_sls_system(self) -> None:
         """
@@ -178,16 +181,82 @@ class ScenarioHandler:
             true_anomalies = np.linspace(0, 360, self.scenario.number_of_satellites, endpoint=False).tolist()
         elif isinstance(self.controller.dynamics, DifferentialDragDynamics):
             true_anomalies = [0] + np.rad2deg(self.controller.x0[self.controller.angle_states].reshape((-1,))).tolist()
-        else:
+        elif True:
             number_of_dropouts = int(self.scenario.initial_state.dropouts * self.scenario.number_of_satellites) + self.scenario.initial_state.dropouts > 0
-            true_anomalies, self.satellite_longitudes = generate_anomalies_and_longitudes(number_of_dropouts,
-                                                                                          self.scenario.orbital.longitude,
-                                                                                          self.scenario.number_of_satellites,
-                                                                                          self.controller.dynamics)
+            true_anomalies, self.satellite_longitudes, order_matrix_end = generate_anomalies_and_longitudes(number_of_dropouts,
+                                                                                                            self.scenario.orbital.longitude,
+                                                                                                            self.scenario.number_of_satellites,
+                                                                                                            self.controller.dynamics,
+                                                                                                            advanced_assignment=self.scenario.number_of_satellites > 50)
             true_anomalies = np.rad2deg(true_anomalies).tolist()
             self.controller.x_ref[self.controller.angle_states] = generate_reference(self.scenario.number_of_satellites,
                                                                                      true_anomalies,
                                                                                      self.scenario.orbital.longitude)
+
+            if self.scenario.collision_avoidance:
+                self.in_plane_collision_setup = compute_in_plane_collision_matrix(self.satellite_longitudes,
+                                                                                  self.scenario.orbital.longitude,
+                                                                                  order_matrix_end,
+                                                                                  self.scenario.number_of_satellites // self.number_of_planes,
+                                                                                  self.controller.x_ref[self.controller.angle_states],
+                                                                                  self.controller.dynamics.get_planetary_distance())
+                # self.controller.set_in_plane_setup(self.in_plane_collision_setup)
+
+                self.controller.set_delta_Omega_start(np.deg2rad(self.satellite_longitudes - np.kron(self.scenario.orbital.longitude, np.ones(self.scenario.number_of_satellites // self.number_of_planes))))
+                number_of_original_systems = self.scenario.number_of_satellites + number_of_dropouts
+                if number_of_original_systems % self.number_of_planes != 0:
+                    number_of_original_systems = self.number_of_planes * (number_of_original_systems // self.number_of_planes + 1)
+                self.out_plane_collision_setup = compute_out_plane_collision_matrix(true_anomalies,
+                                                                                    self.scenario.orbital.longitude,
+                                                                                    order_matrix_end,
+                                                                                    self.scenario.number_of_satellites // self.number_of_planes,
+                                                                                    self.controller.x_ref[self.controller.angle_states],
+                                                                                    number_of_original_systems // self.number_of_planes,
+                                                                                    self.satellite_longitudes,
+                                                                                    self.controller.dynamics.get_inter_planetary_distance())
+                self.controller.set_out_plane_setup(self.out_plane_collision_setup)
+        else:
+
+            # generate_anomalies_and_longitudes(1,
+            #                                   self.scenario.orbital.longitude,
+            #                                   self.scenario.number_of_satellites,
+            #                                   self.controller.dynamics,
+            #                                   advanced_assignment=True)
+            true_anomalies = [202.5, 247.49999999999997, 157.5, 225.0, 112.5, 135.0, 90.0, 180.0, 67.5, 135.0, 135.0, 0, 0, 90.0, 45.0, 0, 0, 22.5, 0, 0, 315.0, 0, 0, 292.5, 0, 0, 0, 0, 225.0, 270.0]
+            self.controller.x_ref[self.controller.angle_states] = np.array([[3.79609112, 4.21497014, 2.95833308, 3.79609112, 2.12057504, 2.53945406, 1.70169602, 2.95833308, 1.282817, 2.12057504, 2.12057504, 0.02617994, 0.02617994, 1.282817, 0.44505896, 0.02617994, 0.02617994, 0.44505896, 0.02617994, 0.02617994, 5.89048623, 0.02617994, 0.02617994, 5.47160721, 0.02617994, 0.02617994, 0.02617994, 0.02617994, 4.21497014, 4.63384916]]).T
+            self.satellite_longitudes = [24.0, 0.0, 24.0, 24.0, 48.0, 48.0, 72.0, 72.0, 96.0, 96.0, 120.0, 120, 144, 120.0, 144.0, 168, 192, 168.0, 216, 216, 264.0, 240, 264, 288.0, 288, 288, 312, 312, 0.0, 336.0]
+            Omega_end =[  0,   0,  24,  24,  48,  48,  72,  72,  96,  96, 120, 120, 144, 144, 168, 168, 192, 192, 216, 216, 240, 240, 264, 264, 288, 288, 312, 312, 336, 336]
+
+            self.controller.set_delta_Omega_start(np.deg2rad(
+                self.satellite_longitudes - np.array(Omega_end)))
+            number_of_original_systems = self.scenario.number_of_satellites + 1
+            if number_of_original_systems % self.number_of_planes != 0:
+                number_of_original_systems = self.number_of_planes * (
+                            number_of_original_systems // self.number_of_planes + 1)
+            self.out_plane_collision_setup = compute_out_plane_collision_matrix(true_anomalies,
+                                                                                self.scenario.orbital.longitude,
+                                                                                None,
+                                                                                self.scenario.number_of_satellites // self.number_of_planes,
+                                                                                self.controller.x_ref[
+                                                                                    self.controller.angle_states],
+                                                                                number_of_original_systems // self.number_of_planes,
+                                                                                self.satellite_longitudes,
+                                                                                self.controller.dynamics.get_inter_planetary_distance(), Omega_end )
+            if self.scenario.collision_avoidance:
+                self.controller.set_out_plane_setup(self.out_plane_collision_setup)
+
+        # # Use selection
+        # selected_indices = [9,  10,  22,  24,  35,  36,  49,  52,  63,  65,  80,  93, 106, 120, 164, 178, 220, 221]
+        # print(np.array(true_anomalies)[selected_indices].tolist())
+        # print(np.array(self.satellite_longitudes)[selected_indices].tolist())
+        # print(self.controller.x_ref[self.controller.angle_states][selected_indices].T)
+        #
+        # planes_end = np.kron(self.scenario.orbital.longitude, np.ones(self.scenario.number_of_satellites // self.number_of_planes)).reshape((-1, 1))
+        # print(planes_end[selected_indices].T)
+
+        # print(self.in_plane_collision_setup[[ 44,  57,  58,  95, 113, 114, 151, 159, 199, 200, 218, 251, 270, 652], selected_indices])
+
+
 
         self.pos_states[0:1] = \
             self.orbital_mech.convert_orbital_elements_to_cartesian(true_anomalies=true_anomalies,
@@ -253,7 +322,7 @@ class ScenarioHandler:
 
         # RAAN
         RAAN = kep_var[:, 4::6]
-        RAAN[:, RAAN[0] > np.pi] -= 2 * np.pi
+        # RAAN[:, RAAN[0] > np.pi] -= 2 * np.pi
         RAAN = np.unwrap(RAAN, axis=0)
         RAAN_osc = RAAN - self.orbital_mech.orbital_derivative[3] * t
 
@@ -429,6 +498,12 @@ class ScenarioHandler:
         for t in range(self.t_horizon_control):
             if print_progress and t / self.t_horizon_control * 100 > progress:
                 print(f"Progress: {int(t / self.t_horizon_control * 100 / 5) * 5}%")
+
+                orbital_sim_temp = self.export_results()
+                file_name = f'../Data/Temp/orbital_sim_{progress}'
+                with open(file_name, 'wb') as file:
+                    pickle.dump(orbital_sim_temp, file)
+
                 progress = int(t / self.t_horizon_control * 100 / 5) * 5 + 5
 
             # print(t)
@@ -556,4 +631,22 @@ class ScenarioHandler:
         # print(orbital_sim.solver_time)
         # print(self.orbital_mech.thrust_forces)
 
+        if self.scenario.number_of_satellites > 100:
+            if self.scenario.collision_avoidance is False:
+                self.scenario.collision_avoidance = True
+                self.init_sim()
+
+            orbital_sim.in_plane_matrix = self.in_plane_collision_setup[0]
+            orbital_sim.in_plane_vector = self.in_plane_collision_setup[1]
+            orbital_sim.in_plane_safety = self.controller.dynamics.get_planetary_distance()
+            orbital_sim.out_of_plane_matrix = self.out_plane_collision_setup[0]
+
+            try:
+                orbital_sim.out_of_plane_alpha = self.controller.synthesizer._solver.alpha
+            except AttributeError:
+                orbital_sim.out_of_plane_alpha = 0.2
+
         return orbital_sim
+
+    def init_sim(self):
+        self.__initialise_simulation()

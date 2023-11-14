@@ -7,8 +7,12 @@ import pickle
 
 prediction_horizon = 6
 main_naming_identifier = 'robust_SLS'
-timers_to_run = [Gurobi_timer, Gurobi_timer_exact, OSQP_timer]
-timer_names = ['Gurobi', 'GurobiExact', 'OSQP']
+timers_to_run = [#Gurobi_timer,
+                 Gurobi_timer_exact,
+                 OSQP_timer]
+timer_names = [# 'Gurobi',
+               'GurobiExact',
+               'OSQP']
 scaling_factor = 1.1
 initial_number_of_satellites = 1
 maximum_time_in_seconds = 5

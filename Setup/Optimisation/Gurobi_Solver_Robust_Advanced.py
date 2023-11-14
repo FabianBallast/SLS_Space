@@ -47,6 +47,7 @@ class Gurobi_Solver_Robust_Advanced(Gurobi_Solver):
         self.u_inf = self._problem.addMVar(self.prediction_horizon, name='u_inf')
         self.phi_x_inf = self._problem.addMVar(number_of_blocks, name='phi_x_inf')
         self.phi_u_inf = self._problem.addMVar(number_of_blocks, name='phi_u_inf')
+        self.sigma_inf = self._problem.addMVar(prediction_horizon, name='sigma_inf')
 
         self.phi_x_one = self._problem.addMVar(number_of_blocks * self._nx, name='phi_x_one')
         self.phi_u_one = self._problem.addMVar(number_of_blocks * self._nu, name='phi_u_one')
@@ -84,6 +85,7 @@ class Gurobi_Solver_Robust_Advanced(Gurobi_Solver):
         for i in range(self.prediction_horizon):
             self._problem.addConstr(self.x_inf[i] == gp.norm(self.x[i * self._nx: (i + 1) * self._nx], gp.GRB.INFINITY))
             self._problem.addConstr(self.u_inf[i] == gp.norm(self.u[i * self._nu: (i + 1) * self._nu], gp.GRB.INFINITY))
+            self._problem.addConstr(self.sigma_inf[i] == gp.norm(self.sigma[i * self._nx: (i + 1) * self._nx], gp.GRB.INFINITY))
 
         one_norm_matrix_x, one_norm_matrix_u = find_fx_and_fu(self.mask_A, self.mask_B, np.ones(self._nx))
         # print(one_norm_matrix_x)
@@ -125,14 +127,14 @@ class Gurobi_Solver_Robust_Advanced(Gurobi_Solver):
 
 
         # t = 1
-        self._problem.addConstr(self.epsilon_matrix_A * (self.x_inf[0] + self.sigma[:self._nx]) +
+        self._problem.addConstr(self.epsilon_matrix_A * (self.x_inf[0] + self.sigma_inf[0]) +
                                 self.epsilon_matrix_B * (
                                             self.u_inf[1] + gp.quicksum(self.phi_u_inf[self.block_ordering[1, 1:2]])) +
                                 self.sigma_w <= self.sigma[self._nx:2 * self._nx])
         for n in range(2, self.prediction_horizon):
             self._problem.addConstr(
                 self.epsilon_matrix_A * (
-                            self.x_inf[n - 1] + gp.quicksum(self.phi_x_inf[self.block_ordering[n - 1, 1:n]]) + self.sigma[(n-1) * self._nx: n * self._nx]) +
+                            self.x_inf[n - 1] + gp.quicksum(self.phi_x_inf[self.block_ordering[n - 1, 1:n]]) + self.sigma_inf[n-1]) +
                 self.epsilon_matrix_B * (self.u_inf[n] + gp.quicksum(self.phi_u_inf[self.block_ordering[n, 1:n + 1]])) +
                 self.sigma_w <= self.sigma[n * self._nx: (n+1) * self._nx])
 

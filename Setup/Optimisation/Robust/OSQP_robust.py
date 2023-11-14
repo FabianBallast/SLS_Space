@@ -9,7 +9,8 @@ from Optimisation.sparseHelperFunctions import *
 
 
 def time_optimisation(number_of_satellites: int, prediction_horizon: int = None, plot_results: bool = False,
-                      scenario: Scenario = ScenarioEnum.robustness_comparison_advanced_robust_noise.value) -> float:
+                      scenario: Scenario = ScenarioEnum.robustness_comparison_advanced_robust_noise.value,
+                      small_problem: bool = False) -> float:
     """
     Measure the time it takes to optimise the controller.
 
@@ -20,6 +21,8 @@ def time_optimisation(number_of_satellites: int, prediction_horizon: int = None,
     :return: Float with average time (after first iteration has passed).
     """
     problem = create_sparse_problem(number_of_satellites, prediction_horizon, scenario)
+    if small_problem:
+        problem['x0'] /= 3
 
     Q = sparse.kron(sparse.block_diag([sparse.eye(problem['N'] - 1), 5 * sparse.eye(1)]), problem['Q'])
     R = sparse.kron(sparse.eye(problem['N']), problem['R'])
@@ -82,8 +85,8 @@ def time_optimisation(number_of_satellites: int, prediction_horizon: int = None,
     # Aeq_dynamics = sparse.hstack([Ax, Bu, sparse.csc_matrix((problem['N'] * problem['nx'],
     #                                                          total_vars - indices_dict['u'][-1] - 1))])
     Ax = sparse.kron(sparse.eye(problem['N']), -sparse.eye(problem['nx'])) + \
-         sparse.kron(sparse.eye(problem['N'], k=-1), problem['A'])
-    Bu = sparse.kron(sparse.eye(problem['N']), problem['B'])
+         sparse.kron(sparse.eye(problem['N'], k=-1), sparse.csc_matrix(problem['A']))
+    Bu = sparse.kron(sparse.eye(problem['N']), sparse.csc_matrix(problem['B']), format='csr')
     Aeq_states = sparse.vstack([sparse.hstack([Ax, Bu]),
                                 sparse.csc_matrix((sum(range(1, prediction_horizon)) * x_vars, length_x_and_u))])
 
@@ -426,4 +429,4 @@ def time_optimisation(number_of_satellites: int, prediction_horizon: int = None,
 
 
 if __name__ == '__main__':
-    time_optimisation(3, prediction_horizon=6, plot_results=True)
+    time_optimisation(3, prediction_horizon=6, plot_results=True, small_problem=True)

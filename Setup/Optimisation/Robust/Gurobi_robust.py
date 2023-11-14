@@ -190,7 +190,7 @@ def time_optimisation(number_of_satellites: int, prediction_horizon: int = None,
 
     # Simulate in closed loop
     t_0 = 0
-    nsim = 31
+    nsim = 11
     runtime = 0
     states = np.zeros((problem['nx'], nsim + 1))
     states[:, 0] = problem['x0']
@@ -200,7 +200,7 @@ def time_optimisation(number_of_satellites: int, prediction_horizon: int = None,
         # Solve
         m.optimize()
         runtime += m.Runtime
-
+        # print(runtime)
         # print(x.X.T @ Q @ x.X + u.X.T @ R @ u.X)
         # print(obj_robust.getValue())
 
@@ -520,4 +520,4 @@ def time_optimisation(number_of_satellites: int, prediction_horizon: int = None,
 
 
 if __name__ == '__main__':
-    time_optimisation(3, prediction_horizon=6, plot_results=True)
+    time_optimisation(1, prediction_horizon=6, plot_results=True)

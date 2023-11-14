@@ -16,7 +16,10 @@ import Utils.Conversions as Conversion
 from Filters.KalmanFilter import KalmanFilter
 from Scenarios.OrbitalScenarios import OrbitGroup
 from Simulator import Dynamics_simulator as mean_simulator
+import matplotlib as mpl
+from Utils.CollisionAngles import find_collision_angle_vect
 
+mpl.rcParams["mathtext.fontset"] = 'cm'  # Better font for LaTex
 
 class OrbitalMechSimulator:
     """
@@ -99,6 +102,12 @@ class OrbitalMechSimulator:
         self.update_translation_states = False
         self.sigma_A = None
         self.sigma_B = None
+
+        self.out_of_plane_matrix = None
+        self.out_of_plane_alpha = None
+        self.in_plane_matrix = None
+        self.in_plane_vector = None
+        self.in_plane_safety = None
 
     def create_bodies(self, number_of_satellites: int, satellite_mass: float, satellite_inertia: np.ndarray[3, 3],
                       add_reference_satellite: bool = False, use_parameters_from_scenario: Scenario = None) -> None:
@@ -404,6 +413,8 @@ class OrbitalMechSimulator:
                                                (self.number_of_orbits, 1))
 
         self.initial_reference_state[:, 4] = np.deg2rad(self.scenario.orbital.longitude)
+
+
         # print(self.initial_state_oe)
         return initial_states
 
@@ -741,7 +752,7 @@ class OrbitalMechSimulator:
 
             oe_der = np.array([self.orbital_derivative[0], 0, self.orbital_derivative[2], self.orbital_derivative[4],
                                self.orbital_derivative[3], self.orbital_derivative[5]])
-
+            # print(self.oe_mean_0, self.initial_reference_state)
             if self.oe_mean_0 is None:
                 self.oe_mean_0 = self.initial_reference_state.reshape((-1, 1, 6))
             self.filtered_oe_ref = self.oe_mean_0 + time * oe_der
@@ -758,7 +769,7 @@ class OrbitalMechSimulator:
                     self.thrust_inputs = self.thrust_forces.T
                     thrust_calculated = True
 
-                oe_sat[:, 4::6][:, oe_sat[0, 4::6] > np.pi] -= 2 * np.pi
+                # oe_sat[:, 4::6][:, oe_sat[0, 4::6] > np.pi] -= 2 * np.pi
                 oe_sat[:, 4::6] = np.unwrap(oe_sat[:, 4::6], axis=0)
 
                 self.filtered_oe = self.filter.filter_data(oe_sat,
@@ -1612,23 +1623,16 @@ class OrbitalMechSimulator:
         oe_filtered, oe_ref = self.filter_oe()
         theta = oe_filtered[:, 3::6] + oe_filtered[:, 5::6]
         Omega = oe_filtered[:, 4::6]
+        Omega[0] = np.round(Omega[0], 6)
 
-        if figure is None:
-            figure, _ = plt.subplots(1, 1, figsize=(16, 9))
+        derivative_theta = self.orbital_derivative[4] + self.orbital_derivative[5] + self.mean_motion
+        derivative_Omega = self.orbital_derivative[3]
+        time = np.linspace(0, theta.shape[0] - 1, theta.shape[0]).reshape((-1, 1)) * self.simulation_timestep
 
-        ax = figure.get_axes()[0]
-        theta_ref = self.mean_motion * np.linspace(0, theta.shape[0] - 1, theta.shape[0]).reshape(
-            (-1, 1)) * self.simulation_timestep
-        theta_norm = np.rad2deg(np.unwrap(theta - theta_ref, axis=0))
-        Omega_norm = np.rad2deg(Omega)
+        theta_ref = derivative_theta * time
+        Omega_ref = derivative_Omega * time
 
-        ax.plot(theta_norm, Omega_norm)
-        ax.plot(theta_norm[0], Omega_norm[0], 'o', label='start')
-        ax.plot(theta_norm[-1], Omega_norm[-1], 's', label='end')
-        # ax.x_label('Theta [deg]')
-        # ax.y_label('Omega [deg]')
-        plt.legend()
-        return figure
+        return PlotRes.plot_theta_Omega(theta, theta_ref, Omega, Omega_ref, figure)
 
     def plot_main_states(self, satellite_indices: list[int] = None, figure: plt.figure = None, legend_name: str = '',
                          plot_duration: int = None, **kwargs) -> plt.figure:
@@ -1808,7 +1812,7 @@ class OrbitalMechSimulator:
 
         return figure
 
-    def plot_radius_zoomed(self, satellite_indices: list[int] = None, figure: plt.figure = None, legend_name: str = '',
+    def plot_radius(self, satellite_indices: list[int] = None, figure: plt.figure = None, legend_name: str = None,
                            plot_duration: int = None, **kwargs) -> plt.figure:
         """
         Create a plot with the radius for the report.
@@ -1838,6 +1842,42 @@ class OrbitalMechSimulator:
             states = radius[:, idx:idx + 1]
             figure = PlotRes.plot_radius_report(states=states, timestep=self.simulation_timestep, figure=figure,
                                                      legend_name=legend_name, **kwargs)
+
+            if idx == satellite_indices[0]:
+                legend_name = None
+
+        return figure
+
+    def plot_radius_zoomed(self, satellite_indices: list[int] = None, figure: plt.figure = None, legend_name: str = None,
+                           plot_duration: int = None, **kwargs) -> plt.figure:
+        """
+        Create a plot with the radius for the report.
+
+        :param satellite_indices: Indices the satellites to plot. If none, all are plotted.
+        :param figure: Figure to plot the results onto.
+        :param legend_name: Name for the legend
+        :param plot_duration: Length of the plot in min.
+
+        :return: Figure with the results.
+        """
+        oe_filtered, oe_ref = self.filter_oe()
+        main_states = Conversion.oe2main(oe_filtered, oe_ref, self.reference_angle_offsets)
+
+        if plot_duration is not None:
+            main_states = main_states[:plot_duration * 60 + 1, :]
+
+        radius = main_states[:, 0::3]
+
+        # satellite_names, satellite_indices = self.find_satellite_names_and_indices(satellite_names, state_length=1)
+
+        if satellite_indices is None:
+            satellite_indices = np.arange(self.number_of_controlled_satellites)
+
+        for idx in satellite_indices:
+            # satellite_idx = satellite_indices[idx]
+            states = radius[:, idx:idx + 1]
+            figure = PlotRes.plot_radius_report(states=states, timestep=self.simulation_timestep, figure=figure,
+                                                     legend_name=legend_name, y_lim=[0.0984, 0.1005], **kwargs)
 
             if idx == satellite_indices[0]:
                 legend_name = None
@@ -1970,3 +2010,93 @@ class OrbitalMechSimulator:
                                                          linestyle=linestyles[idx],
                                                          **kwargs)
         return figure
+
+    def plot_in_plane_constraints(self, y_lim: list = None) -> plt.figure:
+        """
+        Provide a plot to show the effect of the out_of_plane constraints.
+
+        :param collision_matrix: The collision matrix.
+        :return: Figure with the constraints.
+        """
+        if self.blend_states is None:
+            self.convert_to_blend_states()
+
+        collision_matrix = self.in_plane_matrix
+        collision_vector = self.in_plane_vector
+        safety_margin = self.in_plane_safety
+        delta_lambda = collision_matrix @ self.blend_states.T
+
+        # oe_filtered, oe_ref = self.filter_oe()
+        # theta = np.rad2deg(oe_filtered[:, 3::6] + oe_filtered[:, 5::6])
+        # Omega = np.rad2deg(oe_filtered[:, 4::6])
+
+        # print(f"Sat 1: theta: {theta[-1, 135]}, Omega: {Omega[-1, 135]}")
+        # print(f"Sat 2: theta: {theta[-1, 140]}, Omega: {Omega[-1, 140]}")
+        #
+        #
+        # print(np.arange(225*6)[collision_matrix[160] != 0] / 6)
+
+        # plt.figure()
+        # plt.plot(np.arange(delta_lambda.shape[1]) / 60, )
+
+        # plt.show()
+        return PlotRes.plot_in_plane_constraints(np.rad2deg(delta_lambda.T - collision_vector.T + safety_margin), self.simulation_timestep, y_lim=y_lim)
+
+    def plot_out_of_plane_constraints(self, y_lim: list = None) -> plt.figure:
+        """
+        Provide a plot to show the effect of the out_of_plane constraints.
+
+        :param collision_matrix: The collision matrix.
+        :param alpha: Alpha parameter.
+        :return: Figure with the constraints.
+        """
+        oe_filtered, oe_ref = self.filter_oe()
+
+        a = oe_filtered[:, 0::6]
+        e = oe_filtered[:, 1::6]
+        r = a * (1 - e**2) / (1 + e * np.cos(oe_filtered[:, 5::6]))
+        theta = oe_filtered[:, 3::6] + oe_filtered[:, 5::6]
+        Omega = oe_filtered[:, 4::6]
+
+        # print(theta.shape, collision_matrix.shape)
+        collision_matrix = self.out_of_plane_matrix
+        alpha = self.out_of_plane_alpha
+        delta_theta = collision_matrix @ theta.T
+        delta_r = collision_matrix @ r.T
+        delta_Omega = collision_matrix @ Omega.T
+
+        # vector_collision_angles = np.vectorize(find_collision_angles)
+        # collision_angles = vector_collision_angles(np.pi/4, 0, delta_Omega)
+        # theta_1 = np.arctan2(np.sin(-delta_Omega), np.cos(np.pi / 4) * (1 - np.cos(delta_Omega)))
+        # theta_2 = np.arctan2(np.sin(-delta_Omega), np.cos(np.pi / 4) * (np.cos(delta_Omega) - 1))
+
+        collision_diff = find_collision_angle_vect(np.pi / 4, delta_Omega)
+        # collision_diff = collision_angles[1] - collision_angles[0]
+        angle_part = (delta_theta - collision_diff) % (2 * np.pi)
+        angle_part -= (angle_part > np.pi) * 2 * np.pi
+        # print(collision_diff.shape, delta_r.shape)
+
+        # print(delta_Omega[1])
+        # print(f"{delta_theta[1]}")
+        # print(collision_diff[1])
+        # print(angle_part[1])
+        # print(delta_r[1])
+
+        values = np.abs(delta_r) + alpha * np.abs(angle_part)
+
+        # print(values.shape)
+        # print(np.any(values < 0.2, axis=0))
+        # active_constraints = np.arange(values.shape[0])[np.any(values < 0.0094, axis=1)]
+        # satellites_of_interest = np.arange(collision_matrix.shape[1])[np.any(collision_matrix[active_constraints], axis=0)]
+        # print(active_constraints)
+        # print(satellites_of_interest)
+
+        # plt.figure()
+        # plt.plot(np.arange(values.shape[1]) / 60, values.T)
+
+        # plt.figure()
+        # plt.plot(np.arange(values.shape[1]) / 60, np.rad2deg(angle_part).T)
+        # plt.show()
+
+        return PlotRes.plot_out_of_plane_constraints(values.T, self.simulation_timestep, y_lim=y_lim)
+

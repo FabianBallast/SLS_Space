@@ -5,6 +5,9 @@ from Optimisation.Gurobi_Solver import Gurobi_Solver
 from Optimisation.sparseHelperFunctions import *
 from Scenarios.RobustScenarios import Robustness
 import time
+from Utils.Conversions import find_delta_Omega
+from Utils.OmegaPrediction import predict_Omega
+from Utils.CollisionMatrices import update_collision_vector
 
 
 class Gurobi_Solver_Robust_Advanced(Gurobi_Solver):
@@ -14,8 +17,10 @@ class Gurobi_Solver_Robust_Advanced(Gurobi_Solver):
 
     def __init__(self, number_of_satellites: int, prediction_horizon: int, model: LTV_System,
                  reference_state: np.ndarray, state_limit: np.ndarray, input_limit: np.ndarray,
-                 robustness_data: Robustness):
-        super().__init__(number_of_satellites, prediction_horizon, model, reference_state, state_limit, input_limit)
+                 robustness_data: Robustness, in_plane_collision_setup=None, out_plane_collision_setup=None,
+                 omega_difference_start=None):
+        super().__init__(number_of_satellites, prediction_horizon, model, reference_state, state_limit, input_limit,
+                         in_plane_collision_setup, out_plane_collision_setup, omega_difference_start)
 
         self.x_lim = np.tile(state_limit, (self.prediction_horizon + 1, self.number_of_satellites))
         self.x_lim[0] = np.inf
@@ -63,6 +68,7 @@ class Gurobi_Solver_Robust_Advanced(Gurobi_Solver):
         self.phi_x_max = self._problem.addMVar(number_of_blocks, name='phi_x_max')
         self.u_max = self._problem.addMVar(prediction_horizon, name='u_max')
         self.phi_u_max = self._problem.addMVar(number_of_blocks, name='phi_u_max')
+        self.sigma_inf = self._problem.addMVar(prediction_horizon, name='sigma_inf')
 
         A_f, B_f = sparse_state_matrix_replacement(sparse.coo_matrix(self.model._A[0]), sparse.coo_matrix(self.model._B2[0]), self.mask_A, self.mask_B)
 
@@ -110,6 +116,7 @@ class Gurobi_Solver_Robust_Advanced(Gurobi_Solver):
         for n in range(prediction_horizon):
             self._problem.addConstr(self.x_abs[n * self._nx:(n + 1) * self._nx] <= self.x_max[n])
             self._problem.addConstr(self.u_abs[n * self._nu:(n + 1) * self._nu] <= self.u_max[n])
+            self._problem.addConstr(self.sigma[n * self._nx:(n + 1) * self._nx] <= self.sigma_inf[n])
 
         for n in range(number_of_blocks):
             self._problem.addConstr(one_norm_matrix_x @ self.phi_x_abs[n * self.x_vars:(n + 1) * self.x_vars] <= self.phi_x_max[n])
@@ -131,22 +138,29 @@ class Gurobi_Solver_Robust_Advanced(Gurobi_Solver):
 
 
         # t = 1
-        self._problem.addConstr(self.epsilon_matrix_A * (self.x_max[0] + self.sigma[:self._nx]) +
+        self._problem.addConstr(self.epsilon_matrix_A * (self.x_max[0] + self.sigma_inf[0]) +
                                 self.epsilon_matrix_B * (
                                             self.u_max[1] + gp.quicksum(self.phi_u_max[self.block_ordering[1, 1:2]])) +
                                 self.sigma_w <= self.sigma[self._nx:2 * self._nx])
         for n in range(2, self.prediction_horizon):
             self._problem.addConstr(
                 self.epsilon_matrix_A * (
-                            self.x_max[n - 1] + gp.quicksum(self.phi_x_max[self.block_ordering[n - 1, 1:n]]) + self.sigma[(n-1) * self._nx: n * self._nx]) +
+                            self.x_max[n - 1] + gp.quicksum(self.phi_x_max[self.block_ordering[n - 1, 1:n]]) + self.sigma_inf[n-1]) +
                 self.epsilon_matrix_B * (self.u_max[n] + gp.quicksum(self.phi_u_max[self.block_ordering[n, 1:n + 1]])) +
                 self.sigma_w <= self.sigma[n * self._nx: (n+1) * self._nx])
 
         # Tightened constraints
-        self._problem.addConstr(self.x + sparse.kron(one_norm_kron_mat, one_norm_matrix_x) @ self.phi_x_abs + self.sigma <= self.x_lim[1:].flatten())
-        self._problem.addConstr(self.x - sparse.kron(one_norm_kron_mat, one_norm_matrix_x) @ self.phi_x_abs - self.sigma >= -self.x_lim[1:].flatten())
+        self.one_norm_x = sparse.kron(one_norm_kron_mat, one_norm_matrix_x)
+        self._problem.addConstr(self.x + self.one_norm_x @ self.phi_x_abs + self.sigma <= self.x_lim[1:].flatten())
+        self._problem.addConstr(self.x - self.one_norm_x @ self.phi_x_abs - self.sigma >= -self.x_lim[1:].flatten())
         self._problem.addConstr(self.u + sparse.kron(one_norm_kron_mat, one_norm_matrix_u) @ self.phi_u_abs <= self.u_lim.flatten())
         self._problem.addConstr(self.u - sparse.kron(one_norm_kron_mat, one_norm_matrix_u) @ self.phi_u_abs >= -self.u_lim.flatten())
+
+        if in_plane_collision_setup is not None:
+            in_plane_collision_A, in_plane_collision_b = in_plane_collision_setup
+            in_plane_collision_A = np.kron(np.eye(self.prediction_horizon), in_plane_collision_A)
+            in_plane_collision_b = np.kron(np.ones(self.prediction_horizon), in_plane_collision_b)
+            self._problem.addConstr(in_plane_collision_A @ self.x + np.abs(in_plane_collision_A) @ self.one_norm_x @ self.phi_x_abs + np.abs(in_plane_collision_A) @ self.sigma >= in_plane_collision_b.flatten())
 
         self.iteration = 0
 
@@ -158,7 +172,7 @@ class Gurobi_Solver_Robust_Advanced(Gurobi_Solver):
         :param R_sqrt: Square root of input cost matrix.
         """
         obj1 = self.x @ np.kron(np.eye(self.number_of_satellites * self.prediction_horizon), Q_sqrt ** 2) @ self.x
-        obj1 += 4 * self.x[-self._nx:] @ Q_sqrt ** 2 @ self.x[-self._nx:]
+        obj1 += 4 * self.x[-self._nx:] @ np.kron(np.eye(self.number_of_satellites), Q_sqrt ** 2) @ self.x[-self._nx:]
         obj2 = self.u @ np.kron(np.eye(self.number_of_satellites * self.prediction_horizon), R_sqrt ** 2) @ self.u
         self._problem.setObjective(obj1 + obj2, gp.GRB.MINIMIZE)
 
@@ -195,7 +209,36 @@ class Gurobi_Solver_Robust_Advanced(Gurobi_Solver):
         self.constraint_list.append(self._problem.addConstr(Fx @ self.phi_x[:self.prediction_horizon * self.x_vars] == self.x))
         self.constraint_list.append(self._problem.addConstr(Fu @ self.phi_u[:self.prediction_horizon * self.u_vars] == self.u))
 
-        # print(self._model_updated)
+        if self.out_plane_collision_setup and not self.out_of_plane_dist_constraint_added:
+            lambda_diff = np.kron(np.ones(self.prediction_horizon),
+                                  np.kron(self.collision_matrix, np.array([0, 1, 0, 0, 0, 0])) @ x0)
+            self.lambda_sign = lambda_diff / np.abs(lambda_diff)
+
+            theta_diff = self.lambda_selection_matrix @ np.kron(np.ones(self.prediction_horizon), x0) - \
+                         self.Omega_selection_matrix @ self.delta_Omega_prediction.reshape((-1,)) + \
+                         self.theta_reff_diff - self.collision_vector
+
+            theta_des = theta_diff % (2 * np.pi)
+            theta_des -= (theta_des > np.pi) * 2 * np.pi
+            theta_abs = np.abs(theta_des)
+            self.theta_comp = theta_abs - theta_diff
+
+            # radius_diff = self.r_selection_matrix @ np.kron(np.ones(self.prediction_horizon), x0)
+            # self.radius_comp = -2 * radius_diff.copy()
+            # self.radius_comp[self.radius_comp < 0] = 0
+
+            self.out_plane_constraint = self._problem.addConstr(
+                self.r_selection_matrix @ self.x * self.lambda_sign + self.alpha * (
+                            self.lambda_selection_matrix @ self.x -
+                            self.Omega_selection_matrix @ self.delta_Omega_prediction.reshape((-1,)) +
+                            self.theta_reff_diff - self.collision_vector + self.theta_comp)  -
+                            np.abs(self.r_selection_matrix + self.alpha * self.lambda_selection_matrix) @ self.one_norm_x @ self.phi_x_abs -
+                            np.abs(self.r_selection_matrix + self.alpha * self.lambda_selection_matrix) @ self.sigma >= np.kron(
+                    np.ones(self.prediction_horizon), self.safety_margin))
+            self.out_of_plane_dist_constraint_added = True
+
+
+    # print(self._model_updated)
         # if self._model_updated:
         #     for constraint in self.dynamics_constraints:
         #         self._problem.remove(constraint)
@@ -244,6 +287,39 @@ class Gurobi_Solver_Robust_Advanced(Gurobi_Solver):
         for t in range(self.prediction_horizon):
             controller._Phi_x[t + 2] = self.x.X[t * self._nx:(t+1) * self._nx].reshape((-1, 1))
             controller._Phi_u[t + 1] = self.u.X[t * self._nu:(t+1) * self._nu].reshape((-1, 1))
+
+
+        if self.out_plane_collision_setup is not None and self.number_of_constraints > 0:
+            poly_deg = 15 if self.prediction_horizon > 6 else 3
+            self.delta_Omega_prediction = predict_Omega(find_delta_Omega(self.x.X[self._nx:].reshape((self.prediction_horizon - 1, -1)), self.omega_difference_start),
+                                                        deg=poly_deg)
+            Omega_differences_new = self.collision_matrix_large @ self.delta_Omega_prediction.reshape((-1, 1))
+            self.collision_vector, self.last_collision_vector_Omega = update_collision_vector(self.collision_vector,
+                                                                                              Omega_differences_new,
+                                                                                              self.last_collision_vector_Omega,
+                                                                                              self.Omega_reff_diff)
+
+            lambda_vals = self.x.X[self._nx + 1::6].reshape((self.prediction_horizon - 1, -1))
+            lamda_pred = predict_Omega(lambda_vals, deg=1)
+
+            theta_diff = (self.collision_matrix_large @ lamda_pred.reshape(
+                (-1,)) - self.Omega_selection_matrix @ self.delta_Omega_prediction.reshape(
+                (-1,)) + self.theta_reff_diff - self.collision_vector)  # % (2 * np.pi)
+            # theta_diff -= (theta_diff > np.pi) * 2 * np.pi
+            theta_des = theta_diff % (2 * np.pi)
+            theta_des -= (theta_des > np.pi) * 2 * np.pi
+            theta_abs = np.abs(theta_des)
+            self.theta_comp = theta_abs - theta_diff
+            # print(theta_comp.shape)
+
+            # radius_vals = self.x.X[2:, 0::6]
+            # radius_pred = predict_Omega(radius_vals, deg=radius_vals.shape[0] - 2)
+            # radius_diff = self.collision_matrix_large @ radius_pred.reshape((-1, ))
+            # self.radius_comp = -2 * radius_diff.copy()
+            # self.radius_comp[self.radius_comp < 0] = 0
+            self.out_plane_constraint.rhs = np.kron(np.ones(self.prediction_horizon), self.safety_margin) + self.alpha * (
+                        self.Omega_selection_matrix @ self.delta_Omega_prediction.reshape(
+                    (-1,)) - self.theta_reff_diff + self.collision_vector - self.theta_comp)
 
         # print(self.phi_u_one.X, self.phi_u.X)
         #
@@ -324,12 +400,14 @@ class Gurobi_Synthesiser_Robust_Advanced(SynthesisAlgorithm):
 
     def __init__(self, number_of_satellites: int, prediction_horizon: int, model: LTV_System,
                  reference_state: np.ndarray, state_limit: np.ndarray, input_limit: np.ndarray, robustness: Robustness,
-                 sparse: bool = True):
+                 in_plane_collision_setup=None, out_plane_collision_setup=None,
+                 omega_difference_start=None, sparse: bool = True):
         super().__init__()
 
         if sparse:
             self._solver = Gurobi_Solver_Robust_Advanced(number_of_satellites, prediction_horizon, model, reference_state,
-                                                state_limit, input_limit, robustness)
+                                                state_limit, input_limit, robustness, in_plane_collision_setup,
+                                                out_plane_collision_setup, omega_difference_start)
         self.initialised = False
 
     def create_optimisation_problem(self, Q_sqrt: np.ndarray, R_sqrt: np.ndarray, state_limit: list, input_limit: list):
@@ -363,7 +441,7 @@ class Gurobi_Synthesiser_Robust_Advanced(SynthesisAlgorithm):
         time_start = time.time()
         if not self.initialised:
             # self._solver.initialise_problem(warm_start=True, verbose=False)
-            self._solver.initialise_problem(OutputFlag=0, MIPGap=1e-8)
+            self._solver.initialise_problem(OutputFlag=0, MIPGap=1e-6)
             self.initialised = True
 
         self._solver.update_x0(time_since_start)

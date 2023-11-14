@@ -35,6 +35,9 @@ class Controller(ABC):
         self.dynamics = system_dynamics
         self.all_angle_states = None
         self.total_solver_time = 0
+        self.in_plane_collision_setup = None
+        self.out_plane_collision_setup = None
+        self.delta_Omega_start = None
 
     @abstractmethod
     def create_system(self, number_of_systems: int) -> None:
@@ -189,3 +192,26 @@ class Controller(ABC):
                                  legend_name=f"SLS_prediction_{satellite_number}", figure=figure, linestyle='--')
 
         return figure
+
+    def set_in_plane_setup(self, in_plane_setup) -> None:
+        """
+        Set the in-plane setup.
+        :param in_plane_setup: Tuple with A and b such that Ax >= b.
+        """
+        self.in_plane_collision_setup = in_plane_setup
+
+    def set_out_plane_setup(self, out_plane_setup) -> None:
+        """
+        Set the out-of-plane setup.
+        :param: out_plane_setup: Tuple with A and b such that Ax >= b.
+        """
+        self.out_plane_collision_setup = out_plane_setup
+
+    def set_delta_Omega_start(self, delta_Omega_start) -> None:
+        """
+        Set delta_Omega_start.
+        :param delta_Omega_start: delta_Omega at the start of the simulation.
+        """
+        delta_Omega_0 = delta_Omega_start % (2 * np.pi)
+        delta_Omega_0 -= (delta_Omega_0 > np.pi) * 2 * np.pi
+        self.delta_Omega_start = delta_Omega_0

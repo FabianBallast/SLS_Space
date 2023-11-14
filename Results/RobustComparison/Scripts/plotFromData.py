@@ -5,7 +5,9 @@ import numpy as np
 
 linestyle_dict = {'NO': {'color': 'red', 'linestyle': 'solid', 'marker': 'None'},
                   "SIMPLE": {'color': 'green', 'linestyle': 'dotted', 'marker': 'None'},
-                  'ADVANCED': {'color': 'blue', 'linestyle': 'dashed', 'marker': 'None'}}
+                  'ADVANCED': {'color': 'blue', 'linestyle': 'dashed', 'marker': 'None'},
+                  'FAST': {'color': 'blue', 'linestyle': 'dashed', 'marker': 'None'},
+                  'EXACT': {'color': 'red', 'linestyle': 'solid', 'marker': 'None'}}
 
 satellite_dict = {'robustness': [0],
                   'robustness_noise': [0]}
@@ -15,7 +17,9 @@ plot_duration = {'robustness': 20,
 
 legend_dict = {'NO': 'Standard SLS',
                'SIMPLE': 'Original Lumped SLS',
-               'ADVANCED': "New Lumped SLS"}
+               'ADVANCED': "New Lumped SLS",
+               'FAST': 'QP formulation',
+               'EXACT': 'Exact formulation'}
 
 
 def plot_data_comparison(plot_name: str) -> None:
@@ -36,8 +40,8 @@ def plot_data_comparison(plot_name: str) -> None:
                 with open(os.path.join("../Data", file), 'rb') as f:
                     orbital_sim = pickle.load(f)
 
-                    print(method)
-                    print(orbital_sim.find_metric_values())
+                    # print(method)
+                    # print(orbital_sim.find_metric_values())
                     fig_list[0] = orbital_sim.plot_main_states(figure=fig_list[0], satellite_indices=satellite_dict[type],
                                                                **linestyle_dict[method], legend_name=legend_dict[method],
                                                                plot_duration=plot_duration[type])
@@ -110,6 +114,22 @@ def plot_sigma_comparison(state: int):
                 fig.savefig(f'../Figures/sigma_comparison.eps')
 
 
+def plot_exact_comparison():
+    """
+    Create a plot with the comparison between exact and fast model.
+    """
+    fig = None
+    for file in os.listdir("../Data"):
+        if file.startswith('exact_fast_comp'):
+            method = file.removeprefix('exact_fast_comp_ADVANCED_')
+            with open(os.path.join("../Data", file), 'rb') as f:
+                orbital_sim = pickle.load(f)
+                fig = orbital_sim.plot_main_states(figure=fig, satellite_indices=satellite_dict['robustness_noise'],
+                                                    **linestyle_dict[method], legend_name=legend_dict[method],
+                                                    plot_duration=plot_duration['robustness_noise'])
+
+    fig.savefig('../Figures/exact_fast_comp.eps')
+
 def plot_all() -> None:
     """
     Plot and save all plots.
@@ -121,8 +141,9 @@ def plot_all() -> None:
 
 
 if __name__ == '__main__':
-    plot_data_comparison('robustness_noise')
+    # plot_data_comparison('robustness_noise')
     # plot_projection_comparison()
+    plot_exact_comparison()
     # plot_j2_comparison()
     # plot_all()
     # plot_sigma_comparison(2)

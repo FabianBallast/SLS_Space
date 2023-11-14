@@ -26,15 +26,27 @@ class Blend(TranslationalDynamics):
         # print(self.r2ey)
 
         self.state_size = 6
-        if not scenario.j2_comparison:
-            self.param = DynamicParameters(state_limit=[0.1, 10, self.mean_motion / 100 * self.theta2ex, 0.01 * self.r2ey, 0.15, 0.15],
+        if not scenario.j2_comparison and not scenario.collision_avoidance:
+            self.param = DynamicParameters(state_limit=[0.1, 10, self.mean_motion / 100 * self.theta2ex, 0.01 * self.r2ey, 0.2, 0.2],
                                            input_limit=[0.1, 0.1, 0.1],
                                            q_sqrt=np.diag(np.array([5, 50, 100 / self.theta2ex, 50 / self.r2ey, 10, 10])),
                                            r_sqrt_scalar=1e-2,
                                            slack_variable_length=0,
                                            slack_variable_costs=[1000000, 0, 0, 0, 0, 0],
-                                           planetary_distance=np.deg2rad(5)
+                                           planetary_distance=np.deg2rad(5),
+                                           inter_planetary_distance=0.01
                                            )
+        elif scenario.collision_avoidance:
+            self.param = DynamicParameters(
+                state_limit=[0.1, 10, self.mean_motion / 100 * self.theta2ex, 0.01 * self.r2ey, 0.2, 0.2],
+                input_limit=[0.1, 0.1, 0.1],
+                q_sqrt=np.diag(np.array([5, 50, 100 / self.theta2ex, 50 / self.r2ey, 10, 10])),
+                r_sqrt_scalar=1e-2,
+                slack_variable_length=0,
+                slack_variable_costs=[1000000, 0, 0, 0, 0, 0],
+                planetary_distance=np.deg2rad(5),
+                inter_planetary_distance=0.01
+                )
         else:
             self.param = DynamicParameters(
                 state_limit=[0.1, 10, self.mean_motion / 10 * self.theta2ex, 0.1 * self.r2ey, 1, 1],
