@@ -27,7 +27,7 @@ class Blend(TranslationalDynamics):
 
         self.state_size = 6
         if not scenario.j2_comparison and not scenario.collision_avoidance:
-            self.param = DynamicParameters(state_limit=[0.1, 10, self.mean_motion / 100 * self.theta2ex, 0.01 * self.r2ey, 0.2, 0.2],
+            self.param = DynamicParameters(state_limit=[0.1, 10, self.mean_motion / 100 * self.theta2ex, 0.01 * self.r2ey, 1, 1],
                                            input_limit=[0.1, 0.1, 0.1],
                                            q_sqrt=np.diag(np.array([5, 50, 100 / self.theta2ex, 50 / self.r2ey, 10, 10])),
                                            r_sqrt_scalar=1e-2,

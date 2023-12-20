@@ -4,14 +4,16 @@ from Scenarios.ScenarioHandler import ScenarioHandler
 from Results.ModelComparison.Scripts.plotFromData import plot_data_comparison
 import pickle
 
-scenarios_to_run = [ScenarioEnum.j2_scenario_moving_HCW_scaled,
+scenarios_to_run = [#ScenarioEnum.j2_scenario_moving_HCW_scaled,
                     ScenarioEnum.j2_scenario_moving_ROE_scaled,
-                    ScenarioEnum.j2_scenario_translation_blend_scaled]
+                    #ScenarioEnum.j2_scenario_translation_blend_scaled
+    ]
 
 main_naming_identifier = 'single_plane_j2'
-scenario_name_list = ['HCW',
+scenario_name_list = [#'HCW',
                       'ROE',
-                      'BLEND']
+                      #'BLEND'
+    ]
 satellites_to_plot = None
 
 print(f"{main_naming_identifier}: starting")
@@ -34,5 +36,5 @@ plot_data_comparison(main_naming_identifier)
 
 
 print(f"{main_naming_identifier}: done")
-# plt.show()
+plt.show()
 

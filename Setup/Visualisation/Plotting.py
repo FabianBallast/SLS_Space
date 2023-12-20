@@ -66,7 +66,7 @@ def create_3d_plot(max_distance: int, unit_label: str = 'km') -> tuple[plt.figur
     ax.set_xlabel(f'x [{unit_label}]')
     ax.set_ylabel(f'y [{unit_label}]')
     ax.set_zlabel(f'z [{unit_label}]')
-    ax.scatter(0.0, 0.0, 0.0, label="Earth", marker='o', color='blue')
+    # ax.scatter(0.0, 0.0, 0.0, label="Earth", marker='o', color='blue')
     ax.set_xlim(-max_distance, max_distance)
     ax.set_ylim(-max_distance, max_distance)
     ax.set_zlim(-max_distance, max_distance)
@@ -197,12 +197,12 @@ def plot_3d_position(position: np.ndarray, state_label_name: str, figure: plt.fi
     else:
         ax = figure.get_axes()[0]
 
-    # Plot the positional state history
+     # Plot the positional state history
     ax.scatter(position[:, 0] / scaling_factor, position[:, 1] / scaling_factor, position[:, 2] / scaling_factor,
                label=state_label_name, marker='o', **kwargs)
 
     # Add the legend
-    ax.legend()
+    # ax.legend()
 
     return figure
 

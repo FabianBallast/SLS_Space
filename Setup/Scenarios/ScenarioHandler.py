@@ -499,10 +499,10 @@ class ScenarioHandler:
             if print_progress and t / self.t_horizon_control * 100 > progress:
                 print(f"Progress: {int(t / self.t_horizon_control * 100 / 5) * 5}%")
 
-                orbital_sim_temp = self.export_results()
-                file_name = f'../Data/Temp/orbital_sim_{progress}'
-                with open(file_name, 'wb') as file:
-                    pickle.dump(orbital_sim_temp, file)
+                # orbital_sim_temp = self.export_results()
+                # file_name = f'../Data/Temp/orbital_sim_{progress}'
+                # with open(file_name, 'wb') as file:
+                #     pickle.dump(orbital_sim_temp, file)
 
                 progress = int(t / self.t_horizon_control * 100 / 5) * 5 + 5
 

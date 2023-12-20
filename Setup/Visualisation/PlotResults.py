@@ -11,7 +11,7 @@ mpl.rcParams["mathtext.fontset"] = 'cm'  # Better font for LaTex
 def plot_onto_axes(states: np.ndarray, time: np.ndarray, axes_list: list[plt.axes], is_angle: list[bool],
                    y_label_names: list[str], legend_names: list[str | None], unwrap_angles: bool = True,
                    states2plot: list[int] = None, xlabel_plot: list[int] = None, y_lim: list[float] = None,
-                   constraint_value: int | float = None, **kwargs) -> None:
+                   constraint_value: list[int] | list[float] = None, **kwargs) -> None:
     """
     Plot states on the provided axes with a given label and legend label name.
     :param states: The states (y-component) to be plotted.
@@ -29,11 +29,11 @@ def plot_onto_axes(states: np.ndarray, time: np.ndarray, axes_list: list[plt.axe
     """
     for idx, axes in enumerate(axes_list):
         state_idx = states2plot[idx]
-        if constraint_value is None:
+        if constraint_value is None or constraint_value[idx] is None:
             state = states[:, state_idx]
         else:
             state = states
-            axes.plot([min(time), max(time)], [constraint_value, constraint_value], 'r--', label='constraint')
+            axes.plot([min(time), max(time)], [constraint_value, constraint_value], 'r--', label='Constraint')
             axes.legend(fontsize=12, loc='upper right')
 
         # If it is an angle, unwrap and convert to deg
@@ -64,7 +64,8 @@ def plot_onto_axes(states: np.ndarray, time: np.ndarray, axes_list: list[plt.axe
 
 
 def plot_main_states_report(states: np.ndarray, timestep: float, legend_name: str = None,
-                            figure: plt.figure = None, states2plot: list[int] = None, **kwargs) -> plt.figure:
+                            figure: plt.figure = None, states2plot: list[int] = None,
+                            plot_radial_constraint: bool = False, **kwargs) -> plt.figure:
     """
     Method to plot the main states over time.
 
@@ -89,8 +90,78 @@ def plot_main_states_report(states: np.ndarray, timestep: float, legend_name: st
     y_label_list = [r'$\delta r\mathrm{\;[m]}$', r'$\delta\theta\mathrm{\;[deg]}$', r'$\delta \Omega \mathrm{\;[deg]}$']
     legend_names = [legend_name] + [None] * 2
     # print(legend_names)
+    constraint_limits = [None] * 3
+    if plot_radial_constraint:
+        constraint_limits[0] = 0.1
     plot_onto_axes(states, time_hours, list(axes), is_angle_list, y_label_list, legend_names,
-                   states2plot=states2plot, xlabel_plot=[2], **kwargs)
+                   states2plot=states2plot, constraint_value=constraint_limits, xlabel_plot=[2], **kwargs)
+
+    return fig
+
+
+def plot_main_states_theta_Omega_report(states: np.ndarray, timestep: float, legend_name: str = None,
+                            figure: plt.figure = None, states2plot: list[int] = None,
+                            plot_radial_constraint: bool = False, **kwargs) -> plt.figure:
+    """
+    Method to plot the main states over time.
+
+    :param states: 2D-array with the quasi ROE states over time with shape (t, 3).
+    :param timestep: Amount of time between each state in s.
+    :param legend_name: Name to place as a label for the legend.
+    :param figure: Figure to plot the states into. If not provided, a new one is created.
+    :param kwargs: Kwargs for plotting purposes.
+    :return: Figure with the added blend states.
+    """
+    time_hours = get_time_axis(states, timestep)
+
+    if states2plot is None:
+        fig, axes = get_figure_and_axes(figure, (2, 1), sharex=True)
+        states2plot = [0, 1]
+    else:
+        fig, axes = get_figure_and_axes(figure, (1, len(states2plot)))
+
+    # fig.suptitle('Evolution of states.')
+
+    is_angle_list = [True, True]
+    y_label_list = [r'$\delta\theta\mathrm{\;[deg]}$', r'$\delta \Omega \mathrm{\;[deg]}$']
+    legend_names = [legend_name] + [None] * 1
+    # print(legend_names)
+    constraint_limits = [None] * 2
+    if plot_radial_constraint:
+        constraint_limits[0] = 0.1
+    plot_onto_axes(states, time_hours, list(axes), is_angle_list, y_label_list, legend_names,
+                   states2plot=states2plot, constraint_value=constraint_limits, xlabel_plot=[1], **kwargs)
+
+    return fig
+
+def plot_radius_theta_report(states: np.ndarray, timestep: float, legend_name: str = None,
+                             figure: plt.figure = None, states2plot: list[int] = None, **kwargs) -> plt.figure:
+    """
+    Method to plot the main states over time.
+
+    :param states: 2D-array with the quasi ROE states over time with shape (t, 3).
+    :param timestep: Amount of time between each state in s.
+    :param legend_name: Name to place as a label for the legend.
+    :param figure: Figure to plot the states into. If not provided, a new one is created.
+    :param kwargs: Kwargs for plotting purposes.
+    :return: Figure with the added blend states.
+    """
+    time_hours = get_time_axis(states, timestep)
+
+    if states2plot is None:
+        fig, axes = get_figure_and_axes(figure, (2, 1), sharex=True)
+        states2plot = [0, 1]
+    else:
+        fig, axes = get_figure_and_axes(figure, (1, len(states2plot)))
+
+    # fig.suptitle('Evolution of states.')
+
+    is_angle_list = [False, True, True]
+    y_label_list = [r'$\delta r\mathrm{\;[m]}$', r'$\delta\theta\mathrm{\;[deg]}$']
+    legend_names = [legend_name] + [None] * 1
+    # print(legend_names)
+    plot_onto_axes(states, time_hours, list(axes), is_angle_list, y_label_list, legend_names,
+                   states2plot=states2plot, xlabel_plot=[1], **kwargs)
 
     return fig
 
@@ -155,6 +226,69 @@ def plot_inputs_report(inputs: np.ndarray, timestep: float, legend_name: str = N
 
     plot_onto_axes(inputs, time_hours, list(axes), is_angle_list, y_label_list, legend_names,
                    states2plot=states2plot, xlabel_plot=[2], **kwargs)
+
+    return fig
+
+def plot_planar_inputs_report(inputs: np.ndarray, timestep: float, legend_name: str = None,
+                              figure: plt.figure = None, states2plot: list[int] = None, **kwargs) -> plt.figure:
+    """
+    Method to plot the inputs over time.
+
+    :param inputs: 2D-array with the quasi ROE states over time with shape (t, 6).
+    :param timestep: Amount of time between each state in s.
+    :param legend_name: Name to place as a label for the legend.
+    :param figure: Figure to plot the states into. If not provided, a new one is created.
+    :param kwargs: Kwargs for plotting purposes.
+    :return: Figure with the added blend states.
+    """
+    time_hours = get_time_axis(inputs, timestep)
+
+    if states2plot is None:
+        fig, axes = get_figure_and_axes(figure, (2, 1), sharex=True)
+        states2plot = [0, 1]
+    else:
+        fig, axes = get_figure_and_axes(figure, (1, len(states2plot)))
+
+    # fig.suptitle('Control inputs')
+
+    is_angle_list = [False, False]
+    y_label_list = [r'$u_r \mathrm{\;[N]}$', r'$u_t\mathrm{\;[N]}$']
+    legend_names = [legend_name] + [None] * 1
+
+    plot_onto_axes(inputs, time_hours, list(axes), is_angle_list, y_label_list, legend_names,
+                   states2plot=states2plot, xlabel_plot=[1], **kwargs)
+
+    return fig
+
+
+def plot_radial_inputs_report(inputs: np.ndarray, timestep: float, legend_name: str = None,
+                              figure: plt.figure = None, states2plot: list[int] = None, **kwargs) -> plt.figure:
+    """
+    Method to plot the inputs over time.
+
+    :param inputs: 2D-array with the quasi ROE states over time with shape (t, 6).
+    :param timestep: Amount of time between each state in s.
+    :param legend_name: Name to place as a label for the legend.
+    :param figure: Figure to plot the states into. If not provided, a new one is created.
+    :param kwargs: Kwargs for plotting purposes.
+    :return: Figure with the added blend states.
+    """
+    time_hours = get_time_axis(inputs, timestep)
+
+    if states2plot is None:
+        fig, axes = get_figure_and_axes(figure, (1, 1), sharex=True)
+        states2plot = [0]
+    else:
+        fig, axes = get_figure_and_axes(figure, (1, len(states2plot)))
+
+    # fig.suptitle('Control inputs')
+
+    is_angle_list = [False]
+    y_label_list = [r'$u_r \mathrm{\;[N]}$']
+    legend_names = [legend_name]
+
+    plot_onto_axes(inputs, time_hours, list(axes), is_angle_list, y_label_list, legend_names,
+                   states2plot=states2plot, xlabel_plot=[0], **kwargs)
 
     return fig
 
@@ -399,7 +533,7 @@ def plot_in_plane_constraints(values: np.ndarray, timestep, figure: plt.figure =
     # print(legend_names)
     # print(np.arange(269)[np.any(values > 100, axis=0)])
     plot_onto_axes(values, time_hours, list(axes), is_angle_list, y_label_list, legend_names,
-                   states2plot=states2plot, xlabel_plot=[0], constraint_value=5, y_lim=y_lim, **kwargs)
+                   states2plot=states2plot, xlabel_plot=[0], constraint_value=[5], y_lim=y_lim, **kwargs)
 
     return fig
 
@@ -422,6 +556,6 @@ def plot_out_of_plane_constraints(values: np.ndarray, timestep, figure: plt.figu
     # print(legend_names)
     # print(np.arange(269)[np.any(values > 100, axis=0)])
     plot_onto_axes(values, time_hours, list(axes), is_angle_list, y_label_list, legend_names,
-                   states2plot=states2plot, xlabel_plot=[0], constraint_value=0.01, y_lim=y_lim, **kwargs)
+                   states2plot=states2plot, xlabel_plot=[0], constraint_value=[0.01], y_lim=y_lim, **kwargs)
 
     return fig

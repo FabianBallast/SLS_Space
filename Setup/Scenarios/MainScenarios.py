@@ -117,7 +117,7 @@ class ScenarioEnum(Enum):
     j2_scenario_moving_HCW_scaled = TranslationalScenario(physics_scenario=PhysicsScenarios.advanced_grav_physics_scaled,
                                                           initial_state_scenario=InitialStateScenarios.small_state_error,
                                                           control_scenario=ControlParameterScenarios.control_position_fine,
-                                                          simulation_scenario=SimulationScenarios.sim_30_minute,
+                                                          simulation_scenario=SimulationScenarios.sim_1_hour,
                                                           number_of_satellites=10)
     j2_scenario_moving_ROE = TranslationalScenario(physics_scenario=PhysicsScenarios.advanced_grav_physics,
                                                    model=Model.ROE,
@@ -125,7 +125,7 @@ class ScenarioEnum(Enum):
     j2_scenario_moving_ROE_scaled = TranslationalScenario(physics_scenario=PhysicsScenarios.advanced_grav_physics_scaled,
                                                           initial_state_scenario=InitialStateScenarios.small_state_error,
                                                           model=Model.ROE,
-                                                          simulation_scenario=SimulationScenarios.sim_30_minute,
+                                                          simulation_scenario=SimulationScenarios.sim_1_hour,
                                                           number_of_satellites=10,
                                                           control_scenario=ControlParameterScenarios.control_position_fine)
 
@@ -180,7 +180,7 @@ class ScenarioEnum(Enum):
         initial_state_scenario=InitialStateScenarios.small_state_error,
         model=Model.BLEND,
         number_of_satellites=10,
-        simulation_scenario=SimulationScenarios.sim_30_minute,
+        simulation_scenario=SimulationScenarios.sim_1_hour,
         control_scenario=ControlParameterScenarios.control_position_fine,
         orbital_scenario=OrbitalScenarios.tilted_orbit_45deg
     )
@@ -208,7 +208,7 @@ class ScenarioEnum(Enum):
     j2_scenario_moving_HCW_2_orbits = TranslationalScenario(physics_scenario=PhysicsScenarios.advanced_grav_physics_scaled,
                                                             initial_state_scenario=InitialStateScenarios.small_state_error,
                                                             control_scenario=ControlParameterScenarios.control_position_fine,
-                                                            simulation_scenario=SimulationScenarios.sim_1_5_hour,
+                                                            simulation_scenario=SimulationScenarios.sim_2_5_hour,
                                                             number_of_satellites=10,
                                                             orbital_scenario=OrbitalScenarios.tilted_orbit_45deg_group_2_close)
 
@@ -216,7 +216,7 @@ class ScenarioEnum(Enum):
         physics_scenario=PhysicsScenarios.advanced_grav_physics_scaled,
         initial_state_scenario=InitialStateScenarios.small_state_error,
         control_scenario=ControlParameterScenarios.control_position_fine,
-        simulation_scenario=SimulationScenarios.sim_1_5_hour,
+        simulation_scenario=SimulationScenarios.sim_2_5_hour,
         number_of_satellites=10,
         orbital_scenario=OrbitalScenarios.tilted_orbit_45deg_group_2_close,
         model=Model.BLEND)
@@ -225,7 +225,7 @@ class ScenarioEnum(Enum):
         physics_scenario=PhysicsScenarios.advanced_grav_physics_scaled,
         initial_state_scenario=InitialStateScenarios.small_state_error,
         control_scenario=ControlParameterScenarios.control_position_fine,
-        simulation_scenario=SimulationScenarios.sim_1_5_hour,
+        simulation_scenario=SimulationScenarios.sim_2_5_hour,
         number_of_satellites=10,
         orbital_scenario=OrbitalScenarios.tilted_orbit_45deg_group_2_close,
         model=Model.ROE)
@@ -542,131 +542,11 @@ class ScenarioEnum(Enum):
         collision_avoidance=True
     )
 
-#
-# simple_scenario_attitude = {'orbital': OrbitalScenarios.arbitrary_orbit.value,
-#                             'physics': PhysicsScenarios.basic_physics.value,
-#                             'simulation': simulation_scenarios['sim_1_minute'],
-#                             'initial_state': initial_state_scenarios['no_state_error'],
-#                             'control': control_scenarios['control_attitude_default'],
-#                             'number_of_sats': 3,
-#                             'model': Model.ATTITUDE}
-#
-# simple_scenario_attitude_scaled = {'orbital': orbital_scenarios['arbitrary_orbit'],
-#                                    'physics': physics_scenarios['basic_physics_scaled'],
-#                                    'simulation': simulation_scenarios['sim_1_minute'],
-#                                    'initial_state': initial_state_scenarios['no_state_error'],
-#                                    'control': control_scenarios['control_attitude_default'],
-#                                    'number_of_sats': 3,
-#                                    'model': Model.ATTITUDE}
-#
-# advanced_scenario_attitude = {'orbital': orbital_scenarios['arbitrary_orbit'],
-#                               'physics': physics_scenarios['advanced_grav_physics'],
-#                               'simulation': simulation_scenarios['sim_1_minute'],
-#                               'initial_state': initial_state_scenarios['large_state_error'],
-#                               'control': control_scenarios['control_attitude_default'],
-#                               'number_of_sats': 3,
-#                               'model': Model.ATTITUDE}
-#
-# advanced_scenario_attitude_scaled = {'orbital': orbital_scenarios['arbitrary_orbit'],
-#                                      'physics': physics_scenarios['advanced_grav_physics_scaled'],
-#                                      'simulation': simulation_scenarios['sim_1_minute'],
-#                                      'initial_state': initial_state_scenarios['large_state_error'],
-#                                      'control': control_scenarios['control_attitude_default'],
-#                                      'number_of_sats': 3,
-#                                      'model': Model.ATTITUDE}
-#
-# position_keeping_scenario_translation_HCW = {'orbital': orbital_scenarios['tilted_orbit_45deg'],
-#                                              'physics': physics_scenarios['basic_physics'],
-#                                              'simulation': simulation_scenarios['sim_10_minute'],
-#                                              'initial_state': initial_state_scenarios['no_state_error'],
-#                                              'control': control_scenarios['control_position_default'],
-#                                              'number_of_sats': 5,
-#                                              'model': Model.HCW}
-#
-# position_keeping_scenario_translation_HCW_scaled = {'orbital': orbital_scenarios['tilted_orbit_45deg'],
-#                                                     'physics': physics_scenarios['basic_physics_scaled'],
-#                                                     'simulation': simulation_scenarios['sim_10_minute'],
-#                                                     'initial_state': initial_state_scenarios['no_state_error'],
-#                                                     'control': control_scenarios['control_position_default'],
-#                                                     'number_of_sats': 5,
-#                                                     'model': Model.HCW}
-#
-# position_keeping_scenario_translation_ROE = {'orbital': orbital_scenarios['tilted_orbit_45deg'],
-#                                              'physics': physics_scenarios['basic_physics'],
-#                                              'simulation': simulation_scenarios['sim_10_minute'],
-#                                              'initial_state': initial_state_scenarios['no_state_error'],
-#                                              'control': control_scenarios['control_position_default'],
-#                                              'number_of_sats': 5,
-#                                              'model': Model.ROE}
-#
-# position_keeping_scenario_translation_ROE_scaled = {'orbital': orbital_scenarios['tilted_orbit_45deg'],
-#                                                     'physics': physics_scenarios['basic_physics_scaled'],
-#                                                     'simulation': simulation_scenarios['sim_10_minute'],
-#                                                     'initial_state': initial_state_scenarios['no_state_error'],
-#                                                     'control': control_scenarios['control_position_default'],
-#                                                     'number_of_sats': 5,
-#                                                     'model': Model.ROE}
-#
-# simple_scenario_translation_HCW = {'orbital': orbital_scenarios['tilted_orbit_45deg'],
-#                                    'physics': physics_scenarios['basic_physics'],
-#                                    'simulation': simulation_scenarios['sim_1_hour'],
-#                                    'initial_state': initial_state_scenarios['small_state_error'],
-#                                    'control': control_scenarios['control_position_default'],
-#                                    'number_of_sats': 5,
-#                                    'model': Model.HCW}
-#
-# simple_scenario_translation_HCW_scaled = {'orbital': orbital_scenarios['tilted_orbit_45deg'],
-#                                           'physics': physics_scenarios['basic_physics_scaled'],
-#                                           'simulation': simulation_scenarios['sim_10_minute'],
-#                                           'initial_state': initial_state_scenarios['small_state_error'],
-#                                           'control': control_scenarios['control_position_default'],
-#                                           'number_of_sats': 5,
-#                                           'model': Model.HCW}
-#
-# simple_scenario_translation_ROE = {'orbital': orbital_scenarios['tilted_orbit_45deg'],
-#                                    'physics': physics_scenarios['basic_physics'],
-#                                    'simulation': simulation_scenarios['sim_10_minute'],
-#                                    'initial_state': initial_state_scenarios['small_state_error'],
-#                                    'control': control_scenarios['control_position_default'],
-#                                    'number_of_sats': 5,
-#                                    'model': Model.ROE}
-#
-# simple_scenario_translation_ROE_scaled = {'orbital': orbital_scenarios['tilted_orbit_45deg'],
-#                                           'physics': physics_scenarios['basic_physics_scaled'],
-#                                           'simulation': simulation_scenarios['sim_10_minute'],
-#                                           'initial_state': initial_state_scenarios['small_state_error'],
-#                                           'control': control_scenarios['control_position_default'],
-#                                           'number_of_sats': 5,
-#                                           'model': Model.ROE}
-#
-# medium_scenario_translation_HCW = {'orbital': orbital_scenarios['tilted_orbit_45deg'],
-#                                    'physics': physics_scenarios['advanced_grav_physics'],
-#                                    'simulation': simulation_scenarios['sim_1_hour'],
-#                                    'initial_state': initial_state_scenarios['small_state_error'],
-#                                    'control': control_scenarios['control_position_default'],
-#                                    'number_of_sats': 5,
-#                                    'model': Model.HCW}
-#
-# medium_scenario_translation_ROE = {'orbital': orbital_scenarios['tilted_orbit_45deg'],
-#                                    'physics': physics_scenarios['advanced_grav_physics'],
-#                                    'simulation': simulation_scenarios['sim_1_hour'],
-#                                    'initial_state': initial_state_scenarios['small_state_error'],
-#                                    'control': control_scenarios['control_position_default'],
-#                                    'number_of_sats': 5,
-#                                    'model': Model.ROE}
-#
-# advanced_scenario_translation_HCW = {'orbital': orbital_scenarios['tilted_orbit_45deg'],
-#                                      'physics': physics_scenarios['full_physics'],
-#                                      'simulation': simulation_scenarios['sim_1_hour'],
-#                                      'initial_state': initial_state_scenarios['large_state_error'],
-#                                      'control': control_scenarios['control_position_default'],
-#                                      'number_of_sats': 5,
-#                                      'model': Model.HCW}
-#
-# advanced_scenario_translation_ROE = {'orbital': orbital_scenarios['tilted_orbit_45deg'],
-#                                      'physics': physics_scenarios['full_physics'],
-#                                      'simulation': simulation_scenarios['sim_1_hour'],
-#                                      'initial_state': initial_state_scenarios['large_state_error'],
-#                                      'control': control_scenarios['control_position_default'],
-#                                      'number_of_sats': 5,
-#                                      'model': Model.ROE}
+    blend_model_Omega_lim = TranslationalScenario(
+        physics_scenario=PhysicsScenarios.advanced_grav_physics_scaled,
+        initial_state_scenario=InitialStateScenarios.no_state_error,
+        model=Model.BLEND,
+        number_of_satellites=24,
+        simulation_scenario=SimulationScenarios.sim_7_hour,
+        control_scenario=ControlParameterScenarios.control_position_fine,
+        orbital_scenario=OrbitalScenarios.Omega_lim_orbit)

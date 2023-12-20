@@ -6,7 +6,7 @@ from Utils.CollisionAngles import find_collision_angles
 mu = 100
 orbit_param = [55, 0, np.deg2rad(45)] # a, e, i
 
-Omegas = np.deg2rad(np.linspace(0, 360, num=15, endpoint=False))
+Omegas = np.deg2rad(np.linspace(0, 360, num=7, endpoint=False))
 
 theta_arr = np.linspace(0, 2 * np.pi, endpoint=True, num=100)
 
@@ -30,11 +30,11 @@ for i, plane in enumerate(Omegas):
 
 figure = plt.figure(figsize=(6, 6), dpi=150)
 ax = figure.add_subplot(111, projection='3d')
-ax.set_title(f'Satellite trajectories around Earth')
+# ax.set_title(f'Satellite trajectories around Earth')
 ax.set_xlabel(f'x [m]')
 ax.set_ylabel(f'y [m]')
 ax.set_zlabel(f'z [m]')
-ax.scatter(0.0, 0.0, 0.0, label="Earth", marker='o', color='blue')
+# ax.scatter(0.0, 0.0, 0.0, label="Earth", marker='o', color='blue')
 ax.set_xlim(-60, 60)
 ax.set_ylim(-60, 60)
 ax.set_zlim(-60, 60)
@@ -47,4 +47,5 @@ for i, plane in enumerate(Omegas):
         ax.plot(specific_points[i, j, 0], specific_points[i, j, 1], specific_points[i, j, 2], 'ro')
 
 # plt.legend()
+figure.savefig('orbits_7.eps')
 plt.show()

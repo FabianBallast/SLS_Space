@@ -24,7 +24,7 @@ states = None
 # scenario = ScenarioEnum.simple_scenario_translation_HCW_scaled
 
 # scenario = ScenarioEnum.simple_scenario_translation_ROE
-# scenario = ScenarioEnum.simple_scenario_translation_ROE_scaled
+scenario = ScenarioEnum.simple_scenario_translation_ROE_scaled
 
 # scenario = ScenarioEnum.j2_scenario_pos_keep_HCW
 # scenario = ScenarioEnum.j2_scenario_pos_keep_HCW_scaled
@@ -68,10 +68,13 @@ states = None
 
 # Large
 # scenario = ScenarioEnum.large_scenario_nominal
-scenario = ScenarioEnum.large_scenario_robust_constraint_noise
+# scenario = ScenarioEnum.large_scenario_robust_constraint_noise
 
 # Collisions
 # scenario = ScenarioEnum.collision_test_out_of_plane
+
+# Individual tests
+# scenario = ScenarioEnum.blend_model_Omega_lim
 
 # Setup
 scenario_handler = ScenarioHandler(scenario.value)
@@ -115,13 +118,13 @@ orbital_sim = scenario_handler.export_results()
 orbital_sim.plot_controller_states(figure=states)
 # orbital_sim.plot_model_errors(scenario_handler.controller.x_states)
 
-# orbital_sim.plot_main_states()
+orbital_sim.plot_main_states()
 #
 # if scenario_handler.scenario.collision_avoidance is False:
 #     scenario_handler.scenario.collision_avoidance = True
 #     scenario_handler.init_sim()
-orbital_sim.plot_out_of_plane_constraints()
-orbital_sim.plot_in_plane_constraints()
+# orbital_sim.plot_out_of_plane_constraints()
+# orbital_sim.plot_in_plane_constraints()
 # orbital_sim.plot_side_states()
 # orbital_sim.plot_inputs()
 

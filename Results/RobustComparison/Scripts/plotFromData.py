@@ -15,9 +15,9 @@ satellite_dict = {'robustness': [0],
 plot_duration = {'robustness': 20,
                  'robustness_noise': 20}
 
-legend_dict = {'NO': 'Standard SLS',
-               'SIMPLE': 'Original Lumped SLS',
-               'ADVANCED': "New Lumped SLS",
+legend_dict = {'NO': 'Nominal',
+               'SIMPLE': 'Robust Old',
+               'ADVANCED': "Robust New",
                'FAST': 'QP formulation',
                'EXACT': 'Exact formulation'}
 
@@ -33,7 +33,7 @@ def plot_data_comparison(plot_name: str) -> None:
 
     for fig_search in fig_search_list:
         for file in os.listdir("../Data"):
-            if file.startswith(plot_name) and file.endswith(fig_search):
+            if file.startswith(plot_name + "_" + fig_search):
                 method = file.removeprefix(plot_name + "_")
                 end = file.removeprefix(plot_name)
                 type = file.removesuffix(end).removesuffix('_kepler').removesuffix('_j2')
@@ -54,9 +54,10 @@ def plot_data_comparison(plot_name: str) -> None:
                                                           **linestyle_dict[method], legend_name=legend_dict[method],
                                                           plot_duration=plot_duration[type])
 
-                    fig_list[3] = orbital_sim.plot_radius_zoomed(figure=fig_list[3], satellite_indices=satellite_dict[type],
-                                                                 **linestyle_dict[method], legend_name=legend_dict[method],
-                                                                 plot_duration=plot_duration[type])
+                    if fig_search != "SIMPLE":
+                        fig_list[3] = orbital_sim.plot_radius_zoomed(figure=fig_list[3], satellite_indices=satellite_dict[type],
+                                                                     **linestyle_dict[method], legend_name=legend_dict[method],
+                                                                     plot_duration=plot_duration[type])
 
                     fig_list[4] = orbital_sim.plot_ex(figure=fig_list[4], satellite_indices=satellite_dict[type],
                                                                  **linestyle_dict[method], legend_name=legend_dict[method],
@@ -140,11 +141,39 @@ def plot_all() -> None:
             plot_individual_results(file.removesuffix('_inputs.eps'))
 
 
+def plot_presentation(plot_name: str) -> None:
+    """
+    Plot for presentation.
+
+    :param plot_name: The name of the plot (with corresponding data names).
+    """
+    fig_name_list = ['radius', 'radial_input']
+    fig_list = [None] * len(fig_name_list)
+
+    for file in os.listdir("../Data"):
+        if file.startswith(plot_name):
+            method = file.removeprefix(plot_name + "_")
+            end = file.removeprefix(plot_name)
+            # type = file.removesuffix(end).removesuffix('_kepler').removesuffix('_j2')
+            with open(os.path.join("../Data", file), 'rb') as f:
+                print(file)
+                orbital_sim = pickle.load(f)
+                fig_list[0] = orbital_sim.plot_radius(figure=fig_list[0], satellite_indices=[0],
+                                                       **linestyle_dict[method], legend_name=legend_dict[method],
+                                                       plot_duration=20)
+
+                fig_list[1] = orbital_sim.plot_radial_input(figure=fig_list[1], satellite_indices=[0],
+                                                          **linestyle_dict[method], legend_name=legend_dict[method],
+                                                          plot_duration=20)
+
+
 if __name__ == '__main__':
-    # plot_data_comparison('robustness_noise')
+    # plot_data_comparison('robustness')
+    # plot_individual_results('robustness')
     # plot_projection_comparison()
-    plot_exact_comparison()
+    # plot_exact_comparison()
     # plot_j2_comparison()
     # plot_all()
     # plot_sigma_comparison(2)
+    plot_presentation('robustness_noise')
     plt.show()

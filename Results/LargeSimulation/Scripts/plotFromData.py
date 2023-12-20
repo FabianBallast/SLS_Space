@@ -20,6 +20,7 @@ def plot_theta_Omega(plot_name: str) -> None:
         if file.startswith(plot_name):
             with open(os.path.join("../Data", file), 'rb') as f:
                 orbital_sim = pickle.load(f)
+
                 fig = orbital_sim.plot_theta_Omega()
                 # orbital_sim.plot_out_of_plane_constraints()
                 # orbital_sim.plot_in_plane_constraints()
@@ -39,14 +40,14 @@ def plot_individual_results(plot_name: str) -> None:
             method = file.removeprefix(plot_name + "_")
             with open(os.path.join("../Data", file), 'rb') as f:
                 orbital_sim = pickle.load(f)
-                # fig = orbital_sim.plot_controller_states()
-                # fig.savefig(f'../Figures/{plot_name}_states.eps')
-                #
-                # fig = orbital_sim.plot_inputs()
-                # fig.savefig(f'../Figures/{plot_name}_inputs.eps')
+                fig = orbital_sim.plot_controller_states()
+                fig.savefig(f'../Figures/{plot_name}_states.eps')
 
-                fig = orbital_sim.plot_radius()
-                fig.savefig(f'../Figures/{plot_name}_radius.eps')
+                fig = orbital_sim.plot_inputs()
+                fig.savefig(f'../Figures/{plot_name}_inputs.eps')
+
+                # fig = orbital_sim.plot_radius()
+                # fig.savefig(f'../Figures/{plot_name}_radius.eps')
 
 
 def plot_constraints(plot_name: str) -> None:
@@ -84,8 +85,18 @@ def plot_all() -> None:
 
 
 if __name__ == '__main__':
-    # plot_theta_Omega('large_sim_nominal_ca_no_noise_no')
-    plot_individual_results('large_sim_nominal_ca_yes_noise_no')
+    plot_theta_Omega('large_sim_robust')
+    # plot_individual_results('large_sim_nominal_ca_no_noise_no')
+    # plot_individual_results('large_sim_nominal_ca_yes_noise_yes')
+    # plot_individual_results('large_sim_robust')
     # plot_constraints('large_sim_nominal_ca_no_noise_no')
     # plot_all()
+    an = None
+    # plt.rcParams['animation.ffmpeg_path'] = '/opt/local/bin/ffmpeg'
+    for file in os.listdir("../Data"):
+        if file.startswith('large_sim_robust'):
+            with open(os.path.join("../Data", file), 'rb') as f:
+                orbital_sim = pickle.load(f)
+                an = orbital_sim.create_animation()
+
     plt.show()

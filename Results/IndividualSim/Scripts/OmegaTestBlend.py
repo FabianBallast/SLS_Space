@@ -1,18 +1,13 @@
-import matplotlib.pyplot as plt
 from Scenarios.MainScenarios import ScenarioEnum
 from Scenarios.ScenarioHandler import ScenarioHandler
-from Results.ModelComparison.Scripts.plotFromData import plot_data_comparison
 import pickle
+import matplotlib.pyplot as plt
+# from Results.LargeSimulation.Scripts.plotFromData import plot_theta_Omega
 
-scenarios_to_run = [#ScenarioEnum.j2_scenario_moving_HCW_2_orbits,
-                    ScenarioEnum.j2_scenario_moving_ROE_2_orbits,
-                    #ScenarioEnum.j2_scenario_moving_blend_2_orbits
-    ]
+scenarios_to_run = [ScenarioEnum.blend_model_Omega_lim]
 
-main_naming_identifier = 'double_plane_j2'
-scenario_name_list = [#'HCW',
-                      'ROE',
-                      'BLEND']
+main_naming_identifier = 'blend_model_Omega_lim'
+scenario_name_list = ['all']
 satellites_to_plot = None
 
 print(f"{main_naming_identifier}: starting")
@@ -23,7 +18,7 @@ for idx, scenario in enumerate(scenarios_to_run):
     scenario_handler.create_storage_variables()
 
     # Run simulation
-    scenario_handler.simulate_system_closed_loop(print_progress=False)
+    scenario_handler.simulate_system_closed_loop(print_progress=True)
     orbital_sim = scenario_handler.export_results()
 
     # Save orbital sim with all data
@@ -31,9 +26,14 @@ for idx, scenario in enumerate(scenarios_to_run):
     with open(file_name, 'wb') as file:
         pickle.dump(orbital_sim, file)
 
-plot_data_comparison(main_naming_identifier)
-
+# plot_theta_Omega(main_naming_identifier + '_' + scenario_name_list[0])
+# plt.show()
 
 print(f"{main_naming_identifier}: done")
-plt.show()
+
+
+
+
+
+
 

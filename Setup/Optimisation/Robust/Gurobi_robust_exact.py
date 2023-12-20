@@ -193,7 +193,10 @@ def time_optimisation(number_of_satellites: int, prediction_horizon: int = None,
 
     # Simulate in closed loop
     t_0 = 0
-    nsim = 11
+    if number_of_satellites >= 5:
+        nsim = 4
+    else:
+        nsim = 11
     runtime = 0
     states = np.zeros((problem['nx'], nsim + 1))
     states[:, 0] = problem['x0']
@@ -267,4 +270,5 @@ def time_optimisation(number_of_satellites: int, prediction_horizon: int = None,
 
 
 if __name__ == '__main__':
-    time_optimisation(3, prediction_horizon=6, plot_results=True)
+    for sats in [11, 12, 13, 14, 15]:
+        time_optimisation(sats, prediction_horizon=6, plot_results=False)

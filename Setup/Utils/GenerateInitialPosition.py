@@ -80,8 +80,12 @@ def generate_anomalies_and_longitudes(number_of_dropouts: int, longitude_list: l
 
             return np.deg2rad(sorted_start_state_vector[:, 0]).tolist(), \
                    (sorted_start_state_vector[:, 1]).tolist(), order_matrix_end
-        else:
+        elif number_of_dropouts > 0:
             return angles_sorted[:, 0].tolist(), longitudes_selected.tolist(), []
+        else:
+            angles_sorted = np.array([[np.deg2rad(15)]] * number_of_systems)
+            longitude_list = [180] * number_of_systems
+            return angles_sorted[:, 0].tolist(), longitude_list, []
 
 
 def generate_reference(number_of_systems: int, anomaly_list: list[float], longitude_list: list[float]):

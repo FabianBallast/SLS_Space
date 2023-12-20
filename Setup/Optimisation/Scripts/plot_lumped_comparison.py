@@ -43,15 +43,15 @@ for idx, axes in enumerate(axes):
         constraint_nominal = np.rad2deg(constraint_nominal)
 
     # Plot data
-    axes.plot(state_lumped, 'b', label='state lumped SLS')
-    axes.plot(state_nominal, 'r', label='state nominal SLS')
+    axes.plot(state_lumped, 'b', label='State ILSLS')
+    axes.plot(state_nominal, 'r', label='State SLS')
 
-    axes.plot(constraint_lumped, 'b--', label='constraint lumped SLS')
+    axes.plot(constraint_lumped, 'b--', label='Constraint ILSLS')
     # print(state, constraint)
     axes.plot(-constraint_lumped, 'b--')
 
 
-    axes.plot(constraint_nominal, 'r--', label='constraint nominal SLS')
+    axes.plot(constraint_nominal, 'r--', label='Constraint SLS')
     # print(state, constraint)
     axes.plot(-constraint_nominal, 'r--')
 
@@ -84,14 +84,14 @@ for idx, axes in enumerate(axes):
 
 
     # Plot data
-    axes.plot(input_lumped, 'b', label='input lumped SLS')
-    axes.plot(input_nominal, 'r', label='input nominal SLS')
-    axes.plot(constraint_lumped, 'b--', label='constraint lumped SLS')
+    axes.plot(input_lumped, 'b', label='Input ILSLS')
+    axes.plot(input_nominal, 'r', label='Input SLS')
+    axes.plot(constraint_lumped, 'b--', label='Constraint ILSLS')
     # print(state, constraint)
     axes.plot(-constraint_lumped, 'b--')
 
 
-    axes.plot(constraint_nominal, 'r--', label='constraint nominal SLS')
+    axes.plot(constraint_nominal, 'r--', label='Constraint SLS')
     # print(state, constraint)
     axes.plot(-constraint_nominal, 'r--')
 

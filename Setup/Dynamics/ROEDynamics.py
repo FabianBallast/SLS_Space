@@ -232,7 +232,7 @@ class QuasiROE(TranslationalDynamics):
 
         self.use_j2_term_model = scenario.use_j2_term_model
 
-        if self.is_scaled and not self.J2_active:
+        if self.is_scaled and False:
             self.param = DynamicParameters(state_limit=[0.1 / self.orbit_radius, 100, 0.002, 0.002, 0.05, 1],
                                            input_limit=[0.1, 0.1, 0.1],
                                            q_sqrt=np.diag(np.array([5 * self.orbit_radius, 50, 200, 200, 15, 15])),
@@ -240,9 +240,9 @@ class QuasiROE(TranslationalDynamics):
                                            slack_variable_length=0,
                                            slack_variable_costs=[10000, 0, 0, 0, 0, 0])
         elif self.is_scaled:
-            self.param = DynamicParameters(state_limit=[0.1 / self.orbit_radius, 100, 0.002, 0.002, 0.05, 1],
+            self.param = DynamicParameters(state_limit=[0.045 / self.orbit_radius, 100, 0.001 / np.sqrt(2), 0.001 / np.sqrt(2), np.deg2rad(1), 1],
                                            input_limit=[0.1, 0.1, 0.1],
-                                           q_sqrt=np.diag(np.array([5 * self.orbit_radius, 50, 200, 200, 15, 15])),
+                                           q_sqrt=np.diag(np.array([5 * self.orbit_radius, 50, 200, 200, 500, 500])),
                                            r_sqrt_scalar=1e-2,
                                            slack_variable_length=0,
                                            slack_variable_costs=[10000, 0, 0, 0, 0, 0])
